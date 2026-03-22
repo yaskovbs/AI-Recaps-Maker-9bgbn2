@@ -53,7 +53,7 @@
 
 @layer base {
   * {
-    @apply border-cog-300;
+    @apply border-border;
   }
   body {
     @apply bg-steam-900 text-brass-100;
