@@ -1,0 +1,273 @@
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700;900&family=Inter:wght@300;400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 0 0% 3.9%;
+    --card: 0 0% 100%;
+    --card-foreground: 0 0% 3.9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 0 0% 3.9%;
+    --primary: 24 75% 55%;
+    --primary-foreground: 0 0% 98%;
+    --secondary: 0 0% 96.1%;
+    --secondary-foreground: 0 0% 9%;
+    --muted: 0 0% 96.1%;
+    --muted-foreground: 0 0% 45.1%;
+    --accent: 0 0% 96.1%;
+    --accent-foreground: 0 0% 9%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 0 0% 89.8%;
+    --input: 0 0% 89.8%;
+    --ring: 24 75% 55%;
+    --radius: 0.5rem;
+  }
+
+  .dark {
+    --background: 222 47% 11%;
+    --foreground: 0 0% 98%;
+    --card: 222 47% 11%;
+    --card-foreground: 0 0% 98%;
+    --popover: 222 47% 11%;
+    --popover-foreground: 0 0% 98%;
+    --primary: 24 75% 55%;
+    --primary-foreground: 0 0% 9%;
+    --secondary: 217 33% 17%;
+    --secondary-foreground: 0 0% 98%;
+    --muted: 217 33% 17%;
+    --muted-foreground: 0 0% 63.9%;
+    --accent: 217 33% 17%;
+    --accent-foreground: 0 0% 98%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 217 33% 17%;
+    --input: 217 33% 17%;
+    --ring: 24 75% 55%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-cog-300;
+  }
+  body {
+    @apply bg-steam-900 text-brass-100;
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
+}
+
+/* RTL Support */
+[dir="rtl"] {
+  direction: rtl;
+}
+
+[dir="ltr"] {
+  direction: ltr;
+}
+
+/* Steampunk custom styles */
+.steampunk-card {
+  @apply bg-gradient-to-br from-brass-800/90 to-copper-900/90 backdrop-blur-sm border-2 border-brass-600/50 rounded-lg shadow-brass;
+}
+
+.steampunk-button {
+  @apply bg-gradient-to-r from-brass-600 to-copper-600 hover:from-brass-500 hover:to-copper-500 text-white font-semibold rounded-lg shadow-brass transition-all duration-300 transform hover:scale-105 active:scale-95;
+}
+
+.steampunk-input {
+  @apply bg-steam-900/50 border-2 border-brass-600/30 rounded-md text-white placeholder-brass-300/50 focus:border-brass-500 focus:ring-2 focus:ring-brass-500/20 transition-all;
+}
+
+.gear-decoration {
+  @apply animate-spin-slow opacity-20;
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 12px;
+}
+
+::-webkit-scrollbar-track {
+  @apply bg-steam-900;
+}
+
+::-webkit-scrollbar-thumb {
+  @apply bg-brass-600 rounded-full hover:bg-brass-500;
+}
+
+/* Glass morphism effect */
+.glass-morphism {
+  background: rgba(42, 68, 100, 0.7);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid rgba(212, 124, 71, 0.2);
+}
+
+/* Glow effect */
+.glow-brass {
+  box-shadow: 0 0 20px rgba(212, 124, 71, 0.5),
+              0 0 40px rgba(212, 124, 71, 0.3),
+              0 0 60px rgba(212, 124, 71, 0.1);
+}
+
+.glow-steam {
+  box-shadow: 0 0 20px rgba(75, 125, 176, 0.5),
+              0 0 40px rgba(75, 125, 176, 0.3),
+              0 0 60px rgba(75, 125, 176, 0.1);
+}
+
+/* Advanced Steampunk Animations */
+@keyframes float {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+.animate-float {
+  animation: float 3s ease-in-out infinite;
+}
+
+@keyframes gear-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes gear-spin-reverse {
+  from {
+    transform: rotate(360deg);
+  }
+  to {
+    transform: rotate(0deg);
+  }
+}
+
+@keyframes steam-rise {
+  0% {
+    transform: translateY(0) scale(1);
+    opacity: 0.8;
+  }
+  50% {
+    transform: translateY(-20px) scale(1.1);
+    opacity: 0.4;
+  }
+  100% {
+    transform: translateY(-40px) scale(1.2);
+    opacity: 0;
+  }
+}
+
+@keyframes pulse-glow {
+  0%, 100% {
+    box-shadow: 0 0 10px rgba(212, 124, 71, 0.5);
+  }
+  50% {
+    box-shadow: 0 0 20px rgba(212, 124, 71, 0.8), 0 0 30px rgba(212, 124, 71, 0.4);
+  }
+}
+
+@keyframes slide-in-right {
+  from {
+    transform: translateX(-100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+@keyframes slide-in-left {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+.gear-decoration {
+  animation: gear-spin 20s linear infinite;
+}
+
+.gear-decoration-reverse {
+  animation: gear-spin-reverse 15s linear infinite;
+}
+
+.steam-effect {
+  animation: steam-rise 3s ease-out infinite;
+}
+
+.pulse-glow {
+  animation: pulse-glow 2s ease-in-out infinite;
+}
+
+.slide-in-rtl {
+  animation: slide-in-right 0.5s ease-out;
+}
+
+.slide-in-ltr {
+  animation: slide-in-left 0.5s ease-out;
+}
+
+/* Gear Spin Animations */
+@keyframes gear-spin-clockwise {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes gear-spin-counterclockwise {
+  from {
+    transform: rotate(360deg);
+  }
+  to {
+    transform: rotate(0deg);
+  }
+}
+
+.gear-container {
+  position: relative;
+  display: inline-block;
+}
+
+/* Steampunk Background Gradient */
+.bg-steampunk-gradient {
+  background: linear-gradient(135deg, #1a2332 0%, #2a4464 50%, #1a2332 100%);
+  background-size: 200% 200%;
+  animation: gradient-shift 15s ease infinite;
+}
+
+@keyframes gradient-shift {
+  0%, 100% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+}
+
+/* AdSense Container Styling */
+.adsense-container {
+  @apply my-6 flex justify-center;
+}
+
+.adsense-container ins {
+  @apply rounded-lg overflow-hidden border border-brass-700/20;
+}
