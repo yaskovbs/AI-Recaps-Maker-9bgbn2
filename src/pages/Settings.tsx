@@ -11,6 +11,7 @@ export default function Settings() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const [showKeys, setShowKeys] = useState(false);
+  const [showKeyValues, setShowKeyValues] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [saveMessage, setSaveMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
@@ -56,10 +57,9 @@ export default function Settings() {
     try {
       const { keys, error } = await apiKeysService.loadKeys(user.id);
       if (error) {
-        console.error('Error loading keys:', error);
-      } else {
-        setApiKeys(keys);
+        console.warn('API keys DB unavailable, using local backup:', error);
       }
+      setApiKeys(keys);
     } catch (error) {
       console.error('Error loading keys:', error);
     } finally {
@@ -263,18 +263,18 @@ export default function Settings() {
                 </label>
                 <div className="relative">
                   <input
-                    type={showKeys ? 'text' : 'password'}
+                    type={showKeyValues ? 'text' : 'password'}
                     value={apiKeys.youtube || ''}
                     onChange={(e) => setApiKeys({ ...apiKeys, youtube: e.target.value })}
                     placeholder="AIzaSy..."
                     className="w-full bg-steam-900/50 border border-brass-600/30 rounded-lg p-3 pr-12 text-brass-200 focus:outline-none focus:ring-2 focus:ring-brass-500"
                   />
                   <button
-                    onClick={() => setShowKeys(!showKeys)}
+                    onClick={() => setShowKeyValues(!showKeyValues)}
                     className="absolute left-3 top-1/2 -translate-y-1/2 text-brass-400 hover:text-brass-200"
                     type="button"
                   >
-                    {showKeys ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                    {showKeyValues ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                   </button>
                 </div>
                 {keyHints.youtube && (
@@ -288,7 +288,7 @@ export default function Settings() {
                   {t.settings.api.googleSearch}
                 </label>
                 <input
-                  type={showKeys ? 'text' : 'password'}
+                  type={showKeyValues ? 'text' : 'password'}
                   value={apiKeys.googleSearch || ''}
                   onChange={(e) => setApiKeys({ ...apiKeys, googleSearch: e.target.value })}
                   placeholder="AIzaSy..."
@@ -305,7 +305,7 @@ export default function Settings() {
                   Search Engine ID
                 </label>
                 <input
-                  type={showKeys ? 'text' : 'password'}
+                  type={showKeyValues ? 'text' : 'password'}
                   value={apiKeys.searchEngineId || ''}
                   onChange={(e) => setApiKeys({ ...apiKeys, searchEngineId: e.target.value })}
                   placeholder="cx:..."
@@ -322,7 +322,7 @@ export default function Settings() {
                   {t.settings.api.gemini}
                 </label>
                 <input
-                  type={showKeys ? 'text' : 'password'}
+                  type={showKeyValues ? 'text' : 'password'}
                   value={apiKeys.gemini || ''}
                   onChange={(e) => setApiKeys({ ...apiKeys, gemini: e.target.value })}
                   placeholder="AIzaSy..."
@@ -352,7 +352,7 @@ export default function Settings() {
                   )}
                 </button>
                 <button
-                  onClick={() => setShowKeys(false)}
+                  onClick={() => { setShowKeys(false); setShowKeyValues(false); }}
                   className="steampunk-button-secondary px-6"
                 >
                   <Lock className="w-5 h-5" />

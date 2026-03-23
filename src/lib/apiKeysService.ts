@@ -23,13 +23,28 @@ export interface APIKeysData {
   gemini?: string;
 }
 
+// Map between provider names and APIKeysData field names
+const PROVIDER_TO_FIELD: Record<string, keyof APIKeysData> = {
+  youtube: 'youtube',
+  google_search: 'googleSearch',
+  search_engine_id: 'searchEngineId',
+  gemini: 'gemini',
+};
+
+const FIELD_TO_PROVIDER: Record<string, string> = {
+  youtube: 'youtube',
+  googleSearch: 'google_search',
+  searchEngineId: 'search_engine_id',
+  gemini: 'gemini',
+};
+
 class APIKeysService {
   // Simple XOR encryption (for demo - use proper encryption in production)
   private encrypt(text: string): string {
     return btoa(
       text
         .split('')
-        .map((char, i) => 
+        .map((char, i) =>
           String.fromCharCode(char.charCodeAt(0) ^ ENCRYPTION_KEY.charCodeAt(i % ENCRYPTION_KEY.length))
         )
         .join('')
@@ -40,7 +55,7 @@ class APIKeysService {
     try {
       return atob(encrypted)
         .split('')
-        .map((char, i) => 
+        .map((char, i) =>
           String.fromCharCode(char.charCodeAt(0) ^ ENCRYPTION_KEY.charCodeAt(i % ENCRYPTION_KEY.length))
         )
         .join('');
@@ -53,6 +68,78 @@ class APIKeysService {
   private createHint(key: string): string {
     if (key.length < 8) return '***';
     return `${key.substring(0, 4)}...${key.substring(key.length - 6)}`;
+  }
+
+  // Load keys from localStorage backup
+  private loadFromLocalStorage(): APIKeysData {
+    try {
+      const backup = localStorage.getItem('airm_api_keys_backup');
+      if (backup) {
+        const decrypted = this.decrypt(backup);
+        return JSON.parse(decrypted);
+      }
+    } catch {
+      // Backup corrupted, ignore
+    }
+    return {};
+  }
+
+  // Save keys to localStorage
+  private saveToLocalStorage(keys: APIKeysData): void {
+    try {
+      localStorage.setItem('airm_api_keys_backup', this.encrypt(JSON.stringify(keys)));
+    } catch (e) {
+      console.warn('Failed to save API keys to localStorage:', e);
+    }
+  }
+
+  // Save hints to localStorage
+  private saveHintsToLocalStorage(keys: APIKeysData): void {
+    try {
+      const hints: Record<string, string> = {};
+      const providers = [
+        { provider: 'youtube', key: keys.youtube },
+        { provider: 'google_search', key: keys.googleSearch },
+        { provider: 'search_engine_id', key: keys.searchEngineId },
+        { provider: 'gemini', key: keys.gemini },
+      ];
+      for (const { provider, key } of providers) {
+        if (key && key.trim()) {
+          hints[provider] = this.createHint(key);
+        }
+      }
+      localStorage.setItem('airm_api_key_hints', JSON.stringify(hints));
+    } catch (e) {
+      console.warn('Failed to save key hints to localStorage:', e);
+    }
+  }
+
+  // Load hints from localStorage
+  private loadHintsFromLocalStorage(): Record<string, string> {
+    try {
+      const stored = localStorage.getItem('airm_api_key_hints');
+      if (stored) {
+        return JSON.parse(stored);
+      }
+    } catch {
+      // Corrupted, ignore
+    }
+
+    // Last resort: generate from stored keys
+    const keys = this.loadFromLocalStorage();
+    const hints: Record<string, string> = {};
+    const providers = [
+      { provider: 'youtube', key: keys.youtube },
+      { provider: 'google_search', key: keys.googleSearch },
+      { provider: 'search_engine_id', key: keys.searchEngineId },
+      { provider: 'gemini', key: keys.gemini },
+    ];
+    for (const { provider, key } of providers) {
+      if (key && key.trim()) {
+        hints[provider] = this.createHint(key);
+      }
+    }
+    return hints;
   }
 
   // Validate API key format (basic validation)
@@ -79,7 +166,7 @@ class APIKeysService {
     return { valid: true };
   }
 
-  // Save API keys to database
+  // Save API keys - localStorage first (always works), then DB (best effort)
   async saveKeys(userId: string, keys: APIKeysData): Promise<{ success: boolean; error?: string }> {
     try {
       const providers = [
@@ -89,40 +176,48 @@ class APIKeysService {
         { provider: 'gemini', key: keys.gemini },
       ];
 
+      // 1. Validate all keys first
       for (const { provider, key } of providers) {
         if (key && key.trim()) {
-          // Validate format
           const validation = this.validateKeyFormat(provider, key);
           if (!validation.valid) {
             return { success: false, error: `${provider}: ${validation.error}` };
           }
-
-          // Encrypt and save
-          const encryptedKey = this.encrypt(key);
-          const keyHint = this.createHint(key);
-
-          // Upsert (update if exists, insert if not)
-          const { error } = await supabase
-            .from('api_keys')
-            .upsert(
-              {
-                user_id: userId,
-                provider,
-                encrypted_key: encryptedKey,
-                key_hint: keyHint,
-                is_active: true,
-              },
-              {
-                onConflict: 'user_id,provider',
-              }
-            );
-
-          if (error) throw error;
         }
       }
 
-      // Also save to localStorage as backup
-      localStorage.setItem('airm_api_keys_backup', this.encrypt(JSON.stringify(keys)));
+      // 2. Save to localStorage FIRST (primary, always works)
+      this.saveToLocalStorage(keys);
+      this.saveHintsToLocalStorage(keys);
+
+      // 3. Try DB save (best effort, don't fail if DB is unavailable)
+      try {
+        for (const { provider, key } of providers) {
+          if (key && key.trim()) {
+            const encryptedKey = this.encrypt(key);
+            const keyHint = this.createHint(key);
+
+            const { error } = await supabase
+              .from('api_keys')
+              .upsert(
+                {
+                  user_id: userId,
+                  provider,
+                  encrypted_key: encryptedKey,
+                  key_hint: keyHint,
+                  is_active: true,
+                },
+                {
+                  onConflict: 'user_id,provider',
+                }
+              );
+
+            if (error) throw error;
+          }
+        }
+      } catch (dbError) {
+        console.warn('DB save failed (keys saved to localStorage):', dbError);
+      }
 
       return { success: true };
     } catch (error: any) {
@@ -131,8 +226,9 @@ class APIKeysService {
     }
   }
 
-  // Load API keys from database
+  // Load API keys - try DB first, fall back to localStorage
   async loadKeys(userId: string): Promise<{ keys: APIKeysData; error?: string }> {
+    // Try DB first
     try {
       const { data, error } = await supabase
         .from('api_keys')
@@ -142,50 +238,33 @@ class APIKeysService {
 
       if (error) throw error;
 
-      const keys: APIKeysData = {};
-
       if (data && data.length > 0) {
+        const keys: APIKeysData = {};
+
         for (const record of data) {
           const decryptedKey = this.decrypt(record.encrypted_key);
-          
-          switch (record.provider) {
-            case 'youtube':
-              keys.youtube = decryptedKey;
-              break;
-            case 'google_search':
-              keys.googleSearch = decryptedKey;
-              break;
-            case 'search_engine_id':
-              keys.searchEngineId = decryptedKey;
-              break;
-            case 'gemini':
-              keys.gemini = decryptedKey;
-              break;
+          const field = PROVIDER_TO_FIELD[record.provider];
+          if (field) {
+            keys[field] = decryptedKey;
           }
         }
-      } else {
-        // Try loading from localStorage backup
-        const backup = localStorage.getItem('airm_api_keys_backup');
-        if (backup) {
-          try {
-            const decrypted = this.decrypt(backup);
-            const parsed = JSON.parse(decrypted);
-            return { keys: parsed };
-          } catch {
-            // Backup corrupted, ignore
-          }
-        }
-      }
 
-      return { keys };
-    } catch (error: any) {
-      console.error('Error loading API keys:', error);
-      return { keys: {}, error: error.message || 'Failed to load API keys' };
+        // Refresh localStorage backup from DB data
+        this.saveToLocalStorage(keys);
+        return { keys };
+      }
+    } catch (dbError) {
+      console.warn('DB load failed, using localStorage:', dbError);
     }
+
+    // Fallback: localStorage
+    const keys = this.loadFromLocalStorage();
+    return { keys };
   }
 
   // Get key hints (for display purposes)
   async getKeyHints(userId: string): Promise<Record<string, string>> {
+    // Try DB first
     try {
       const { data, error } = await supabase
         .from('api_keys')
@@ -195,22 +274,44 @@ class APIKeysService {
 
       if (error) throw error;
 
-      const hints: Record<string, string> = {};
-      if (data) {
+      if (data && data.length > 0) {
+        const hints: Record<string, string> = {};
         for (const record of data) {
           hints[record.provider] = record.key_hint;
         }
+        return hints;
       }
-
-      return hints;
-    } catch (error) {
-      console.error('Error getting key hints:', error);
-      return {};
+    } catch (dbError) {
+      console.warn('DB hints failed, using localStorage:', dbError);
     }
+
+    // Fallback: localStorage
+    return this.loadHintsFromLocalStorage();
   }
 
   // Delete a specific API key
   async deleteKey(userId: string, provider: string): Promise<boolean> {
+    // Remove from localStorage
+    const keys = this.loadFromLocalStorage();
+    const field = PROVIDER_TO_FIELD[provider];
+    if (field) {
+      delete keys[field];
+      this.saveToLocalStorage(keys);
+    }
+
+    // Remove from hints localStorage
+    try {
+      const hintsStr = localStorage.getItem('airm_api_key_hints');
+      if (hintsStr) {
+        const hints = JSON.parse(hintsStr);
+        delete hints[provider];
+        localStorage.setItem('airm_api_key_hints', JSON.stringify(hints));
+      }
+    } catch {
+      // ignore
+    }
+
+    // Try DB delete (best effort)
     try {
       const { error } = await supabase
         .from('api_keys')
@@ -219,11 +320,11 @@ class APIKeysService {
         .eq('provider', provider);
 
       if (error) throw error;
-      return true;
-    } catch (error) {
-      console.error('Error deleting API key:', error);
-      return false;
+    } catch (dbError) {
+      console.warn('DB delete failed:', dbError);
     }
+
+    return true;
   }
 
   // Validate API key by making a test request
