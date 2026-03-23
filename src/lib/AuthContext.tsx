@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { supabase } from './supabase';
+import { supabase, isGoogleOAuthConfigured, googleClientId } from './supabase';
 import type { User as SupabaseUser } from '@supabase/supabase-js';
 
 interface User {
@@ -151,8 +151,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const loginWithGoogle = async () => {
     try {
+      // Check if Google OAuth credentials are configured
+      if (!isGoogleOAuthConfigured) {
+        console.warn('⚠️ Google OAuth credentials not configured in .env file (VITE_GOOGLE_CLIENT_ID, VITE_GOOGLE_CLIENT_SECRET)');
+        console.warn('⚠️ Also make sure credentials are configured in OnSpace/Supabase dashboard under Auth > Providers > Google');
+      }
+
       console.log('🔵 Starting Google OAuth login...');
       console.log('🔵 Redirect URL:', window.location.origin);
+      if (googleClientId) {
+        console.log('🔵 Using Google Client ID:', googleClientId.substring(0, 20) + '...');
+      }
 
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
@@ -168,12 +177,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       if (error) {
         console.error('❌ Google OAuth error:', error);
-        
+
         // Check if it's a configuration error
         if (error.message.includes('not enabled') || error.message.includes('provider')) {
-          throw new Error('Google OAuth לא מוגדר במערכת. אנא פנה למנהל המערכת להגדרת Google Client ID & Secret');
+          throw new Error(
+            'Google OAuth לא מוגדר במערכת. יש להגדיר VITE_GOOGLE_CLIENT_ID ו-VITE_GOOGLE_CLIENT_SECRET בקובץ .env ' +
+            'וגם בלוח הבקרה של OnSpace/Supabase תחת Auth > Providers > Google'
+          );
         }
-        
+
         throw error;
       }
 

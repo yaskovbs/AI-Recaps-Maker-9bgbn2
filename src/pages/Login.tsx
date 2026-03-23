@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '@/lib/AuthContext';
 import { useLanguage } from '@/lib/LanguageContext';
+import { isGoogleOAuthConfigured } from '@/lib/supabase';
 import { Lock, Mail, LogIn, Sparkles, Chrome } from 'lucide-react';
 import GearAnimation from '@/components/steampunk/GearAnimation';
 import SteamEffect from '@/components/steampunk/SteamEffect';
@@ -45,7 +46,7 @@ export default function Login() {
       
       // Show user-friendly error
       if (errorMessage.includes('not enabled') || errorMessage.includes('לא מוגדר')) {
-        setError('⚠️ Google OAuth לא מוגדר במערכת.\n\nצעדים לפתרון:\n1. OnSpace Cloud Dashboard → User → Auth Settings\n2. הפעל Google Provider\n3. הזן Google Client ID & Secret\n4. שמור והמתן דקה\n5. נסה שוב');
+        setError('⚠️ Google OAuth לא מוגדר במערכת.\n\nצעדים לפתרון:\n1. הגדר VITE_GOOGLE_CLIENT_ID ו-VITE_GOOGLE_CLIENT_SECRET בקובץ .env\n2. OnSpace Cloud Dashboard → User → Auth Settings\n3. הפעל Google Provider\n4. הזן Google Client ID & Secret\n5. שמור והמתן דקה\n6. נסה שוב');
       } else {
         setError(errorMessage);
       }
