@@ -2,7 +2,6 @@ import React from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import Header from '@/components/layout/Header';
 import Footer from '@/components/layout/Footer';
-import SidebarAds from '@/components/ads/SidebarAds';
 
 // Pages
 import Home from '@/pages/Home';
@@ -25,7 +24,6 @@ import Gallery from '@/pages/Gallery';
 function App() {
   return (
     <div className="flex flex-col min-h-screen bg-steampunk-gradient">
-      <SidebarAds />
       <Header />
       <main className="flex-1">
         <Routes>

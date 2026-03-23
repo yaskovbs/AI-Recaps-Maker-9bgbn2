@@ -27,6 +27,7 @@ export default function Settings() {
   const [pin, setPin] = useState('');
   const [continuousLearning, setContinuousLearning] = useState(true);
   const [globalLearning, setGlobalLearning] = useState(false);
+  const [isLoadingPrefs, setIsLoadingPrefs] = useState(false);
 
   // Notification Settings
   const [notifications, setNotifications] = useState<NotificationPreferences>({
@@ -37,12 +38,13 @@ export default function Settings() {
   });
   const [notifPermission, setNotifPermission] = useState<NotificationPermission>('default');
 
-  // Load saved keys and notifications on mount
+  // Load saved keys, notifications AND learning preferences on mount
   useEffect(() => {
     if (user) {
       loadKeys();
       loadKeyHints();
       loadNotificationSettings();
+      loadLearningPreferences();
     }
     if ('Notification' in window) {
       setNotifPermission(Notification.permission);
@@ -82,6 +84,50 @@ export default function Settings() {
     if (!user) return;
     const prefs = await notificationService.loadPreferences(user.id);
     setNotifications(prefs);
+  };
+
+  const loadLearningPreferences = async () => {
+    if (!user) return;
+    setIsLoadingPrefs(true);
+    try {
+      const { data, error } = await supabase
+        .from('user_preferences')
+        .select('continuous_learning, global_learning')
+        .eq('user_id', user.id)
+        .single();
+
+      if (error && error.code !== 'PGRST116') {
+        console.error('Error loading learning preferences:', error);
+        return;
+      }
+
+      if (data) {
+        setContinuousLearning(data.continuous_learning ?? true);
+        setGlobalLearning(data.global_learning ?? false);
+      }
+    } catch (error) {
+      console.error('Error loading learning preferences:', error);
+    } finally {
+      setIsLoadingPrefs(false);
+    }
+  };
+
+  const saveLearningPreference = async (field: 'continuous_learning' | 'global_learning', value: boolean) => {
+    if (!user) return;
+    try {
+      const { error } = await supabase
+        .from('user_preferences')
+        .upsert({
+          user_id: user.id,
+          [field]: value,
+          updated_at: new Date().toISOString(),
+        });
+
+      if (error) throw error;
+      console.log(`✅ ${field} saved:`, value);
+    } catch (error) {
+      console.error(`Error saving ${field}:`, error);
+    }
   };
 
   const handleNotificationToggle = async (key: keyof NotificationPreferences) => {
@@ -474,8 +520,13 @@ export default function Settings() {
               <input
                 type="checkbox"
                 checked={continuousLearning}
-                onChange={(e) => setContinuousLearning(e.target.checked)}
-                className="mt-1"
+                onChange={async (e) => {
+                  const newValue = e.target.checked;
+                  setContinuousLearning(newValue);
+                  await saveLearningPreference('continuous_learning', newValue);
+                }}
+                className="mt-1 w-4 h-4 accent-brass-600"
+                disabled={isLoadingPrefs}
               />
               <div className="flex-1">
                 <p className="text-brass-200 font-medium">{t.settings.learning.personal}</p>
@@ -487,8 +538,13 @@ export default function Settings() {
               <input
                 type="checkbox"
                 checked={globalLearning}
-                onChange={(e) => setGlobalLearning(e.target.checked)}
-                className="mt-1"
+                onChange={async (e) => {
+                  const newValue = e.target.checked;
+                  setGlobalLearning(newValue);
+                  await saveLearningPreference('global_learning', newValue);
+                }}
+                className="mt-1 w-4 h-4 accent-brass-600"
+                disabled={isLoadingPrefs}
               />
               <div className="flex-1">
                 <p className="text-brass-200 font-medium">{t.settings.learning.global}</p>
