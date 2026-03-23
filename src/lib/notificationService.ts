@@ -7,6 +7,15 @@ export interface NotificationPreferences {
   weeklyDigest: boolean;
 }
 
+const STORAGE_KEY = 'airm_notification_prefs';
+
+const DEFAULT_PREFS: NotificationPreferences = {
+  browserPush: false,
+  email: false,
+  recapComplete: true,
+  weeklyDigest: false,
+};
+
 class NotificationService {
   private permission: NotificationPermission = 'default';
 
@@ -14,6 +23,11 @@ class NotificationService {
     if ('Notification' in window) {
       this.permission = Notification.permission;
     }
+  }
+
+  // Check if push notifications are supported (not supported on most mobile browsers without SW)
+  isPushSupported(): boolean {
+    return 'Notification' in window;
   }
 
   async requestPermission(): Promise<boolean> {
@@ -57,7 +71,6 @@ class NotificationService {
   }
 
   async notifyRecapComplete(userId: string, recapTitle: string, videoUrl: string) {
-    // Get user preferences
     const { data: prefs } = await supabase
       .from('user_preferences')
       .select('notification_settings')
@@ -66,9 +79,8 @@ class NotificationService {
 
     const settings = prefs?.notification_settings as NotificationPreferences | null;
 
-    // Browser notification
     if (settings?.browserPush && settings?.recapComplete) {
-      await this.sendBrowserNotification('🎉 הסיכום שלך מוכן!', {
+      await this.sendBrowserNotification('הסיכום שלך מוכן!', {
         body: `הסיכום "${recapTitle}" הושלם בהצלחה. לחץ כאן לצפייה.`,
         tag: 'recap-complete',
         requireInteraction: true,
@@ -76,17 +88,38 @@ class NotificationService {
       });
     }
 
-    // Email notification (handled by backend Edge Function in production)
     if (settings?.email && settings?.recapComplete) {
       console.log('Email notification would be sent here');
-      // In production: trigger Edge Function to send email
-      // await supabase.functions.invoke('send-email', {
-      //   body: { userId, recapTitle, videoUrl }
-      // });
     }
   }
 
-  async savePreferences(userId: string, preferences: NotificationPreferences) {
+  // Save to localStorage
+  private saveToLocalStorage(preferences: NotificationPreferences): void {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(preferences));
+    } catch (e) {
+      console.warn('Failed to save notification prefs to localStorage:', e);
+    }
+  }
+
+  // Load from localStorage
+  private loadFromLocalStorage(): NotificationPreferences | null {
+    try {
+      const stored = localStorage.getItem(STORAGE_KEY);
+      if (stored) {
+        return JSON.parse(stored);
+      }
+    } catch {
+      // corrupted
+    }
+    return null;
+  }
+
+  async savePreferences(userId: string, preferences: NotificationPreferences): Promise<boolean> {
+    // 1. Save to localStorage FIRST (always works)
+    this.saveToLocalStorage(preferences);
+
+    // 2. Try DB save (best effort)
     try {
       const { error } = await supabase
         .from('user_preferences')
@@ -99,12 +132,13 @@ class NotificationService {
       if (error) throw error;
       return true;
     } catch (error) {
-      console.error('Failed to save notification preferences:', error);
-      return false;
+      console.warn('Failed to save notification preferences to DB (saved to localStorage):', error);
+      return true; // Still success because localStorage worked
     }
   }
 
   async loadPreferences(userId: string): Promise<NotificationPreferences> {
+    // 1. Try DB first
     try {
       const { data, error } = await supabase
         .from('user_preferences')
@@ -114,21 +148,24 @@ class NotificationService {
 
       if (error && error.code !== 'PGRST116') throw error;
 
-      return data?.notification_settings || {
-        browserPush: false,
-        email: false,
-        recapComplete: true,
-        weeklyDigest: false,
-      };
+      if (data?.notification_settings) {
+        const prefs = data.notification_settings as NotificationPreferences;
+        // Sync to localStorage
+        this.saveToLocalStorage(prefs);
+        return prefs;
+      }
     } catch (error) {
-      console.error('Failed to load notification preferences:', error);
-      return {
-        browserPush: false,
-        email: false,
-        recapComplete: true,
-        weeklyDigest: false,
-      };
+      console.warn('Failed to load notification preferences from DB:', error);
     }
+
+    // 2. Fallback: localStorage
+    const localPrefs = this.loadFromLocalStorage();
+    if (localPrefs) {
+      return localPrefs;
+    }
+
+    // 3. Defaults
+    return { ...DEFAULT_PREFS };
   }
 }
 

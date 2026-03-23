@@ -111,8 +111,8 @@ export const translations = {
     home: {
       hero: {
         title: 'יוצר סיכומי וידאו חכם',
-        subtitle: 'AI Video Recaps Maker',
-        description: 'הפלטפורמה המתקדמת ביותר ליצירת סיכומי וידאו אוטומטיים מונעי AI עם Google Gemini. צור, ערוך ופרסם סיכומי סרטים וסדרות בקלות ובמהירות.',
+        subtitle: 'AI Recaps Maker For Movies & TV Shows Recaps',
+        description: 'הפלטפורמה המתקדמת ביותר ליצירת סיכומי סרטים וסדרות טלוויזיה אוטומטיים מונעי AI עם Google Gemini. צור, ערוך ופרסם סיכומי וידאו בקלות ובמהירות.',
         cta: 'התחל עכשיו',
         byok: 'BYOK - הבא את המפתח שלך',
         learnMore: 'למד עוד',
@@ -558,9 +558,9 @@ export const translations = {
     // Home
     home: {
       hero: {
-        title: 'AI Video Recaps Maker',
-        subtitle: 'Intelligent Video Summarization',
-        description: 'The most advanced platform for creating AI-powered automatic video summaries with Google Gemini. Create, edit, and publish movie and series recaps easily and quickly.',
+        title: 'AI Recaps Maker',
+        subtitle: 'AI Recaps Maker For Movies & TV Shows Recaps',
+        description: 'The most advanced platform for creating AI-powered automatic movie and TV show recaps with Google Gemini. Create, edit, and publish video recaps easily and quickly.',
         cta: 'Get Started',
         byok: 'BYOK - Bring Your Own Key',
         learnMore: 'Learn More',

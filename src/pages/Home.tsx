@@ -114,7 +114,7 @@ export default function Home() {
               <span className="block text-brass-200 glow-brass drop-shadow-[0_2px_10px_rgba(212,124,71,0.5)]">
                 {t.home.hero.title}
               </span>
-              <span className="block text-3xl md:text-4xl mt-4 text-copper-300 drop-shadow-[0_2px_8px_rgba(214,100,69,0.4)]">
+              <span className="block text-2xl md:text-3xl mt-4 text-copper-300 drop-shadow-[0_2px_8px_rgba(214,100,69,0.4)]">
                 {t.home.hero.subtitle}
               </span>
             </h1>

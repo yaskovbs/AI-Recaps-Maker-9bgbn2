@@ -4,6 +4,7 @@ import { useLanguage } from '@/lib/LanguageContext';
 import { useAuth } from '@/lib/AuthContext';
 import { notificationService, NotificationPreferences } from '@/lib/notificationService';
 import { apiKeysService, APIKeysData } from '@/lib/apiKeysService';
+import { learningService, LearningPreferences } from '@/lib/learningService';
 import { Key, Lock, Globe, Brain, Trash2, AlertCircle, CheckCircle, Eye, EyeOff, Save, RefreshCw, Bell, LogOut } from 'lucide-react';
 
 export default function Settings() {
@@ -15,7 +16,7 @@ export default function Settings() {
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [saveMessage, setSaveMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
-  
+
   // API Keys State
   const [apiKeys, setApiKeys] = useState<APIKeysData>({
     youtube: '',
@@ -23,11 +24,14 @@ export default function Settings() {
     searchEngineId: '',
     gemini: '',
   });
-  
+
   const [keyHints, setKeyHints] = useState<Record<string, string>>({});
   const [pin, setPin] = useState('');
+
+  // Learning Settings State
   const [continuousLearning, setContinuousLearning] = useState(true);
   const [globalLearning, setGlobalLearning] = useState(false);
+  const [learningSaveStatus, setLearningSaveStatus] = useState<'idle' | 'saved' | 'error'>('idle');
 
   // Notification Settings
   const [notifications, setNotifications] = useState<NotificationPreferences>({
@@ -37,13 +41,15 @@ export default function Settings() {
     weeklyDigest: false,
   });
   const [notifPermission, setNotifPermission] = useState<NotificationPermission>('default');
+  const [notifSaveStatus, setNotifSaveStatus] = useState<'idle' | 'saved' | 'error'>('idle');
 
-  // Load saved keys and notifications on mount
+  // Load all settings on mount
   useEffect(() => {
     if (user) {
       loadKeys();
       loadKeyHints();
       loadNotificationSettings();
+      loadLearningSettings();
     }
     if ('Notification' in window) {
       setNotifPermission(Notification.permission);
@@ -84,22 +90,55 @@ export default function Settings() {
     setNotifications(prefs);
   };
 
+  const loadLearningSettings = async () => {
+    if (!user) return;
+    const prefs = await learningService.loadPreferences(user.id);
+    setContinuousLearning(prefs.continuousLearning);
+    setGlobalLearning(prefs.globalLearning);
+  };
+
   const handleNotificationToggle = async (key: keyof NotificationPreferences) => {
     if (!user) return;
 
-    // Request permission if enabling browser push for the first time
-    if (key === 'browserPush' && !notifications.browserPush && notifPermission !== 'granted') {
-      const granted = await notificationService.requestPermission();
-      if (!granted) {
-        alert(t.settings.notifications.permissionDenied);
+    // Check push notification support
+    if (key === 'browserPush' && !notifications.browserPush) {
+      if (!notificationService.isPushSupported()) {
+        alert('התראות Push נתמכות רק בדפדפן שולחני. בטלפון נייד יש להשתמש בהתראות מייל.');
         return;
       }
-      setNotifPermission('granted');
+      if (notifPermission !== 'granted') {
+        const granted = await notificationService.requestPermission();
+        if (!granted) {
+          alert(t.settings.notifications.permissionDenied);
+          return;
+        }
+        setNotifPermission('granted');
+      }
     }
 
     const newPrefs = { ...notifications, [key]: !notifications[key] };
     setNotifications(newPrefs);
-    await notificationService.savePreferences(user.id, newPrefs);
+
+    const success = await notificationService.savePreferences(user.id, newPrefs);
+    setNotifSaveStatus(success ? 'saved' : 'error');
+    setTimeout(() => setNotifSaveStatus('idle'), 2000);
+  };
+
+  const handleLearningToggle = async (key: keyof LearningPreferences) => {
+    if (!user) return;
+
+    const newPrefs: LearningPreferences = {
+      continuousLearning,
+      globalLearning,
+      [key]: key === 'continuousLearning' ? !continuousLearning : !globalLearning,
+    };
+
+    setContinuousLearning(newPrefs.continuousLearning);
+    setGlobalLearning(newPrefs.globalLearning);
+
+    const success = await learningService.savePreferences(user.id, newPrefs);
+    setLearningSaveStatus(success ? 'saved' : 'error');
+    setTimeout(() => setLearningSaveStatus('idle'), 2000);
   };
 
   const handleSaveKeys = async () => {
@@ -113,12 +152,10 @@ export default function Settings() {
 
     try {
       const { success, error } = await apiKeysService.saveKeys(user.id, apiKeys);
-      
+
       if (success) {
         setSaveMessage({ type: 'success', text: t.settings.api.saved });
-        await loadKeyHints(); // Reload hints after save
-        
-        // Clear success message after 3 seconds
+        await loadKeyHints();
         setTimeout(() => setSaveMessage(null), 3000);
       } else {
         setSaveMessage({ type: 'error', text: error || 'שמירה נכשלה' });
@@ -139,10 +176,12 @@ export default function Settings() {
     setPin('');
   };
 
-  const handleResetLearning = () => {
+  const handleResetLearning = async () => {
     const confirm = window.confirm('האם אתה בטוח? פעולה זו תמחק את כל פרופיל הלמידה שלך.');
-    if (confirm) {
-      localStorage.removeItem('learningProfile');
+    if (confirm && user) {
+      await learningService.resetProfile(user.id);
+      setContinuousLearning(true);
+      setGlobalLearning(false);
       alert('פרופיל למידה אופס!');
     }
   };
@@ -165,18 +204,16 @@ export default function Settings() {
     const confirm = window.confirm(t.settings.account.logoutConfirm);
     if (confirm) {
       try {
-        console.log('🔵 User confirmed logout from Settings');
+        console.log('User confirmed logout from Settings');
         await logout();
-        console.log('🔵 Navigating to home...');
+        console.log('Navigating to home...');
         navigate('/home');
-        // Force page reload to clear all state
         setTimeout(() => {
           window.location.href = '/home';
         }, 100);
       } catch (error) {
         console.error('Logout error:', error);
         alert('שגיאה בהתנתקות');
-        // Force logout anyway
         localStorage.clear();
         window.location.href = '/home';
       }
@@ -208,7 +245,7 @@ export default function Settings() {
                 <p className="text-brass-200 font-medium mb-4 text-center">
                   {t.settings.api.keyVault.locked}
                 </p>
-                
+
                 {/* Show saved key hints */}
                 {Object.keys(keyHints).length > 0 && (
                   <div className="mb-4 space-y-2">
@@ -360,7 +397,7 @@ export default function Settings() {
               </div>
 
               <p className="text-xs text-brass-500 text-center">
-                💡 המפתחות מוצפנים ונשמרים בצורה מאובטחת במסד הנתונים ו-localStorage כגיבוי
+                המפתחות מוצפנים ב-AES-256-GCM ונשמרים בצורה מאובטחת. אף אחד כולל בעל האתר לא יכול לראות את המפתחות האמיתיים שלך.
               </p>
             </div>
           )}
@@ -371,6 +408,8 @@ export default function Settings() {
           <h2 className="text-2xl font-serif font-semibold text-brass-200 mb-6 flex items-center gap-2">
             <Bell className="w-6 h-6" />
             {t.settings.notifications.title}
+            {notifSaveStatus === 'saved' && <CheckCircle className="w-4 h-4 text-green-400" />}
+            {notifSaveStatus === 'error' && <AlertCircle className="w-4 h-4 text-red-400" />}
           </h2>
 
           <div className="space-y-6">
@@ -383,6 +422,11 @@ export default function Settings() {
                 <p className="text-sm text-brass-400">
                   {t.settings.notifications.browserPushDesc}
                 </p>
+                {!notificationService.isPushSupported() && (
+                  <p className="text-xs text-copper-400 mt-1">
+                    התראות Push נתמכות רק בדפדפן שולחני
+                  </p>
+                )}
               </div>
               <button
                 onClick={() => handleNotificationToggle('browserPush')}
@@ -424,7 +468,7 @@ export default function Settings() {
 
             <div className="border-t border-brass-700/30 pt-6">
               <h3 className="text-brass-200 font-medium mb-4">{t.settings.notifications.when}</h3>
-              
+
               {/* Recap Complete */}
               <div className="flex items-center justify-between mb-3">
                 <span className="text-brass-300">{t.settings.notifications.recapComplete}</span>
@@ -467,33 +511,49 @@ export default function Settings() {
           <h2 className="text-2xl font-serif font-semibold text-brass-200 mb-6 flex items-center gap-2">
             <Brain className="w-6 h-6" />
             {t.settings.learning.title}
+            {learningSaveStatus === 'saved' && <CheckCircle className="w-4 h-4 text-green-400" />}
+            {learningSaveStatus === 'error' && <AlertCircle className="w-4 h-4 text-red-400" />}
           </h2>
 
           <div className="space-y-6">
-            <div className="flex items-start gap-4">
-              <input
-                type="checkbox"
-                checked={continuousLearning}
-                onChange={(e) => setContinuousLearning(e.target.checked)}
-                className="mt-1"
-              />
+            {/* Continuous Learning */}
+            <div className="flex items-start justify-between">
               <div className="flex-1">
                 <p className="text-brass-200 font-medium">{t.settings.learning.personal}</p>
                 <p className="text-sm text-brass-400">{t.settings.learning.personalDesc}</p>
               </div>
+              <button
+                onClick={() => handleLearningToggle('continuousLearning')}
+                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                  continuousLearning ? 'bg-brass-600' : 'bg-steam-700'
+                }`}
+              >
+                <span
+                  className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                    continuousLearning ? 'translate-x-6' : 'translate-x-1'
+                  }`}
+                />
+              </button>
             </div>
 
-            <div className="flex items-start gap-4">
-              <input
-                type="checkbox"
-                checked={globalLearning}
-                onChange={(e) => setGlobalLearning(e.target.checked)}
-                className="mt-1"
-              />
+            {/* Global Learning */}
+            <div className="flex items-start justify-between">
               <div className="flex-1">
                 <p className="text-brass-200 font-medium">{t.settings.learning.global}</p>
                 <p className="text-sm text-brass-400">{t.settings.learning.globalDesc}</p>
               </div>
+              <button
+                onClick={() => handleLearningToggle('globalLearning')}
+                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                  globalLearning ? 'bg-brass-600' : 'bg-steam-700'
+                }`}
+              >
+                <span
+                  className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                    globalLearning ? 'translate-x-6' : 'translate-x-1'
+                  }`}
+                />
+              </button>
             </div>
 
             <button
