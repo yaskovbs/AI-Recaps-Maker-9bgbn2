@@ -140,13 +140,19 @@ class APIKeysService {
   // Legacy XOR decryption
   private decryptXOR(encrypted: string): string {
     try {
-      return atob(encrypted)
+      const [salt, encoded] = encrypted.split('.');
+      if (!salt || !encoded) return '';
+      
+      const step1 = atob(encoded);
+      const step2 = step1
         .split('')
         .map((char, i) =>
           String.fromCharCode(char.charCodeAt(0) ^ OLD_XOR_KEY.charCodeAt(i % OLD_XOR_KEY.length))
         )
         .join('');
-    } catch {
+      return atob(step2);
+    } catch (error) {
+      console.error('Decryption failed:', error);
       return '';
     }
   }
@@ -167,8 +173,11 @@ class APIKeysService {
 
   // Create masked hint (e.g., "AIza...xyz123")
   private createHint(key: string): string {
-    if (key.length < 8) return '***';
-    return `${key.substring(0, 4)}...${key.substring(key.length - 6)}`;
+    if (key.length < 8) return '●●●●●●●●';
+    const visibleStart = Math.min(4, Math.floor(key.length * 0.2));
+    const visibleEnd = Math.min(4, Math.floor(key.length * 0.1));
+    const hiddenCount = key.length - visibleStart - visibleEnd;
+    return `${key.substring(0, visibleStart)}${'●'.repeat(Math.min(hiddenCount, 8))}${key.substring(key.length - visibleEnd)}`;
   }
 
   // Load keys from localStorage backup

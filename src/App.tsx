@@ -4,7 +4,6 @@ import { Toaster } from 'sonner';
 import ErrorBoundary from '@/components/ErrorBoundary';
 import Header from '@/components/layout/Header';
 import Footer from '@/components/layout/Footer';
-import SidebarAds from '@/components/ads/SidebarAds';
 
 // Lazy-loaded pages for code splitting
 const Home = React.lazy(() => import('@/pages/Home'));
@@ -39,7 +38,6 @@ function PageLoader() {
 function App() {
   return (
     <div className="flex flex-col min-h-screen bg-steampunk-gradient">
-      <SidebarAds />
       <Header />
       <main className="flex-1">
         <ErrorBoundary>

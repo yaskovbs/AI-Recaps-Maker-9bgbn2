@@ -216,36 +216,143 @@ npm run build
 
 ## 🌍 פריסה ל-Production
 
-### Cloudflare Pages (מומלץ)
+### Cloudflare Pages (מומלץ) ⭐
+
+#### שלב 1: הכנת הפרויקט
+
+1. **וודא שיש לך `package-lock.json` מעודכן**
+   ```bash
+   rm -f package-lock.json
+   npm install
+   ```
+
+2. **צור קובץ `netlify.toml` לתצורת Build** (כבר קיים בפרויקט)
+   ```toml
+   [build]
+     command = "npm run build"
+     publish = "dist"
+   
+   [[redirects]]
+     from = "/*"
+     to = "/index.html"
+     status = 200
+   ```
+
+#### שלב 2: פריסה ל-Cloudflare Pages
 
 1. **התחבר ל-Cloudflare Dashboard**
-   - עבור ל-[Cloudflare Pages](https://pages.cloudflare.com/)
-   - לחץ על "Create a project"
+   - עבור ל-[Cloudflare Pages](https://dash.cloudflare.com/pages)
+   - לחץ על **"Create application"** → **"Pages"** → **"Connect to Git"**
 
 2. **חבר את GitHub Repository**
-   - בחר את `AI-Recaps-Web-App`
-   - אשר הרשאות
+   - בחר את `yaskovbs/AI-Recaps-Web-App`
+   - אשר הרשאות Cloudflare לגשת ל-GitHub
+   - לחץ **"Begin setup"**
 
 3. **הגדר Build Settings**
    ```
-   Framework preset: Vite
-   Build command: npm run build
+   Project name: ai-recaps-maker (או שם אחר)
+   Production branch: main
+   Framework preset: None (או Vite)
+   Build command: npm install && npm run build
    Build output directory: dist
-   Root directory: /
-   Node version: 22
+   Root directory: / (leave empty)
    ```
 
 4. **הוסף Environment Variables**
-   - `VITE_SUPABASE_URL` = your_backend_url
-   - `VITE_SUPABASE_ANON_KEY` = your_anon_key
+   
+   לחץ על **"Add variable"** עבור כל אחד:
+   
+   | Variable name | Value |
+   |---------------|-------|
+   | `NODE_VERSION` | `22` |
+   | `VITE_SUPABASE_URL` | `https://your-project.backend.onspace.ai` |
+   | `VITE_SUPABASE_ANON_KEY` | `eyJhbGc...` (Anon Key שלך) |
+
+   > ⚠️ **חשוב:** אל תשכח להחליף את הערכים בערכים האמיתיים מ-OnSpace Cloud!
 
 5. **Deploy**
-   - לחץ "Save and Deploy"
-   - האתר יפרס אוטומטית ב-`*.pages.dev`
+   - לחץ **"Save and Deploy"**
+   - Cloudflare יבנה ויפרוס אוטומטית
+   - זמן build משוער: 2-4 דקות
+   - כשסיים תראה: **"Success! Your site is live"**
 
-6. **Custom Domain (אופציונלי)**
-   - Pages → Custom domains → Add domain
-   - עקוב אחרי ההוראות להגדרת DNS
+6. **גש לאתר שלך**
+   - URL זמני: `https://ai-recaps-maker-xyz.pages.dev`
+   - לחץ על **"Visit site"**
+
+#### שלב 3: Custom Domain (אופציונלי)
+
+1. **הוסף Domain משלך**
+   - Pages → Project → **"Custom domains"** → **"Set up a custom domain"**
+   - הזן את הדומיין שלך (למשל: `recaps.example.com`)
+
+2. **הגדר DNS Records**
+   
+   אם הדומיין ב-Cloudflare:
+   - Cloudflare יוסיף אוטומטית CNAME record
+   
+   אם הדומיין לא ב-Cloudflare:
+   - הוסף CNAME record:
+     ```
+     Name: recaps (או @)
+     Target: ai-recaps-maker-xyz.pages.dev
+     TTL: Auto
+     ```
+
+3. **SSL Certificate**
+   - Cloudflare יפיק אוטומטית SSL certificate
+   - יכול לקחת עד 24 שעות
+   - תקבל מייל כש-SSL מוכן
+
+#### פתרון בעיות נפוצות
+
+**שגיאת Build: "npm ci can only install packages when package.json and package-lock.json are in sync"**
+
+**פתרון:**
+```bash
+# מחק package-lock.json ישן
+rm package-lock.json
+
+# צור package-lock.json חדש
+npm install
+
+# Commit ו-Push
+git add package-lock.json
+git commit -m "Fix: Update package-lock.json for Cloudflare deployment"
+git push
+```
+
+**שגיאת Build: "Missing dependencies"**
+
+**פתרון:** שנה את Build command ל:
+```
+npm ci --legacy-peer-deps || npm install && npm run build
+```
+
+**האתר לא טוען (blank page)**
+
+**פתרון:** בדוק שה-Environment Variables מוגדרים נכון:
+1. Pages → Project → Settings → Environment variables
+2. ודא ש-`VITE_SUPABASE_URL` ו-`VITE_SUPABASE_ANON_KEY` קיימים
+3. Trigger **"Retry deployment"**
+
+#### Auto-Deploy מ-GitHub
+
+כל `git push` ל-`main` יפעיל deployment אוטומטי:
+
+```bash
+git add .
+git commit -m "Update feature X"
+git push origin main
+# ✅ Cloudflare Pages יעשה deploy אוטומטי!
+```
+
+#### Preview Deployments
+
+כל Pull Request יקבל URL ייחודי לצפייה:
+- `https://abc123.ai-recaps-maker.pages.dev`
+- מושלם לבדיקת features לפני merge!
 
 ### Vercel
 

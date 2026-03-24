@@ -120,6 +120,15 @@ export default function Home() {
               </span>
             </h1>
 
+            {/* App Description Badge */}
+            <div className="inline-flex items-center gap-2 bg-gradient-to-r from-brass-600/40 to-copper-600/40 backdrop-blur-md px-6 py-3 rounded-full border border-brass-500/50 mb-6 animate-pulse-slow">
+              <Sparkles className="w-5 h-5 text-brass-200" />
+              <span className="text-brass-100 font-semibold tracking-wide">
+                AI Recaps Maker For Movies & TV Shows Recaps
+              </span>
+              <Sparkles className="w-5 h-5 text-brass-200" />
+            </div>
+
             <p className="text-lg md:text-xl text-brass-100 mb-8 leading-relaxed max-w-3xl mx-auto drop-shadow-[0_1px_4px_rgba(0,0,0,0.8)]">
               {t.home.hero.description}
             </p>

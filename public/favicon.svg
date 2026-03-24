@@ -1,68 +1,10 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
-  <defs>
-    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" style="stop-color:#2d1b69"/>
-      <stop offset="50%" style="stop-color:#1a1145"/>
-      <stop offset="100%" style="stop-color:#0f1a3a"/>
-    </linearGradient>
-    <linearGradient id="glow" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" style="stop-color:#60a5fa"/>
-      <stop offset="100%" style="stop-color:#a78bfa"/>
-    </linearGradient>
-    <linearGradient id="film" x1="0%" y1="0%" x2="100%" y2="0%">
-      <stop offset="0%" style="stop-color:#a78bfa;stop-opacity:0.6"/>
-      <stop offset="50%" style="stop-color:#818cf8;stop-opacity:0.8"/>
-      <stop offset="100%" style="stop-color:#6366f1;stop-opacity:0.6"/>
-    </linearGradient>
-    <filter id="textGlow">
-      <feGaussianBlur stdDeviation="8" result="blur"/>
-      <feComposite in="SourceGraphic" in2="blur" operator="over"/>
-    </filter>
-    <filter id="nodeGlow">
-      <feGaussianBlur stdDeviation="3" result="blur"/>
-      <feComposite in="SourceGraphic" in2="blur" operator="over"/>
-    </filter>
-  </defs>
-  <rect x="20" y="20" width="472" height="472" rx="90" ry="90" fill="url(#bg)"/>
-  <rect x="20" y="20" width="472" height="472" rx="90" ry="90" fill="none" stroke="url(#glow)" stroke-width="2" opacity="0.3"/>
-  <g stroke="url(#glow)" stroke-width="1.5" opacity="0.3">
-    <line x1="150" y1="120" x2="256" y2="80"/>
-    <line x1="256" y1="80" x2="362" y2="120"/>
-    <line x1="150" y1="120" x2="200" y2="200"/>
-    <line x1="362" y1="120" x2="312" y2="200"/>
-    <line x1="256" y1="80" x2="256" y2="160"/>
-    <line x1="120" y1="200" x2="200" y2="200"/>
-    <line x1="312" y1="200" x2="392" y2="200"/>
-    <line x1="200" y1="200" x2="256" y2="160"/>
-    <line x1="312" y1="200" x2="256" y2="160"/>
-    <line x1="120" y1="200" x2="150" y2="120"/>
-    <line x1="392" y1="200" x2="362" y2="120"/>
-  </g>
-  <g filter="url(#nodeGlow)">
-    <circle cx="256" cy="80" r="6" fill="#60a5fa"/>
-    <circle cx="150" cy="120" r="5" fill="#818cf8"/>
-    <circle cx="362" cy="120" r="5" fill="#818cf8"/>
-    <circle cx="120" cy="200" r="4" fill="#a78bfa"/>
-    <circle cx="200" cy="200" r="5" fill="#60a5fa"/>
-    <circle cx="312" cy="200" r="5" fill="#60a5fa"/>
-    <circle cx="392" cy="200" r="4" fill="#a78bfa"/>
-    <circle cx="256" cy="160" r="6" fill="#93c5fd"/>
-  </g>
-  <g filter="url(#textGlow)">
-    <text x="256" y="310" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-weight="bold" font-size="180" fill="url(#glow)" opacity="0.3" dy="5" dx="3">AI</text>
-    <text x="256" y="310" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-weight="bold" font-size="180" fill="#e0e7ff">AI</text>
-  </g>
-  <g opacity="0.7">
-    <path d="M80,370 Q180,330 256,355 Q332,380 432,345" stroke="url(#film)" stroke-width="32" fill="none" stroke-linecap="round"/>
-    <circle cx="120" cy="357" r="4" fill="#1a1145" opacity="0.6"/>
-    <circle cx="165" cy="345" r="4" fill="#1a1145" opacity="0.6"/>
-    <circle cx="210" cy="342" r="4" fill="#1a1145" opacity="0.6"/>
-    <circle cx="256" cy="347" r="4" fill="#1a1145" opacity="0.6"/>
-    <circle cx="302" cy="355" r="4" fill="#1a1145" opacity="0.6"/>
-    <circle cx="348" cy="356" r="4" fill="#1a1145" opacity="0.6"/>
-    <circle cx="394" cy="350" r="4" fill="#1a1145" opacity="0.6"/>
-  </g>
-  <g fill="#fbbf24" opacity="0.8">
-    <polygon points="370,110 374,120 384,120 376,127 379,137 370,131 361,137 364,127 356,120 366,120"/>
-  </g>
+<svg width="420" height="420" viewBox="0 0 420 420" fill="none" xmlns="http://www.w3.org/2000/svg">
+<rect width="420" height="420" rx="100" fill="url(#paint0_linear_12_6)"/>
+<path d="M135.407 310V109.72H215.597C230.331 109.72 242.621 111.904 252.465 116.272C262.31 120.64 269.709 126.704 274.664 134.462C279.619 142.155 282.096 151.021 282.096 161.062C282.096 168.885 280.532 175.763 277.402 181.696C274.273 187.563 269.97 192.388 264.494 196.169C259.082 199.885 252.889 202.526 245.913 204.09V206.046C253.541 206.372 260.68 208.524 267.33 212.501C274.045 216.477 279.489 222.052 283.661 229.223C287.834 236.329 289.92 244.805 289.92 254.649C289.92 265.276 287.279 274.762 281.999 283.107C276.783 291.387 269.057 297.939 258.822 302.763C248.586 307.588 235.971 310 220.976 310H135.407ZM177.751 275.381H212.272C224.073 275.381 232.678 273.132 238.09 268.634C243.501 264.07 246.206 258.007 246.206 250.444C246.206 244.903 244.87 240.013 242.197 235.775C239.524 231.538 235.71 228.213 230.755 225.8C225.865 223.388 220.031 222.182 213.25 222.182H177.751V275.381ZM177.751 193.529H209.143C214.945 193.529 220.096 192.518 224.594 190.497C229.158 188.411 232.744 185.477 235.351 181.696C238.024 177.914 239.361 173.383 239.361 168.103C239.361 160.866 236.786 155.031 231.635 150.598C226.55 146.164 219.313 143.948 209.925 143.948H177.751V193.529Z" fill="white"/>
+<defs>
+<linearGradient id="paint0_linear_12_6" x1="0" y1="0" x2="420" y2="420" gradientUnits="userSpaceOnUse">
+<stop stop-color="#07E9FF"/>
+<stop offset="1" stop-color="#398EFC"/>
+</linearGradient>
+</defs>
 </svg>
