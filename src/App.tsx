@@ -1,26 +1,39 @@
-import React from 'react';
+import React, { Suspense } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
+import { Toaster } from 'sonner';
+import ErrorBoundary from '@/components/ErrorBoundary';
 import Header from '@/components/layout/Header';
 import Footer from '@/components/layout/Footer';
 import SidebarAds from '@/components/ads/SidebarAds';
 
-// Pages
-import Home from '@/pages/Home';
-import Dashboard from '@/pages/Dashboard';
-import Create from '@/pages/Create';
-import Analytics from '@/pages/Analytics';
-import Wallet from '@/pages/Wallet';
-import YouTubeLearning from '@/pages/YouTubeLearning';
-import Settings from '@/pages/Settings';
-import Leaderboard from '@/pages/Leaderboard';
-import MyRecaps from '@/pages/MyRecaps';
-import Login from '@/pages/Login';
-import Signup from '@/pages/Signup';
-import Terms from '@/pages/Terms';
-import Privacy from '@/pages/Privacy';
-import FAQ from '@/pages/FAQ';
-import Contact from '@/pages/Contact';
-import Gallery from '@/pages/Gallery';
+// Lazy-loaded pages for code splitting
+const Home = React.lazy(() => import('@/pages/Home'));
+const Dashboard = React.lazy(() => import('@/pages/Dashboard'));
+const Create = React.lazy(() => import('@/pages/Create'));
+const Analytics = React.lazy(() => import('@/pages/Analytics'));
+const Wallet = React.lazy(() => import('@/pages/Wallet'));
+const YouTubeLearning = React.lazy(() => import('@/pages/YouTubeLearning'));
+const Settings = React.lazy(() => import('@/pages/Settings'));
+const Leaderboard = React.lazy(() => import('@/pages/Leaderboard'));
+const MyRecaps = React.lazy(() => import('@/pages/MyRecaps'));
+const Login = React.lazy(() => import('@/pages/Login'));
+const Signup = React.lazy(() => import('@/pages/Signup'));
+const Terms = React.lazy(() => import('@/pages/Terms'));
+const Privacy = React.lazy(() => import('@/pages/Privacy'));
+const FAQ = React.lazy(() => import('@/pages/FAQ'));
+const Contact = React.lazy(() => import('@/pages/Contact'));
+const Gallery = React.lazy(() => import('@/pages/Gallery'));
+
+function PageLoader() {
+  return (
+    <div className="min-h-[60vh] flex items-center justify-center">
+      <div className="text-center">
+        <div className="w-12 h-12 border-4 border-brass-500/30 border-t-brass-500 rounded-full animate-spin mx-auto mb-4"></div>
+        <p className="text-brass-300 text-sm">טוען...</p>
+      </div>
+    </div>
+  );
+}
 
 function App() {
   return (
@@ -28,7 +41,9 @@ function App() {
       <SidebarAds />
       <Header />
       <main className="flex-1">
-        <Routes>
+        <ErrorBoundary>
+        <Suspense fallback={<PageLoader />}>
+          <Routes>
             <Route path="/" element={<Navigate to="/home" replace />} />
             <Route path="/home" element={<Home />} />
             <Route path="/login" element={<Login />} />
@@ -47,9 +62,23 @@ function App() {
             <Route path="/terms" element={<Terms />} />
             <Route path="/privacy" element={<Privacy />} />
             <Route path="*" element={<div className="container mx-auto px-4 py-20 text-center text-brass-200">404 - Page Not Found</div>} />
-        </Routes>
+          </Routes>
+        </Suspense>
+        </ErrorBoundary>
       </main>
       <Footer />
+      <Toaster
+        position="top-center"
+        richColors
+        dir="rtl"
+        toastOptions={{
+          style: {
+            background: '#1a1510',
+            border: '1px solid rgba(212, 124, 71, 0.3)',
+            color: '#d4a574',
+          },
+        }}
+      />
     </div>
   );
 }

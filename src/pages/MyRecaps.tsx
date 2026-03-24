@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { toast } from 'sonner';
 import { useAuth } from '@/lib/AuthContext';
 import { useLanguage } from '@/lib/LanguageContext';
 import { useNavigate } from 'react-router-dom';
@@ -99,7 +100,7 @@ export default function MyRecaps() {
       setRecaps(recaps.filter(r => r.id !== recapId));
     } catch (error) {
       console.error('Error deleting recap:', error);
-      alert(t.myRecaps.deleteFailed);
+      toast.error(t.myRecaps.deleteFailed);
     }
   };
 
@@ -145,7 +146,7 @@ export default function MyRecaps() {
 
     } catch (error) {
       console.error('Error toggling public state:', error);
-      alert('שגיאה בעדכון מצב הפרטיות');
+      toast.error('שגיאה בעדכון מצב הפרטיות');
     }
   };
 

@@ -1,5 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
+import { toast } from 'sonner';
 import { useLanguage } from '@/lib/LanguageContext';
 import { useAuth } from '@/lib/AuthContext';
 import { useWallet } from '@/hooks/useWallet';
@@ -119,7 +120,7 @@ export default function Create() {
 
   const handleFileUpload = async (type: 'txt' | 'mp3' | 'video') => {
     if (!user) {
-      alert('יש להתחבר כדי להעלות קבצים');
+      toast.error('יש להתחבר כדי להעלות קבצים');
       return;
     }
 
@@ -164,10 +165,10 @@ export default function Create() {
           setDraft({ ...draft, videoAssetId: publicUrl });
         }
 
-        alert(`✅ קובץ ${file.name} הועלה בהצלחה!`);
+        toast.success(`קובץ ${file.name} הועלה בהצלחה!`);
       } catch (error: any) {
         console.error('Upload error:', error);
-        alert(`❌ שגיאה בהעלאת הקובץ: ${error.message}`);
+        toast.error(`שגיאה בהעלאת הקובץ: ${error.message}`);
       } finally {
         setUploading(false);
       }
@@ -178,7 +179,7 @@ export default function Create() {
 
   const handleCreate = async () => {
     if (!user) {
-      alert('יש להתחבר כדי ליצור סיכום');
+      toast.error('יש להתחבר כדי ליצור סיכום');
       return;
     }
 
@@ -328,7 +329,7 @@ export default function Create() {
     link.click();
     document.body.removeChild(link);
     
-    alert(`✅ הורדת הסיכום התחילה: ${draft.movieTitle}.mp4`);
+    toast.success(`הורדת הסיכום התחילה: ${draft.movieTitle}.mp4`);
   };
 
   return (

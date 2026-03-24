@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { toast } from 'sonner';
 import { FileDown, FileText, Video, Presentation, Settings } from 'lucide-react';
 import { exportRecap, downloadBlob, ExportOptions } from '@/lib/exportService';
 
@@ -49,7 +50,7 @@ export default function ExportMenu({ jobId, title, content, onClose, className =
       }, 500);
     } catch (error) {
       console.error('Export failed:', error);
-      alert('ייצוא נכשל. נסה שוב.');
+      toast.error('ייצוא נכשל. נסה שוב.');
       setIsExporting(false);
       setSelectedFormat(null);
     }

@@ -110,8 +110,8 @@ export const translations = {
     // Home
     home: {
       hero: {
-        title: 'יוצר סיכומי וידאו חכם',
-        subtitle: 'AI Recaps Maker For Movies & TV Shows Recaps',
+        title: 'AI Recaps Maker',
+        subtitle: 'For Movies & TV Shows Recaps',
         description: 'הפלטפורמה המתקדמת ביותר ליצירת סיכומי סרטים וסדרות טלוויזיה אוטומטיים מונעי AI עם Google Gemini. צור, ערוך ופרסם סיכומי וידאו בקלות ובמהירות.',
         cta: 'התחל עכשיו',
         byok: 'BYOK - הבא את המפתח שלך',
@@ -559,7 +559,7 @@ export const translations = {
     home: {
       hero: {
         title: 'AI Recaps Maker',
-        subtitle: 'AI Recaps Maker For Movies & TV Shows Recaps',
+        subtitle: 'For Movies & TV Shows Recaps',
         description: 'The most advanced platform for creating AI-powered automatic movie and TV show recaps with Google Gemini. Create, edit, and publish video recaps easily and quickly.',
         cta: 'Get Started',
         byok: 'BYOK - Bring Your Own Key',

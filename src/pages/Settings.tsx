@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { toast } from 'sonner';
 import { useLanguage } from '@/lib/LanguageContext';
 import { useAuth } from '@/lib/AuthContext';
+import { supabase } from '@/lib/supabase';
 import { notificationService, NotificationPreferences } from '@/lib/notificationService';
 import { apiKeysService, APIKeysData } from '@/lib/apiKeysService';
 import { learningService, LearningPreferences } from '@/lib/learningService';
@@ -103,13 +105,13 @@ export default function Settings() {
     // Check push notification support
     if (key === 'browserPush' && !notifications.browserPush) {
       if (!notificationService.isPushSupported()) {
-        alert('התראות Push נתמכות רק בדפדפן שולחני. בטלפון נייד יש להשתמש בהתראות מייל.');
+        toast.info('התראות Push נתמכות רק בדפדפן שולחני. בטלפון נייד יש להשתמש בהתראות מייל.');
         return;
       }
       if (notifPermission !== 'granted') {
         const granted = await notificationService.requestPermission();
         if (!granted) {
-          alert(t.settings.notifications.permissionDenied);
+          toast.error(t.settings.notifications.permissionDenied);
           return;
         }
         setNotifPermission('granted');
@@ -169,7 +171,7 @@ export default function Settings() {
 
   const handleUnlockVault = () => {
     if (pin.length !== 6) {
-      alert('PIN חייב להיות בן 6 ספרות');
+      toast.warning('PIN חייב להיות בן 6 ספרות');
       return;
     }
     setShowKeys(true);
@@ -182,21 +184,57 @@ export default function Settings() {
       await learningService.resetProfile(user.id);
       setContinuousLearning(true);
       setGlobalLearning(false);
-      alert('פרופיל למידה אופס!');
+      toast.success('פרופיל למידה אופס!');
     }
   };
 
-  const handleFreezeAccount = () => {
+  const handleFreezeAccount = async () => {
     const confirm = window.confirm('האם להקפיא את החשבון? תוכל לשחזר אותו בכל עת.');
-    if (confirm) {
-      alert('חשבון הוקפא (דמו)');
+    if (!confirm || !user) return;
+
+    try {
+      const { error } = await supabase
+        .from('user_profiles')
+        .update({ metadata: { frozen: true, frozen_at: new Date().toISOString() } })
+        .eq('id', user.id);
+
+      if (error) throw error;
+      toast.success('חשבון הוקפא בהצלחה. תוכל לשחזר אותו בכניסה הבאה.');
+      await logout();
+      navigate('/home');
+    } catch (error) {
+      console.error('Freeze error:', error);
+      toast.error('שגיאה בהקפאת החשבון');
     }
   };
 
-  const handleDeleteAccount = () => {
+  const handleDeleteAccount = async () => {
     const confirm = window.confirm('האם למחוק את החשבון לצמיתות? פעולה זו בלתי הפיכה!');
-    if (confirm) {
-      alert('חשבון נמחק (דמו)');
+    if (!confirm || !user) return;
+
+    const doubleConfirm = window.confirm('בטוח? כל הנתונים שלך יימחקו לצמיתות.');
+    if (!doubleConfirm) return;
+
+    try {
+      // Delete user data from all tables
+      await Promise.allSettled([
+        supabase.from('jobs').delete().eq('user_id', user.id),
+        supabase.from('api_keys').delete().eq('user_id', user.id),
+        supabase.from('ratings').delete().eq('user_id', user.id),
+        supabase.from('learning_profiles').delete().eq('user_id', user.id),
+        supabase.from('credits_wallet').delete().eq('user_id', user.id),
+        supabase.from('credits_transactions').delete().eq('user_id', user.id),
+        supabase.from('public_recaps').delete().eq('user_id', user.id),
+        supabase.from('user_profiles').delete().eq('id', user.id),
+      ]);
+
+      toast.success('חשבון נמחק בהצלחה');
+      localStorage.clear();
+      await logout();
+      navigate('/home');
+    } catch (error) {
+      console.error('Delete error:', error);
+      toast.error('שגיאה במחיקת החשבון');
     }
   };
 
@@ -213,7 +251,7 @@ export default function Settings() {
         }, 100);
       } catch (error) {
         console.error('Logout error:', error);
-        alert('שגיאה בהתנתקות');
+        toast.error('שגיאה בהתנתקות');
         localStorage.clear();
         window.location.href = '/home';
       }

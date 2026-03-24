@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useLanguage } from '@/lib/LanguageContext';
+import { useAuth } from '@/lib/AuthContext';
 import { useRating } from '@/hooks/useRating';
+import { supabase } from '@/lib/supabase';
 import AdUnit from '@/components/ads/AdUnit';
 import RatingBreakdown from '@/components/RatingBreakdown';
 import SentimentAnalysis from '@/components/SentimentAnalysis';
@@ -10,11 +12,13 @@ import { BarChart3, TrendingUp, Eye, Users, Clock, CheckCircle, AlertCircle, XCi
 
 export default function Analytics() {
   const { t } = useLanguage();
+  const { user } = useAuth();
   const { stats: ratingStats } = useRating();
   const jobs = getJobs();
   const [lastJobId, setLastJobId] = useState<string | null>(null);
   const [events, setEvents] = useState<any[]>([]);
   const [ratings, setRatings] = useState<any[]>([]);
+  const [dbStats, setDbStats] = useState({ total: 0, completed: 0, failed: 0 });
 
   useEffect(() => {
     const savedJobId = localStorage.getItem('lastJobId');
@@ -29,13 +33,52 @@ export default function Analytics() {
     if (stored) {
       setRatings(JSON.parse(stored));
     }
-  }, []);
+
+    // Load real stats from Supabase
+    if (user) {
+      loadDbStats();
+    }
+  }, [user]);
+
+  const loadDbStats = async () => {
+    if (!user) return;
+    try {
+      const { data } = await supabase
+        .from('jobs')
+        .select('status, recap_length_seconds, created_at, completed_at')
+        .eq('user_id', user.id);
+
+      if (data) {
+        setDbStats({
+          total: data.length,
+          completed: data.filter(j => j.status === 'completed').length,
+          failed: data.filter(j => j.status === 'failed').length,
+        });
+      }
+    } catch (e) {
+      console.warn('Failed to load DB stats:', e);
+    }
+  };
+
+  const totalJobs = Math.max(jobs.length, dbStats.total);
+  const completedJobs = dbStats.completed || jobs.filter(j => j.status === 'completed').length;
+  const failedJobs = dbStats.failed || jobs.filter(j => j.status === 'failed').length;
+  const successRate = totalJobs > 0 ? Math.round((completedJobs / totalJobs) * 100) : 0;
+
+  const avgDurationSecs = jobs.length > 0
+    ? Math.round(jobs.reduce((sum, j) => {
+        const secs = j.settings?.recapLengthSeconds || j.metadata?.settings?.recapLengthSeconds || 0;
+        return sum + secs;
+      }, 0) / jobs.length)
+    : 0;
+  const avgMins = Math.floor(avgDurationSecs / 60);
+  const avgSecs = avgDurationSecs % 60;
 
   const stats = {
-    total: jobs.length,
-    avgDuration: jobs.length > 0 ? '3:24' : '0:00',
-    totalViews: 0,
-    engagement: '0%',
+    total: totalJobs,
+    avgDuration: `${avgMins}:${avgSecs.toString().padStart(2, '0')}`,
+    totalViews: completedJobs,
+    engagement: `${successRate}%`,
   };
 
   const lastJob = lastJobId ? jobs.find(j => j.id === lastJobId) : null;

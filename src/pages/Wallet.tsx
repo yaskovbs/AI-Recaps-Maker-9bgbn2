@@ -1,4 +1,5 @@
 import React from 'react';
+import { toast } from 'sonner';
 import { useLanguage } from '@/lib/LanguageContext';
 import { useWallet } from '@/hooks/useWallet';
 import { Wallet as WalletIcon, Plus, Minus, RefreshCw, TrendingUp, Clock } from 'lucide-react';
@@ -8,16 +9,16 @@ export default function Wallet() {
   const { wallet, rewardCredits, refreshWallet } = useWallet();
 
   const handleWatchAd = () => {
-    alert('מציג מודעה מתגמלת...');
+    toast.loading('מציג מודעה מתגמלת...', { id: 'ad' });
     setTimeout(() => {
       rewardCredits(1, 'Watched rewarded ad from wallet');
-      alert('קיבלת קרדיט אחד!');
+      toast.success('קיבלת קרדיט אחד!', { id: 'ad' });
     }, 1000);
   };
 
   const handleRefresh = () => {
     refreshWallet();
-    alert('היתרה עודכנה!');
+    toast.success('היתרה עודכנה!');
   };
 
   return (

@@ -1,5 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
+import { toast } from 'sonner';
 import { Link } from 'react-router-dom';
 import { useLanguage } from '@/lib/LanguageContext';
 import { useWallet } from '@/hooks/useWallet';
@@ -76,10 +77,10 @@ export default function Home() {
 
   const handleWatchAd = () => {
     // In production, show real ad
-    alert('מציג מודעה... (במצב דמו)');
+    toast.loading('מציג מודעה...', { id: 'home-ad' });
     setTimeout(() => {
       rewardCredits(1, 'Watched ad from home');
-      alert('קיבלת קרדיט אחד!');
+      toast.success('קיבלת קרדיט אחד!', { id: 'home-ad' });
     }, 1000);
   };
 
