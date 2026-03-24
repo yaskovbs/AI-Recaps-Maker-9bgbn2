@@ -25,6 +25,13 @@ export interface APIKeysData {
   gemini?: string;
 }
 
+export interface SaveKeysResult {
+  success: boolean;
+  error?: string;
+  dbSynced: boolean;
+  dbError?: string;
+}
+
 // Map between provider names and APIKeysData field names
 const PROVIDER_TO_FIELD: Record<string, keyof APIKeysData> = {
   youtube: 'youtube',
@@ -41,6 +48,8 @@ const FIELD_TO_PROVIDER: Record<string, string> = {
 };
 
 class APIKeysService {
+  private dbAvailable: boolean | null = null;
+
   // Derive an AES-256 key from a password using PBKDF2
   private async deriveKey(password: string): Promise<CryptoKey> {
     const encoder = new TextEncoder();
@@ -222,6 +231,60 @@ class APIKeysService {
     return {};
   }
 
+  // Ensure auth session is valid before DB operations
+  private async ensureSession(): Promise<boolean> {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return false;
+
+      // Check if token is about to expire (within 60 seconds)
+      const expiresAt = session.expires_at;
+      if (expiresAt && expiresAt * 1000 - Date.now() < 60000) {
+        const { error } = await supabase.auth.refreshSession();
+        if (error) {
+          console.warn('Session refresh failed:', error);
+          return false;
+        }
+      }
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  // Test if the api_keys table is accessible in Supabase
+  async testDbConnection(userId: string): Promise<{ connected: boolean; error?: string }> {
+    try {
+      const sessionValid = await this.ensureSession();
+      if (!sessionValid) {
+        this.dbAvailable = false;
+        return { connected: false, error: 'אין סשן פעיל - יש להתחבר מחדש' };
+      }
+
+      const { error } = await supabase
+        .from('api_keys')
+        .select('user_id')
+        .eq('user_id', userId)
+        .limit(1);
+
+      if (error) {
+        this.dbAvailable = false;
+        return { connected: false, error: `שגיאת מסד נתונים: ${error.message}` };
+      }
+
+      this.dbAvailable = true;
+      return { connected: true };
+    } catch (e: any) {
+      this.dbAvailable = false;
+      return { connected: false, error: e.message || 'שגיאה לא צפויה' };
+    }
+  }
+
+  // Get current DB availability status
+  isDbAvailable(): boolean | null {
+    return this.dbAvailable;
+  }
+
   // Validate API key format (basic validation)
   validateKeyFormat(provider: string, key: string): { valid: boolean; error?: string } {
     if (!key || key.trim().length === 0) {
@@ -246,32 +309,16 @@ class APIKeysService {
     return { valid: true };
   }
 
-  // Save API keys - localStorage first (always works), then DB (best effort)
-  async saveKeys(userId: string, keys: APIKeysData): Promise<{ success: boolean; error?: string }> {
-    try {
-      const providers = [
-        { provider: 'youtube', key: keys.youtube },
-        { provider: 'google_search', key: keys.googleSearch },
-        { provider: 'search_engine_id', key: keys.searchEngineId },
-        { provider: 'gemini', key: keys.gemini },
-      ];
-
-      // 1. Validate all keys first
-      for (const { provider, key } of providers) {
-        if (key && key.trim()) {
-          const validation = this.validateKeyFormat(provider, key);
-          if (!validation.valid) {
-            return { success: false, error: `${provider}: ${validation.error}` };
-          }
-        }
-      }
-
-      // 2. Save to localStorage FIRST (primary, always works)
-      await this.saveToLocalStorage(keys);
-      this.saveHintsToLocalStorage(keys);
-
-      // 3. Try DB save (best effort, don't fail if DB is unavailable)
+  // Save to DB with retry (1 retry attempt)
+  private async saveToDbWithRetry(userId: string, providers: { provider: string; key?: string }[]): Promise<{ success: boolean; error?: string }> {
+    for (let attempt = 0; attempt < 2; attempt++) {
       try {
+        // Ensure session is valid before each attempt
+        const sessionValid = await this.ensureSession();
+        if (!sessionValid) {
+          return { success: false, error: 'סשן לא תקין - יש להתחבר מחדש' };
+        }
+
         for (const { provider, key } of providers) {
           if (key && key.trim()) {
             const encryptedKey = await this.encrypt(key);
@@ -295,51 +342,124 @@ class APIKeysService {
             if (error) throw error;
           }
         }
-      } catch (dbError) {
-        console.warn('DB save failed (keys saved to localStorage):', dbError);
+
+        this.dbAvailable = true;
+        return { success: true };
+      } catch (dbError: any) {
+        console.warn(`DB save attempt ${attempt + 1} failed:`, dbError);
+        if (attempt === 0) {
+          // Wait briefly before retry
+          await new Promise(r => setTimeout(r, 1000));
+        } else {
+          this.dbAvailable = false;
+          return { success: false, error: dbError.message || 'שמירה במסד הנתונים נכשלה' };
+        }
+      }
+    }
+    return { success: false, error: 'שמירה במסד הנתונים נכשלה' };
+  }
+
+  // Save API keys - localStorage first (always works), then DB with retry and reporting
+  async saveKeys(userId: string, keys: APIKeysData): Promise<SaveKeysResult> {
+    try {
+      const providers = [
+        { provider: 'youtube', key: keys.youtube },
+        { provider: 'google_search', key: keys.googleSearch },
+        { provider: 'search_engine_id', key: keys.searchEngineId },
+        { provider: 'gemini', key: keys.gemini },
+      ];
+
+      // 1. Validate all keys first
+      for (const { provider, key } of providers) {
+        if (key && key.trim()) {
+          const validation = this.validateKeyFormat(provider, key);
+          if (!validation.valid) {
+            return { success: false, dbSynced: false, error: `${provider}: ${validation.error}` };
+          }
+        }
       }
 
-      return { success: true };
+      // 2. Save to localStorage FIRST (primary, always works)
+      await this.saveToLocalStorage(keys);
+      this.saveHintsToLocalStorage(keys);
+
+      // 3. Try DB save with retry and proper error reporting
+      const dbResult = await this.saveToDbWithRetry(userId, providers);
+
+      return {
+        success: true,
+        dbSynced: dbResult.success,
+        dbError: dbResult.error,
+      };
     } catch (error: any) {
       console.error('Error saving API keys:', error);
-      return { success: false, error: error.message || 'Failed to save API keys' };
+      return { success: false, dbSynced: false, error: error.message || 'Failed to save API keys' };
     }
   }
 
+  // Sync keys from localStorage to DB (manual retry)
+  async syncToDb(userId: string): Promise<{ success: boolean; error?: string }> {
+    const keys = await this.loadFromLocalStorage();
+    const hasKeys = Object.values(keys).some(k => k && k.trim());
+    if (!hasKeys) {
+      return { success: false, error: 'אין מפתחות מקומיים לסנכרון' };
+    }
+
+    const providers = [
+      { provider: 'youtube', key: keys.youtube },
+      { provider: 'google_search', key: keys.googleSearch },
+      { provider: 'search_engine_id', key: keys.searchEngineId },
+      { provider: 'gemini', key: keys.gemini },
+    ];
+
+    return this.saveToDbWithRetry(userId, providers);
+  }
+
   // Load API keys - try DB first, fall back to localStorage
-  async loadKeys(userId: string): Promise<{ keys: APIKeysData; error?: string }> {
-    // Try DB first
-    try {
-      const { data, error } = await supabase
-        .from('api_keys')
-        .select('*')
-        .eq('user_id', userId)
-        .eq('is_active', true);
+  async loadKeys(userId: string): Promise<{ keys: APIKeysData; error?: string; fromDb: boolean }> {
+    // Ensure session before DB attempt
+    const sessionValid = await this.ensureSession();
 
-      if (error) throw error;
+    // Try DB first (only if session is valid)
+    if (sessionValid) {
+      try {
+        const { data, error } = await supabase
+          .from('api_keys')
+          .select('*')
+          .eq('user_id', userId)
+          .eq('is_active', true);
 
-      if (data && data.length > 0) {
-        const keys: APIKeysData = {};
+        if (error) throw error;
 
-        for (const record of data) {
-          const decryptedKey = await this.decrypt(record.encrypted_key);
-          const field = PROVIDER_TO_FIELD[record.provider];
-          if (field && decryptedKey) {
-            keys[field] = decryptedKey;
+        if (data && data.length > 0) {
+          const keys: APIKeysData = {};
+
+          for (const record of data) {
+            const decryptedKey = await this.decrypt(record.encrypted_key);
+            const field = PROVIDER_TO_FIELD[record.provider];
+            if (field && decryptedKey) {
+              keys[field] = decryptedKey;
+            }
           }
+
+          // Refresh localStorage backup from DB data
+          await this.saveToLocalStorage(keys);
+          this.saveHintsToLocalStorage(keys);
+          this.dbAvailable = true;
+          return { keys, fromDb: true };
         }
 
-        // Refresh localStorage backup from DB data
-        await this.saveToLocalStorage(keys);
-        return { keys };
+        // DB accessible but no keys found
+        this.dbAvailable = true;
+      } catch (dbError: any) {
+        console.warn('DB load failed, using localStorage:', dbError);
+        this.dbAvailable = false;
       }
-    } catch (dbError) {
-      console.warn('DB load failed, using localStorage:', dbError);
     }
 
     // Fallback: localStorage
     const keys = await this.loadFromLocalStorage();
-    return { keys };
+    return { keys, fromDb: false };
   }
 
   // Get key hints (for display purposes)

@@ -7,7 +7,7 @@ import { supabase } from '@/lib/supabase';
 import { notificationService, NotificationPreferences } from '@/lib/notificationService';
 import { apiKeysService, APIKeysData } from '@/lib/apiKeysService';
 import { learningService, LearningPreferences } from '@/lib/learningService';
-import { Key, Lock, Globe, Brain, Trash2, AlertCircle, CheckCircle, Eye, EyeOff, Save, RefreshCw, Bell, LogOut } from 'lucide-react';
+import { Key, Lock, Globe, Brain, Trash2, AlertCircle, CheckCircle, Eye, EyeOff, Save, RefreshCw, Bell, LogOut, Cloud, CloudOff, Smartphone } from 'lucide-react';
 
 export default function Settings() {
   const { t, language, setLanguage } = useLanguage();
@@ -17,7 +17,7 @@ export default function Settings() {
   const [showKeyValues, setShowKeyValues] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
-  const [saveMessage, setSaveMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [saveMessage, setSaveMessage] = useState<{ type: 'success' | 'error' | 'warning'; text: string } | null>(null);
 
   // API Keys State
   const [apiKeys, setApiKeys] = useState<APIKeysData>({
@@ -29,6 +29,8 @@ export default function Settings() {
 
   const [keyHints, setKeyHints] = useState<Record<string, string>>({});
   const [pin, setPin] = useState('');
+  const [dbSyncStatus, setDbSyncStatus] = useState<'checking' | 'connected' | 'disconnected' | null>(null);
+  const [isSyncing, setIsSyncing] = useState(false);
 
   // Learning Settings State
   const [continuousLearning, setContinuousLearning] = useState(true);
@@ -52,22 +54,33 @@ export default function Settings() {
       loadKeyHints();
       loadNotificationSettings();
       loadLearningSettings();
+      checkDbConnection();
     }
     if ('Notification' in window) {
       setNotifPermission(Notification.permission);
     }
   }, [user]);
 
+  const checkDbConnection = async () => {
+    if (!user) return;
+    setDbSyncStatus('checking');
+    const result = await apiKeysService.testDbConnection(user.id);
+    setDbSyncStatus(result.connected ? 'connected' : 'disconnected');
+  };
+
   const loadKeys = async () => {
     if (!user) return;
 
     setIsLoading(true);
     try {
-      const { keys, error } = await apiKeysService.loadKeys(user.id);
+      const { keys, error, fromDb } = await apiKeysService.loadKeys(user.id);
       if (error) {
         console.warn('API keys DB unavailable, using local backup:', error);
       }
       setApiKeys(keys);
+      if (fromDb) {
+        setDbSyncStatus('connected');
+      }
     } catch (error) {
       console.error('Error loading keys:', error);
     } finally {
@@ -102,13 +115,14 @@ export default function Settings() {
   const handleNotificationToggle = async (key: keyof NotificationPreferences) => {
     if (!user) return;
 
-    // Check push notification support
+    // Check push notification support (now works on mobile too via Service Worker)
     if (key === 'browserPush' && !notifications.browserPush) {
       if (!notificationService.isPushSupported()) {
-        toast.info('התראות Push נתמכות רק בדפדפן שולחני. בטלפון נייד יש להשתמש בהתראות מייל.');
+        toast.info('הדפדפן שלך לא תומך בהתראות. נסה לעדכן את הדפדפן.');
         return;
       }
-      if (notifPermission !== 'granted') {
+      const currentPermission = notificationService.getPermissionStatus();
+      if (currentPermission !== 'granted') {
         const granted = await notificationService.requestPermission();
         if (!granted) {
           toast.error(t.settings.notifications.permissionDenied);
@@ -153,19 +167,56 @@ export default function Settings() {
     setSaveMessage(null);
 
     try {
-      const { success, error } = await apiKeysService.saveKeys(user.id, apiKeys);
+      const result = await apiKeysService.saveKeys(user.id, apiKeys);
 
-      if (success) {
-        setSaveMessage({ type: 'success', text: t.settings.api.saved });
+      if (result.success) {
+        if (result.dbSynced) {
+          setSaveMessage({ type: 'success', text: 'מפתחות נשמרו וסונכרנו לענן בהצלחה! זמינים בכל מכשיר.' });
+          setDbSyncStatus('connected');
+        } else {
+          setSaveMessage({ type: 'warning', text: `מפתחות נשמרו מקומית בלבד. ${result.dbError || 'סנכרון לענן נכשל - המפתחות לא יהיו זמינים במכשירים אחרים.'}` });
+          setDbSyncStatus('disconnected');
+          toast.warning('המפתחות נשמרו רק במכשיר הזה. לשמירה בכל המכשירים, נסה לסנכרן שוב.');
+        }
         await loadKeyHints();
-        setTimeout(() => setSaveMessage(null), 3000);
+        setTimeout(() => setSaveMessage(null), 5000);
       } else {
-        setSaveMessage({ type: 'error', text: error || 'שמירה נכשלה' });
+        setSaveMessage({ type: 'error', text: result.error || 'שמירה נכשלה' });
       }
     } catch (error: any) {
       setSaveMessage({ type: 'error', text: error.message || 'שגיאה בשמירת מפתחות' });
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const handleSyncToCloud = async () => {
+    if (!user) return;
+    setIsSyncing(true);
+    try {
+      const result = await apiKeysService.syncToDb(user.id);
+      if (result.success) {
+        toast.success('מפתחות סונכרנו לענן בהצלחה!');
+        setDbSyncStatus('connected');
+      } else {
+        toast.error(result.error || 'סנכרון נכשל');
+      }
+    } catch {
+      toast.error('שגיאה בסנכרון');
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
+  const handleTestNotification = async () => {
+    const sent = await notificationService.sendNotification('בדיקת התראות', {
+      body: 'ההתראות עובדות! תקבל התראות כשהסיכומים שלך יהיו מוכנים.',
+      tag: 'test',
+    });
+    if (sent) {
+      toast.success('התראת בדיקה נשלחה!');
+    } else {
+      toast.error('שליחת התראה נכשלה. בדוק שאישרת התראות.');
     }
   };
 
@@ -271,10 +322,38 @@ export default function Settings() {
 
         {/* API Settings */}
         <div className="steampunk-card p-8 mb-6">
-          <h2 className="text-2xl font-serif font-semibold text-brass-200 mb-6 flex items-center gap-2">
-            <Key className="w-6 h-6" />
-            {t.settings.api.title} - {t.settings.api.byok}
-          </h2>
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="text-2xl font-serif font-semibold text-brass-200 flex items-center gap-2">
+              <Key className="w-6 h-6" />
+              {t.settings.api.title} - {t.settings.api.byok}
+            </h2>
+
+            {/* Cloud Sync Status */}
+            {dbSyncStatus && (
+              <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium ${
+                dbSyncStatus === 'checking' ? 'bg-brass-900/30 text-brass-400 border border-brass-700/30' :
+                dbSyncStatus === 'connected' ? 'bg-green-900/30 text-green-400 border border-green-700/30' :
+                'bg-red-900/30 text-red-400 border border-red-700/30'
+              }`}>
+                {dbSyncStatus === 'checking' ? (
+                  <>
+                    <div className="w-3 h-3 border-2 border-brass-400/30 border-t-brass-400 rounded-full animate-spin"></div>
+                    <span>בודק...</span>
+                  </>
+                ) : dbSyncStatus === 'connected' ? (
+                  <>
+                    <Cloud className="w-3.5 h-3.5" />
+                    <span>מחובר לענן</span>
+                  </>
+                ) : (
+                  <>
+                    <CloudOff className="w-3.5 h-3.5" />
+                    <span>שמירה מקומית</span>
+                  </>
+                )}
+              </div>
+            )}
+          </div>
 
           {!showKeys ? (
             <div className="space-y-4">
@@ -324,10 +403,34 @@ export default function Settings() {
                   className={`p-4 rounded-lg border ${
                     saveMessage.type === 'success'
                       ? 'bg-green-900/30 border-green-700/50 text-green-300'
+                      : saveMessage.type === 'warning'
+                      ? 'bg-yellow-900/30 border-yellow-700/50 text-yellow-300'
                       : 'bg-red-900/30 border-red-700/50 text-red-300'
                   }`}
                 >
                   {saveMessage.text}
+                </div>
+              )}
+
+              {/* Disconnected warning with sync button */}
+              {dbSyncStatus === 'disconnected' && (
+                <div className="bg-yellow-900/20 border border-yellow-700/30 rounded-lg p-4 flex items-center justify-between gap-4">
+                  <div className="flex items-center gap-2 text-sm text-yellow-300">
+                    <CloudOff className="w-4 h-4 flex-shrink-0" />
+                    <span>המפתחות שמורים רק במכשיר הזה. סנכרן לענן כדי לגשת מכל מכשיר.</span>
+                  </div>
+                  <button
+                    onClick={handleSyncToCloud}
+                    disabled={isSyncing}
+                    className="flex-shrink-0 bg-yellow-900/50 hover:bg-yellow-900/70 text-yellow-200 px-3 py-1.5 rounded text-sm font-medium transition-all flex items-center gap-1"
+                  >
+                    {isSyncing ? (
+                      <div className="w-4 h-4 border-2 border-yellow-300/30 border-t-yellow-300 rounded-full animate-spin"></div>
+                    ) : (
+                      <Cloud className="w-4 h-4" />
+                    )}
+                    סנכרן
+                  </button>
                 </div>
               )}
 
@@ -460,9 +563,15 @@ export default function Settings() {
                 <p className="text-sm text-brass-400">
                   {t.settings.notifications.browserPushDesc}
                 </p>
+                {notificationService.isPushSupported() && (
+                  <p className="text-xs text-green-400 mt-1 flex items-center gap-1">
+                    <Smartphone className="w-3 h-3" />
+                    עובד בכל המכשירים - טלפון ומחשב
+                  </p>
+                )}
                 {!notificationService.isPushSupported() && (
                   <p className="text-xs text-copper-400 mt-1">
-                    התראות Push נתמכות רק בדפדפן שולחני
+                    הדפדפן לא תומך בהתראות - נסה לעדכן את הדפדפן
                   </p>
                 )}
               </div>
@@ -479,6 +588,17 @@ export default function Settings() {
                 />
               </button>
             </div>
+
+            {/* Test notification button */}
+            {notifications.browserPush && notifPermission === 'granted' && (
+              <button
+                onClick={handleTestNotification}
+                className="w-full bg-brass-900/30 hover:bg-brass-900/50 text-brass-200 px-4 py-2 rounded-lg text-sm font-medium transition-all border border-brass-700/30 flex items-center justify-center gap-2"
+              >
+                <Bell className="w-4 h-4" />
+                שלח התראת בדיקה
+              </button>
+            )}
 
             {/* Email */}
             <div className="flex items-start justify-between">

@@ -17,19 +17,28 @@ const DEFAULT_PREFS: NotificationPreferences = {
 };
 
 class NotificationService {
-  private permission: NotificationPermission = 'default';
+  private swRegistration: ServiceWorkerRegistration | null = null;
 
-  constructor() {
-    if ('Notification' in window) {
-      this.permission = Notification.permission;
+  // Check if push notifications are supported (mobile + desktop via Service Worker)
+  isPushSupported(): boolean {
+    return 'serviceWorker' in navigator && 'Notification' in window;
+  }
+
+  // Get the active Service Worker registration
+  private async getRegistration(): Promise<ServiceWorkerRegistration | null> {
+    if (this.swRegistration) return this.swRegistration;
+
+    if (!('serviceWorker' in navigator)) return null;
+
+    try {
+      this.swRegistration = await navigator.serviceWorker.ready;
+      return this.swRegistration;
+    } catch {
+      return null;
     }
   }
 
-  // Check if push notifications are supported (not supported on most mobile browsers without SW)
-  isPushSupported(): boolean {
-    return 'Notification' in window;
-  }
-
+  // Request notification permission (works on mobile and desktop)
   async requestPermission(): Promise<boolean> {
     if (!('Notification' in window)) {
       console.warn('Browser does not support notifications');
@@ -38,7 +47,6 @@ class NotificationService {
 
     try {
       const permission = await Notification.requestPermission();
-      this.permission = permission;
       return permission === 'granted';
     } catch (error) {
       console.error('Failed to request notification permission:', error);
@@ -46,50 +54,97 @@ class NotificationService {
     }
   }
 
-  async sendBrowserNotification(title: string, options?: NotificationOptions) {
-    if (this.permission !== 'granted') {
+  // Get current permission status
+  getPermissionStatus(): NotificationPermission {
+    if (!('Notification' in window)) return 'denied';
+    return Notification.permission;
+  }
+
+  // Send a notification via Service Worker (works on mobile and desktop, even in background)
+  async sendNotification(title: string, options?: {
+    body?: string;
+    tag?: string;
+    url?: string;
+    requireInteraction?: boolean;
+  }): Promise<boolean> {
+    if (Notification.permission !== 'granted') {
       console.warn('Notification permission not granted');
-      return;
+      return false;
     }
 
+    // Try Service Worker notification first (works on mobile + background)
+    const registration = await this.getRegistration();
+    if (registration) {
+      try {
+        // Send message to SW to show notification
+        if (registration.active) {
+          registration.active.postMessage({
+            type: 'SHOW_NOTIFICATION',
+            title,
+            body: options?.body || '',
+            tag: options?.tag || 'default',
+            url: options?.url || '/',
+            requireInteraction: options?.requireInteraction || false,
+          });
+          return true;
+        }
+
+        // Fallback: use registration.showNotification directly
+        await registration.showNotification(title, {
+          body: options?.body || '',
+          icon: '/android-chrome-192x192.png',
+          badge: '/android-chrome-192x192.png',
+          tag: options?.tag || 'default',
+          data: { url: options?.url || '/' },
+          dir: 'rtl',
+          lang: 'he',
+          requireInteraction: options?.requireInteraction || false,
+        });
+        return true;
+      } catch (swError) {
+        console.warn('SW notification failed, falling back to Notification API:', swError);
+      }
+    }
+
+    // Fallback: direct Notification API (desktop only, foreground only)
     try {
       const notification = new Notification(title, {
-        icon: '/favicon.ico',
-        badge: '/favicon.ico',
-        ...options,
+        icon: '/android-chrome-192x192.png',
+        badge: '/android-chrome-192x192.png',
+        body: options?.body || '',
+        tag: options?.tag || 'default',
+        dir: 'rtl',
+        lang: 'he',
+        requireInteraction: options?.requireInteraction || false,
       });
 
       notification.onclick = () => {
         window.focus();
+        if (options?.url) {
+          window.location.href = options.url;
+        }
         notification.close();
       };
 
-      return notification;
+      return true;
     } catch (error) {
-      console.error('Failed to send browser notification:', error);
+      console.error('Failed to send notification:', error);
+      return false;
     }
   }
 
-  async notifyRecapComplete(userId: string, recapTitle: string, videoUrl: string) {
-    const { data: prefs } = await supabase
-      .from('user_preferences')
-      .select('notification_settings')
-      .eq('user_id', userId)
-      .single();
+  // Notify when recap is complete (called from job processing)
+  async notifyRecapComplete(userId: string, recapTitle: string, recapUrl: string) {
+    // Check user preferences
+    const prefs = await this.loadPreferences(userId);
 
-    const settings = prefs?.notification_settings as NotificationPreferences | null;
-
-    if (settings?.browserPush && settings?.recapComplete) {
-      await this.sendBrowserNotification('הסיכום שלך מוכן!', {
+    if (prefs.browserPush && prefs.recapComplete) {
+      await this.sendNotification('הסיכום שלך מוכן! 🎬', {
         body: `הסיכום "${recapTitle}" הושלם בהצלחה. לחץ כאן לצפייה.`,
         tag: 'recap-complete',
+        url: recapUrl,
         requireInteraction: true,
-        data: { videoUrl },
       });
-    }
-
-    if (settings?.email && settings?.recapComplete) {
-      console.log('Email notification would be sent here');
     }
   }
 
