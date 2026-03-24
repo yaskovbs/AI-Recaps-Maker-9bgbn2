@@ -5,123 +5,138 @@ export interface LearningPreferences {
   globalLearning: boolean;
 }
 
-const STORAGE_KEY = 'airm_learning_prefs';
+/**
+ * Load user's learning preferences from database
+ */
+export async function loadPreferences(userId: string): Promise<LearningPreferences> {
+  try {
+    const { data, error } = await supabase
+      .from('user_preferences')
+      .select('continuous_learning, global_learning')
+      .eq('user_id', userId)
+      .single();
 
-const DEFAULT_PREFS: LearningPreferences = {
-  continuousLearning: true,
-  globalLearning: false,
-};
-
-class LearningService {
-  // Save to localStorage
-  private saveToLocalStorage(preferences: LearningPreferences): void {
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(preferences));
-    } catch (e) {
-      console.warn('Failed to save learning prefs to localStorage:', e);
-    }
-  }
-
-  // Load from localStorage
-  private loadFromLocalStorage(): LearningPreferences | null {
-    try {
-      const stored = localStorage.getItem(STORAGE_KEY);
-      if (stored) {
-        return JSON.parse(stored);
-      }
-    } catch {
-      // corrupted
-    }
-    return null;
-  }
-
-  async savePreferences(userId: string, preferences: LearningPreferences): Promise<boolean> {
-    // 1. Save to localStorage FIRST (always works)
-    this.saveToLocalStorage(preferences);
-
-    // 2. Try DB save (best effort) - update the learning_profiles table
-    try {
-      const { error } = await supabase
-        .from('learning_profiles')
-        .upsert({
-          user_id: userId,
-          continuous_learning_enabled: preferences.continuousLearning,
-          continuous_learning_consent: preferences.continuousLearning,
-          global_learning_opt_in: preferences.globalLearning,
-          global_learning_consented_at: preferences.globalLearning ? new Date().toISOString() : null,
-          updated_at: new Date().toISOString(),
-        });
-
-      if (error) throw error;
-      return true;
-    } catch (error) {
-      console.warn('Failed to save learning preferences to DB (saved to localStorage):', error);
-      return true; // Still success because localStorage worked
-    }
-  }
-
-  async loadPreferences(userId: string): Promise<LearningPreferences> {
-    // 1. Try DB first
-    try {
-      const { data, error } = await supabase
-        .from('learning_profiles')
-        .select('continuous_learning_enabled, global_learning_opt_in')
-        .eq('user_id', userId)
-        .single();
-
-      if (error && error.code !== 'PGRST116') throw error;
-
-      if (data) {
-        const prefs: LearningPreferences = {
-          continuousLearning: data.continuous_learning_enabled ?? true,
-          globalLearning: data.global_learning_opt_in ?? false,
-        };
-        // Sync to localStorage
-        this.saveToLocalStorage(prefs);
-        return prefs;
-      }
-    } catch (error) {
-      console.warn('Failed to load learning preferences from DB:', error);
+    if (error) {
+      console.error('Error loading learning preferences:', error);
+      // Return defaults if error
+      return {
+        continuousLearning: true,
+        globalLearning: false,
+      };
     }
 
-    // 2. Fallback: localStorage
-    const localPrefs = this.loadFromLocalStorage();
-    if (localPrefs) {
-      return localPrefs;
-    }
-
-    // 3. Defaults
-    return { ...DEFAULT_PREFS };
-  }
-
-  async resetProfile(userId: string): Promise<boolean> {
-    // Clear localStorage
-    localStorage.removeItem(STORAGE_KEY);
-
-    // Try DB reset (best effort)
-    try {
-      const { error } = await supabase
-        .from('learning_profiles')
-        .update({
-          continuous_learning_enabled: true,
-          continuous_learning_consent: false,
-          global_learning_opt_in: false,
-          global_learning_consented_at: null,
-          total_recaps: 0,
-          favorite_genres: [],
-          preferred_duration_seconds: null,
-          metadata: {},
-          updated_at: new Date().toISOString(),
-        })
-        .eq('user_id', userId);
-
-      if (error) throw error;
-    } catch (error) {
-      console.warn('Failed to reset learning profile in DB:', error);
-    }
-
-    return true;
+    return {
+      continuousLearning: data?.continuous_learning ?? true,
+      globalLearning: data?.global_learning ?? false,
+    };
+  } catch (error) {
+    console.error('Exception loading learning preferences:', error);
+    return {
+      continuousLearning: true,
+      globalLearning: false,
+    };
   }
 }
 
-export const learningService = new LearningService();
+/**
+ * Save user's learning preferences to database
+ */
+export async function savePreferences(
+  userId: string,
+  preferences: LearningPreferences
+): Promise<boolean> {
+  try {
+    // First check if record exists
+    const { data: existing } = await supabase
+      .from('user_preferences')
+      .select('id')
+      .eq('user_id', userId)
+      .single();
+
+    let result;
+    if (existing) {
+      // Update existing record
+      result = await supabase
+        .from('user_preferences')
+        .update({
+          continuous_learning: preferences.continuousLearning,
+          global_learning: preferences.globalLearning,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('user_id', userId);
+    } else {
+      // Insert new record
+      result = await supabase
+        .from('user_preferences')
+        .insert({
+          user_id: userId,
+          continuous_learning: preferences.continuousLearning,
+          global_learning: preferences.globalLearning,
+        });
+    }
+
+    if (result.error) {
+      console.error('Error saving learning preferences:', result.error);
+      return false;
+    }
+
+    return true;
+  } catch (error) {
+    console.error('Exception saving learning preferences:', error);
+    return false;
+  }
+}
+
+/**
+ * Reset user's learning profile to defaults
+ */
+export async function resetProfile(userId: string): Promise<boolean> {
+  try {
+    const { error } = await supabase
+      .from('user_preferences')
+      .update({
+        continuous_learning: true,
+        global_learning: false,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('user_id', userId);
+
+    if (error) {
+      console.error('Error resetting learning profile:', error);
+      return false;
+    }
+
+    // Also reset any YouTube channel learning insights
+    const { error: channelError } = await supabase
+      .from('youtube_channels')
+      .update({
+        learning_insights: {
+          genres: [],
+          topics: [],
+          music_style: '',
+          color_palette: [],
+          editing_style: '',
+          videos_analyzed: 0,
+          last_learning_at: null,
+          avg_duration_seconds: 0,
+        },
+      })
+      .eq('user_id', userId);
+
+    if (channelError) {
+      console.warn('Error resetting YouTube learning insights:', channelError);
+      // Don't fail the whole operation if this fails
+    }
+
+    return true;
+  } catch (error) {
+    console.error('Exception resetting learning profile:', error);
+    return false;
+  }
+}
+
+export const learningService = {
+  loadPreferences,
+  savePreferences,
+  resetProfile,
+};

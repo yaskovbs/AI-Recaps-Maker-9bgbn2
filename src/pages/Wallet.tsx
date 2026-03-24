@@ -1,5 +1,4 @@
 import React from 'react';
-import { toast } from 'sonner';
 import { useLanguage } from '@/lib/LanguageContext';
 import { useWallet } from '@/hooks/useWallet';
 import { Wallet as WalletIcon, Plus, Minus, RefreshCw, TrendingUp, Clock } from 'lucide-react';
@@ -9,16 +8,16 @@ export default function Wallet() {
   const { wallet, rewardCredits, refreshWallet } = useWallet();
 
   const handleWatchAd = () => {
-    toast.loading('מציג מודעה מתגמלת...', { id: 'ad' });
+    alert('מציג מודעה מתגמלת...');
     setTimeout(() => {
       rewardCredits(1, 'Watched rewarded ad from wallet');
-      toast.success('קיבלת קרדיט אחד!', { id: 'ad' });
+      alert('קיבלת קרדיט אחד!');
     }, 1000);
   };
 
   const handleRefresh = () => {
     refreshWallet();
-    toast.success('היתרה עודכנה!');
+    alert('היתרה עודכנה!');
   };
 
   return (
@@ -33,7 +32,7 @@ export default function Wallet() {
         </div>
 
         {/* Balance Card */}
-        <div className="steampunk-card p-4 sm:p-8 mb-6 bg-gradient-to-br from-brass-900/40 to-copper-900/40">
+        <div className="steampunk-card p-8 mb-6 bg-gradient-to-br from-brass-900/40 to-copper-900/40">
           <div className="flex items-center justify-between mb-6">
             <div>
               <p className="text-brass-300 text-sm mb-2">{t.wallet.balance}</p>

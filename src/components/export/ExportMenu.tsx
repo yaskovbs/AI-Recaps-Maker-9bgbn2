@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import { toast } from 'sonner';
 import { FileDown, FileText, Video, Presentation, Settings } from 'lucide-react';
 import { exportRecap, downloadBlob, ExportOptions } from '@/lib/exportService';
 
@@ -50,7 +49,7 @@ export default function ExportMenu({ jobId, title, content, onClose, className =
       }, 500);
     } catch (error) {
       console.error('Export failed:', error);
-      toast.error('ייצוא נכשל. נסה שוב.');
+      alert('ייצוא נכשל. נסה שוב.');
       setIsExporting(false);
       setSelectedFormat(null);
     }
@@ -64,7 +63,7 @@ export default function ExportMenu({ jobId, title, content, onClose, className =
       </h3>
 
       {/* Format Selection */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+      <div className="grid grid-cols-3 gap-4 mb-6">
         <button
           onClick={() => handleExport('pdf')}
           disabled={isExporting}
