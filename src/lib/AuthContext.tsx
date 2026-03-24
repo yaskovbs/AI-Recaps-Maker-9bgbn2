@@ -32,14 +32,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Read localStorage for instant UI before async auth check
     const stored = localStorage.getItem('airm_user');
     if (stored) {
-      try { setUser(JSON.parse(stored)); } catch { /* corrupted, ignore */ }
+      try { setUser(JSON.parse(stored)); } catch (e) { /* corrupted, ignore */ }
     }
+
+    // Safety timeout — if INITIAL_SESSION never fires, stop loading after 5s
+    const timeout = setTimeout(() => {
+      if (mounted) setIsLoading(false);
+    }, 5000);
 
     // Single listener handles ALL auth events — no separate getSession() call
     // This prevents the race condition between checkAuth() and onAuthStateChange
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         if (!mounted) return;
+        clearTimeout(timeout);
 
         console.log('Auth state change:', event, session?.user?.id);
 
@@ -57,6 +63,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     return () => {
       mounted = false;
+      clearTimeout(timeout);
       subscription.unsubscribe();
     };
   }, []);
