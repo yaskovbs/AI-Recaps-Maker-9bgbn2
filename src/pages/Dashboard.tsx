@@ -134,40 +134,40 @@ export default function Dashboard() {
           ) : (
             <div className="space-y-4">
               {jobs.slice(0, 5).map(job => (
-                <div key={job.id} className="steampunk-card p-6 hover:shadow-brass transition-all">
-                  <div className="flex items-center justify-between">
-                    <div className="flex-1">
-                      <h3 className="text-lg font-semibold text-brass-200 mb-1">
+                <div key={job.id} className="steampunk-card p-4 sm:p-6 hover:shadow-brass transition-all">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div className="flex-1 min-w-0">
+                      <h3 className="text-base sm:text-lg font-semibold text-brass-200 mb-1 truncate">
                         {job.title}
                       </h3>
-                      <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3 flex-wrap">
                         <p className="text-sm text-brass-400">
                           {new Date(job.createdAt).toLocaleDateString('he-IL')}
                         </p>
-                        <SocialShare
-                          title={job.title}
-                          description={`סיכום AI מדהים: ${job.title}`}
-                          url={`${window.location.origin}/recap/${job.id}`}
-                          className="scale-75"
-                        />
+                        {job.status === 'completed' && (
+                          <span className="px-2 py-0.5 rounded-full bg-green-900/50 text-green-300 text-xs sm:text-sm">
+                            {t.dashboard.recentRecaps.status.completed}
+                          </span>
+                        )}
+                        {job.status === 'processing' && (
+                          <span className="px-2 py-0.5 rounded-full bg-copper-900/50 text-copper-300 text-xs sm:text-sm">
+                            {t.dashboard.recentRecaps.status.processing}
+                          </span>
+                        )}
+                        {job.status === 'failed' && (
+                          <span className="px-2 py-0.5 rounded-full bg-red-900/50 text-red-300 text-xs sm:text-sm">
+                            {t.dashboard.recentRecaps.status.failed}
+                          </span>
+                        )}
                       </div>
                     </div>
-                    <div className="flex items-center gap-2">
-                      {job.status === 'completed' && (
-                        <span className="px-3 py-1 rounded-full bg-green-900/50 text-green-300 text-sm">
-                          {t.dashboard.recentRecaps.status.completed}
-                        </span>
-                      )}
-                      {job.status === 'processing' && (
-                        <span className="px-3 py-1 rounded-full bg-copper-900/50 text-copper-300 text-sm">
-                          {t.dashboard.recentRecaps.status.processing}
-                        </span>
-                      )}
-                      {job.status === 'failed' && (
-                        <span className="px-3 py-1 rounded-full bg-red-900/50 text-red-300 text-sm">
-                          {t.dashboard.recentRecaps.status.failed}
-                        </span>
-                      )}
+                    <div className="hidden sm:block">
+                      <SocialShare
+                        title={job.title}
+                        description={`סיכום AI מדהים: ${job.title}`}
+                        url={`${window.location.origin}/recap/${job.id}`}
+                        className="scale-75"
+                      />
                     </div>
                   </div>
                   {/* Progress bar */}

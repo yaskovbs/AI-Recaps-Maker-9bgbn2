@@ -349,7 +349,7 @@ export default function Create() {
             {[1, 2, 3, 4, 5, 6].map((step) => (
               <div key={step} className="flex items-center flex-1">
                 <div
-                  className={`w-10 h-10 rounded-full flex items-center justify-center font-bold transition-all ${
+                  className={`w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center font-bold text-sm sm:text-base transition-all ${
                     step === currentStep
                       ? 'bg-gradient-to-br from-brass-500 to-copper-600 text-white scale-110 glow-brass'
                       : step < currentStep
@@ -369,7 +369,7 @@ export default function Create() {
               </div>
             ))}
           </div>
-          <div className="flex justify-between mt-2 text-xs text-brass-300">
+          <div className="hidden sm:flex justify-between mt-2 text-xs text-brass-300">
             <span>{t.create.wizard.step1}</span>
             <span>{t.create.wizard.step2}</span>
             <span>{t.create.wizard.step3}</span>
@@ -377,10 +377,13 @@ export default function Create() {
             <span>{t.create.wizard.step5}</span>
             <span>{t.create.wizard.step6}</span>
           </div>
+          <p className="sm:hidden text-center text-xs text-brass-300 mt-2">
+            שלב {currentStep} מתוך {totalSteps}
+          </p>
         </div>
 
         {/* Step Content */}
-        <div className="steampunk-card p-8 mb-6">
+        <div className="steampunk-card p-4 sm:p-8 mb-6">
           {/* Step 1: Basic Input */}
           {currentStep === 1 && (
             <div>

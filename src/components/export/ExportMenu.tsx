@@ -64,7 +64,7 @@ export default function ExportMenu({ jobId, title, content, onClose, className =
       </h3>
 
       {/* Format Selection */}
-      <div className="grid grid-cols-3 gap-4 mb-6">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
         <button
           onClick={() => handleExport('pdf')}
           disabled={isExporting}

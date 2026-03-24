@@ -33,7 +33,7 @@ export default function Wallet() {
         </div>
 
         {/* Balance Card */}
-        <div className="steampunk-card p-8 mb-6 bg-gradient-to-br from-brass-900/40 to-copper-900/40">
+        <div className="steampunk-card p-4 sm:p-8 mb-6 bg-gradient-to-br from-brass-900/40 to-copper-900/40">
           <div className="flex items-center justify-between mb-6">
             <div>
               <p className="text-brass-300 text-sm mb-2">{t.wallet.balance}</p>
