@@ -47,15 +47,19 @@ export default function Settings() {
   const [notifPermission, setNotifPermission] = useState<NotificationPermission>('default');
   const [notifSaveStatus, setNotifSaveStatus] = useState<'idle' | 'saved' | 'error'>('idle');
 
-  // Load all settings on mount
+  // Load all settings on mount — serialized to prevent auth token lock contention
   useEffect(() => {
-    if (user) {
-      loadKeys();
-      loadKeyHints();
-      loadNotificationSettings();
-      loadLearningSettings();
-      checkDbConnection();
-    }
+    if (!user) return;
+    const init = async () => {
+      await checkDbConnection(); // warms session cache first
+      await Promise.all([
+        loadKeys(),
+        loadKeyHints(),
+        loadNotificationSettings(),
+        loadLearningSettings(),
+      ]);
+    };
+    init();
     if ('Notification' in window) {
       setNotifPermission(Notification.permission);
     }

@@ -21,6 +21,20 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   },
 });
 
+// Deduplicated session getter — prevents concurrent getSession() calls
+// from causing auth token lock contention
+let _sessionPromise: ReturnType<typeof supabase.auth.getSession> | null = null;
+
+export async function getSessionOnce() {
+  if (_sessionPromise) return _sessionPromise;
+  _sessionPromise = supabase.auth.getSession();
+  try {
+    return await _sessionPromise;
+  } finally {
+    _sessionPromise = null;
+  }
+}
+
 // Types
 export interface UserProfile {
   id: string;

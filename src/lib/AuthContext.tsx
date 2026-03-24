@@ -29,24 +29,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     let mounted = true;
 
-    // Check if user is already logged in
-    checkAuth();
+    // Read localStorage for instant UI before async auth check
+    const stored = localStorage.getItem('airm_user');
+    if (stored) {
+      try { setUser(JSON.parse(stored)); } catch { /* corrupted, ignore */ }
+    }
 
-    // Listen to auth state changes (including OAuth callbacks)
+    // Single listener handles ALL auth events — no separate getSession() call
+    // This prevents the race condition between checkAuth() and onAuthStateChange
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         if (!mounted) return;
 
         console.log('Auth state change:', event, session?.user?.id);
 
-        if (event === 'SIGNED_IN' && session?.user) {
+        if ((event === 'INITIAL_SESSION' || event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') && session?.user) {
           await handleAuthUser(session.user);
+        } else if (event === 'INITIAL_SESSION' && !session) {
+          setIsLoading(false);
         } else if (event === 'SIGNED_OUT') {
           setUser(null);
           localStorage.removeItem('airm_user');
           setIsLoading(false);
-        } else if (event === 'TOKEN_REFRESHED' && session?.user) {
-          await handleAuthUser(session.user);
         }
       }
     );
@@ -124,27 +128,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } catch (error) {
       console.error('Error handling auth user:', error);
     } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const checkAuth = async () => {
-    try {
-      // Try to get from localStorage first (fallback)
-      const stored = localStorage.getItem('airm_user');
-      if (stored) {
-        setUser(JSON.parse(stored));
-      }
-
-      // Check Supabase session
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session?.user) {
-        await handleAuthUser(session.user);
-      } else {
-        setIsLoading(false);
-      }
-    } catch (error) {
-      console.error('Auth check error:', error);
       setIsLoading(false);
     }
   };

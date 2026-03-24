@@ -1,4 +1,4 @@
-import { supabase } from './supabase';
+import { supabase, getSessionOnce } from './supabase';
 
 // AES-256-GCM encryption for secure API key storage
 // Keys are encrypted so that nobody (including the site owner) can see the real keys
@@ -241,21 +241,12 @@ class APIKeysService {
   }
 
   // Ensure auth session is valid before DB operations
+  // Uses deduplicated getter to prevent lock contention
+  // Manual refreshSession() removed — autoRefreshToken handles this
   private async ensureSession(): Promise<boolean> {
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) return false;
-
-      // Check if token is about to expire (within 60 seconds)
-      const expiresAt = session.expires_at;
-      if (expiresAt && expiresAt * 1000 - Date.now() < 60000) {
-        const { error } = await supabase.auth.refreshSession();
-        if (error) {
-          console.warn('Session refresh failed:', error);
-          return false;
-        }
-      }
-      return true;
+      const { data: { session } } = await getSessionOnce();
+      return !!session;
     } catch {
       return false;
     }
