@@ -23,6 +23,7 @@ const Privacy = React.lazy(() => import('@/pages/Privacy'));
 const FAQ = React.lazy(() => import('@/pages/FAQ'));
 const Contact = React.lazy(() => import('@/pages/Contact'));
 const Gallery = React.lazy(() => import('@/pages/Gallery'));
+const RecapView = React.lazy(() => import('@/pages/RecapView'));
 
 function PageLoader() {
   return (
@@ -56,6 +57,7 @@ function App() {
             <Route path="/youtube-learning" element={<YouTubeLearning />} />
             <Route path="/leaderboard" element={<Leaderboard />} />
             <Route path="/gallery" element={<Gallery />} />
+            <Route path="/recap/:id" element={<RecapView />} />
             <Route path="/settings" element={<Settings />} />
             <Route path="/faq" element={<FAQ />} />
             <Route path="/contact" element={<Contact />} />
