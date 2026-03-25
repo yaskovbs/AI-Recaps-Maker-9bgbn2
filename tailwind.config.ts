@@ -122,7 +122,6 @@ export default {
       backgroundImage: {
         'steampunk-gradient': 'linear-gradient(135deg, #2a4464 0%, #713025 50%, #854130 100%)',
         'brass-gradient': 'linear-gradient(135deg, #c6653c 0%, #e8bc94 100%)',
-        'steam-texture': "url('/assets/steam-texture.png')",
       },
       boxShadow: {
         'brass': '0 4px 14px 0 rgba(212, 124, 71, 0.39)',
