@@ -190,8 +190,8 @@ class APIKeysService {
           return JSON.parse(decrypted);
         }
       }
-    } catch {
-      // Backup corrupted, ignore
+    } catch (e) {
+      console.error('Failed to restore API keys from backup:', e);
     }
     return {};
   }
@@ -234,8 +234,8 @@ class APIKeysService {
       if (stored) {
         return JSON.parse(stored);
       }
-    } catch {
-      // Corrupted, ignore
+    } catch (e) {
+      console.error('Failed to load API key hints:', e);
     }
     return {};
   }
@@ -507,8 +507,8 @@ class APIKeysService {
         delete hints[provider];
         localStorage.setItem('airm_api_key_hints', JSON.stringify(hints));
       }
-    } catch {
-      // ignore
+    } catch (e) {
+      console.error('Failed to remove API key hint:', e);
     }
 
     // Try DB delete (best effort)
