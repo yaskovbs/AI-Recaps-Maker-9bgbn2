@@ -8,9 +8,9 @@ if (!supabaseUrl || !supabaseAnonKey) {
 }
 
 // Google OAuth credentials (configured in .env)
+// Note: Client secret must NOT be in frontend - Supabase PKCE flow handles it server-side
 export const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID || '';
-export const googleClientSecret = import.meta.env.VITE_GOOGLE_CLIENT_SECRET || '';
-export const isGoogleOAuthConfigured = Boolean(googleClientId && googleClientSecret);
+export const isGoogleOAuthConfigured = Boolean(googleClientId);
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {

@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { supabase, isGoogleOAuthConfigured, googleClientId } from './supabase';
+import { supabase, isGoogleOAuthConfigured } from './supabase';
 import type { User as SupabaseUser } from '@supabase/supabase-js';
 
 interface User {
@@ -46,8 +46,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       async (event, session) => {
         if (!mounted) return;
         clearTimeout(timeout);
-
-        console.log('Auth state change:', event, session?.user?.id);
 
         if ((event === 'INITIAL_SESSION' || event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') && session?.user) {
           await handleAuthUser(session.user);
@@ -143,14 +141,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       // Check if Google OAuth credentials are configured
       if (!isGoogleOAuthConfigured) {
-        console.warn('⚠️ Google OAuth credentials not configured in .env file (VITE_GOOGLE_CLIENT_ID, VITE_GOOGLE_CLIENT_SECRET)');
-        console.warn('⚠️ Also make sure credentials are configured in OnSpace/Supabase dashboard under Auth > Providers > Google');
-      }
-
-      console.log('🔵 Starting Google OAuth login...');
-      console.log('🔵 Redirect URL:', window.location.origin);
-      if (googleClientId) {
-        console.log('🔵 Using Google Client ID:', googleClientId.substring(0, 20) + '...');
+        throw new Error('Google OAuth credentials not configured');
       }
 
       const { data, error } = await supabase.auth.signInWithOAuth({
@@ -179,12 +170,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         throw error;
       }
 
-      console.log('✅ OAuth initiated, redirecting to Google...', data);
-
       // Don't set loading state - user will be redirected to Google
       // Auth state will be handled by onAuthStateChange when they return
     } catch (error: any) {
-      console.error('❌ Google login failed:', error);
       throw new Error(error.message || 'התחברות עם Google נכשלה. נסה שוב מאוחר יותר.');
     }
   };
@@ -304,7 +292,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = async () => {
     try {
-      console.log('🔴 Starting logout...');
       setIsLoading(true);
       
       // Sign out from Supabase
@@ -318,9 +305,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(null);
       localStorage.removeItem('airm_user');
       
-      console.log('✅ Logout successful');
     } catch (error) {
-      console.error('❌ Logout error:', error);
+      console.error('Logout error:', error);
       // Force logout even if Supabase fails
       setUser(null);
       localStorage.removeItem('airm_user');
@@ -381,7 +367,7 @@ export function useAuth() {
       loginWithGoogle: async () => {},
       signup: async () => {},
       logout: async () => {
-        localStorage.clear();
+        localStorage.removeItem('airm_user');
         window.location.href = '/login';
       },
       updateProfile: async () => {},
