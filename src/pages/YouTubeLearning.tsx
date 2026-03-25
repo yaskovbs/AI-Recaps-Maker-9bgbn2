@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { toast } from 'sonner';
 import { useLanguage } from '@/lib/LanguageContext';
 import { useAuth } from '@/lib/AuthContext';
 import { useYouTubeChannels } from '@/hooks/useYouTubeChannels';
@@ -38,12 +39,12 @@ export default function YouTubeLearning() {
 
   const handleAddChannel = async () => {
     if (!user) {
-      alert('יש להתחבר כדי להוסיף ערוצים');
+      toast.error('יש להתחבר כדי להוסיף ערוצים');
       return;
     }
 
     if (!channelInput.trim()) {
-      alert('הזן URL, @handle, או channel ID');
+      toast.error('הזן URL, @handle, או channel ID');
       return;
     }
 
@@ -59,9 +60,9 @@ export default function YouTubeLearning() {
     if (result.success) {
       setChannelInput('');
       setAdsWatchedForSlot(0);
-      alert('ערוץ נוסף בהצלחה!');
+      toast.success('ערוץ נוסף בהצלחה!');
     } else {
-      alert(result.error || 'שגיאה בהוספת ערוץ');
+      toast.error(result.error || 'שגיאה בהוספת ערוץ');
     }
   };
 
@@ -69,18 +70,18 @@ export default function YouTubeLearning() {
     if (!confirm('האם למחוק ערוץ זה?')) return;
     const success = await removeChannel(channelId);
     if (success) {
-      alert('ערוץ הוסר');
+      toast.success('ערוץ הוסר');
     } else {
-      alert('שגיאה בהסרת ערוץ');
+      toast.error('שגיאה בהסרת ערוץ');
     }
   };
 
   const handleSyncChannel = async (channelId: string) => {
     const success = await syncChannel(channelId);
     if (success) {
-      alert('ערוץ סונכרן!');
+      toast.success('ערוץ סונכרן!');
     } else {
-      alert('שגיאה בסנכרון');
+      toast.error('שגיאה בסנכרון');
     }
   };
 
@@ -97,12 +98,12 @@ export default function YouTubeLearning() {
         setChannelInput('');
         setPendingChannelInput('');
         setAdsWatchedForSlot(0);
-        alert('סלוט נפתח! ערוץ נוסף בהצלחה!');
+        toast.success('סלוט נפתח! ערוץ נוסף בהצלחה!');
       } else {
-        alert(result.error || 'שגיאה בהוספת ערוץ');
+        toast.error(result.error || 'שגיאה בהוספת ערוץ');
       }
     } else {
-      alert(`נותרו עוד ${slotInfo.adsRequired - newCount} מודעות`);
+      toast(`נותרו עוד ${slotInfo.adsRequired - newCount} מודעות`);
     }
   };
 

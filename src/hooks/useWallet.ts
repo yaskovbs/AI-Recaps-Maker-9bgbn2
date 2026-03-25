@@ -74,7 +74,6 @@ export function useWallet() {
 
   const refresh = () => {
     // In a real app, this would fetch from the server
-    console.log('Refreshing wallet from server...');
   };
 
   return {
@@ -82,5 +81,7 @@ export function useWallet() {
     rewardCredits,
     consumeCredits,
     refresh,
+    loadWallet: refresh,
+    refreshWallet: refresh,
   };
 }

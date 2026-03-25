@@ -1,4 +1,5 @@
 import React from 'react';
+import { toast } from 'sonner';
 import { useLanguage } from '@/lib/LanguageContext';
 import { useWallet } from '@/hooks/useWallet';
 import { Wallet as WalletIcon, Plus, Minus, RefreshCw, TrendingUp, Clock } from 'lucide-react';
@@ -8,16 +9,16 @@ export default function Wallet() {
   const { wallet, rewardCredits, refreshWallet } = useWallet();
 
   const handleWatchAd = () => {
-    alert('מציג מודעה מתגמלת...');
+    toast('מציג מודעה מתגמלת...');
     setTimeout(() => {
       rewardCredits(1, 'Watched rewarded ad from wallet');
-      alert('קיבלת קרדיט אחד!');
+      toast.success('קיבלת קרדיט אחד!');
     }, 1000);
   };
 
   const handleRefresh = () => {
     refreshWallet();
-    alert('היתרה עודכנה!');
+    toast.success('היתרה עודכנה!');
   };
 
   return (
@@ -114,7 +115,7 @@ export default function Wallet() {
           ) : (
             <div className="space-y-3">
               {wallet.history
-                .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+                .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
                 .map((transaction, idx) => (
                   <div
                     key={idx}
@@ -140,7 +141,7 @@ export default function Wallet() {
                             ? t.wallet.history.reward
                             : t.wallet.history.consume}
                         </p>
-                        <p className="text-sm text-brass-400">{transaction.reason}</p>
+                        <p className="text-sm text-brass-400">{transaction.description}</p>
                       </div>
                     </div>
                     <div className="text-left">
@@ -153,7 +154,7 @@ export default function Wallet() {
                         {transaction.amount}
                       </p>
                       <p className="text-xs text-brass-400">
-                        {new Date(transaction.timestamp).toLocaleString('he-IL')}
+                        {new Date(transaction.date).toLocaleString('he-IL')}
                       </p>
                     </div>
                   </div>

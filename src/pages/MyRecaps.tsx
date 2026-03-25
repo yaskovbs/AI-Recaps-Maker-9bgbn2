@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { toast } from 'sonner';
 import { useAuth } from '@/lib/AuthContext';
 import { useLanguage } from '@/lib/LanguageContext';
 import { useNavigate } from 'react-router-dom';
@@ -99,7 +100,7 @@ export default function MyRecaps() {
       setRecaps(recaps.filter(r => r.id !== recapId));
     } catch (error) {
       console.error('Error deleting recap:', error);
-      alert(t.myRecaps.deleteFailed);
+      toast.error(t.myRecaps.deleteFailed);
     }
   };
 
@@ -145,7 +146,7 @@ export default function MyRecaps() {
 
     } catch (error) {
       console.error('Error toggling public state:', error);
-      alert('שגיאה בעדכון מצב הפרטיות');
+      toast.error('שגיאה בעדכון מצב הפרטיות');
     }
   };
 
@@ -391,8 +392,9 @@ export default function MyRecaps() {
           <div className="steampunk-card p-6 max-w-md w-full">
             <h3 className="text-xl font-semibold text-brass-200 mb-4">{t.myRecaps.exportRecap}</h3>
             <ExportMenu
-              recapId={selectedRecap.id}
+              jobId={selectedRecap.id}
               title={selectedRecap.title || selectedRecap.movie_title || 'recap'}
+              content={selectedRecap.description || selectedRecap.title || ''}
               onClose={() => setShowExportMenu(false)}
             />
           </div>
