@@ -1,6 +1,7 @@
 import React from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { Toaster } from 'sonner';
+import { useLanguage } from '@/lib/LanguageContext';
 import ErrorBoundary from '@/components/ErrorBoundary';
 import Header from '@/components/layout/Header';
 import Footer from '@/components/layout/Footer';
@@ -23,10 +24,13 @@ import FAQ from '@/pages/FAQ';
 import Contact from '@/pages/Contact';
 import Gallery from '@/pages/Gallery';
 import RecapView from '@/pages/RecapView';
+import NotFound from '@/pages/NotFound';
 
 function App() {
+  const { dir } = useLanguage();
+
   return (
-    <div className="flex flex-col min-h-screen bg-steampunk-gradient">
+    <div className="flex flex-col min-h-screen bg-steampunk-gradient" dir={dir}>
       <Header />
       <main className="flex-1">
         <ErrorBoundary>
@@ -49,7 +53,7 @@ function App() {
             <Route path="/contact" element={<Contact />} />
             <Route path="/terms" element={<Terms />} />
             <Route path="/privacy" element={<Privacy />} />
-            <Route path="*" element={<div className="container mx-auto px-4 py-20 text-center text-brass-200">404 - Page Not Found</div>} />
+            <Route path="*" element={<NotFound />} />
           </Routes>
         </ErrorBoundary>
       </main>
