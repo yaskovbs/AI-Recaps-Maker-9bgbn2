@@ -18,7 +18,7 @@ class NotificationService {
 
   async requestPermission(): Promise<boolean> {
     if (!('Notification' in window)) {
-      console.warn('Browser does not support notifications');
+      // Browser does not support notifications
       return false;
     }
 
@@ -34,7 +34,7 @@ class NotificationService {
 
   async sendBrowserNotification(title: string, options?: NotificationOptions) {
     if (this.permission !== 'granted') {
-      console.warn('Notification permission not granted');
+      // Notification permission not granted
       return;
     }
 
@@ -78,7 +78,7 @@ class NotificationService {
 
     // Email notification (handled by backend Edge Function in production)
     if (settings?.email && settings?.recapComplete) {
-      console.log('Email notification would be sent here');
+      // Email notification would be sent here
       // In production: trigger Edge Function to send email
       // await supabase.functions.invoke('send-email', {
       //   body: { userId, recapTitle, videoUrl }

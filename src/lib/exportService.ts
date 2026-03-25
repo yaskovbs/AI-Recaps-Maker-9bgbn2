@@ -23,8 +23,6 @@ export async function exportRecap(
   // In production, call backend API
   // For now, simulate export
 
-  console.log('Exporting recap:', { jobId, title, options });
-
   switch (options.format) {
     case 'pdf':
       return await generatePDF(title, content, options);

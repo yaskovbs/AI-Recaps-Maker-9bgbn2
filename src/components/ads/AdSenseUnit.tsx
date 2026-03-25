@@ -159,7 +159,7 @@ export function RewardedAd({ onRewardEarned, onAdClosed, onAdFailed, rewardType 
           <AdSenseUnit
             adSlot="YOUR_REWARDED_AD_SLOT_ID"
             adFormat="auto"
-            onAdLoaded={() => console.log('Rewarded ad loaded')}
+            onAdLoaded={() => {}}
             onAdFailed={(error) => {
               console.error('Rewarded ad failed:', error);
               onAdFailed?.(error);
@@ -231,7 +231,7 @@ export function InterstitialAd({ onAdClosed, onAdFailed }: InterstitialAdProps) 
             <AdSenseUnit
               adSlot="YOUR_INTERSTITIAL_AD_SLOT_ID"
               adFormat="auto"
-              onAdLoaded={() => console.log('Interstitial ad loaded')}
+              onAdLoaded={() => {}}
               onAdFailed={(error) => {
                 console.error('Interstitial ad failed:', error);
                 onAdFailed?.(error);

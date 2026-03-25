@@ -54,12 +54,10 @@ export default function Signup() {
     setError('');
     
     try {
-      console.log('🔵 User clicked Google signup');
       await loginWithGoogle();
       // Auto-redirects to Google, no need to navigate
-      console.log('✅ Should redirect to Google now');
     } catch (err: any) {
-      console.error('❌ Google signup error:', err);
+      console.error('Google signup error:', err);
       const errorMessage = err.message || 'הרשמה עם Google נכשלה';
       
       // Show user-friendly error

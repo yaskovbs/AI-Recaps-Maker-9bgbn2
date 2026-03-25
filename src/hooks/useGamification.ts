@@ -225,7 +225,7 @@ export function useGamification() {
 
   const showNotification = (title: string, message: string) => {
     // In production, use toast or notification system
-    console.log(`[Gamification] ${title}: ${message}`);
+    // TODO: use toast or notification system
   };
 
   const loadStoredData = () => {

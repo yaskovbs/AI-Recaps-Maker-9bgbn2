@@ -79,7 +79,7 @@ export default function Settings() {
     try {
       const { keys, error, fromDb } = await apiKeysService.loadKeys(user.id);
       if (error) {
-        console.warn('API keys DB unavailable, using local backup:', error);
+        // API keys DB unavailable, using local backup
       }
       setApiKeys(keys);
       if (fromDb) {
@@ -297,9 +297,7 @@ export default function Settings() {
     const confirm = window.confirm(t.settings.account.logoutConfirm);
     if (confirm) {
       try {
-        console.log('User confirmed logout from Settings');
         await logout();
-        console.log('Navigating to home...');
         navigate('/home');
         setTimeout(() => {
           window.location.href = '/home';

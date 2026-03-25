@@ -36,12 +36,10 @@ export default function Login() {
     setError('');
     
     try {
-      console.log('🔵 User clicked Google login');
       await loginWithGoogle();
       // Auto-redirects to Google, no need to navigate
-      console.log('✅ Should redirect to Google now');
     } catch (err: any) {
-      console.error('❌ Google login error:', err);
+      console.error('Google login error:', err);
       const errorMessage = err.message || 'התחברות עם Google נכשלה';
       
       // Show user-friendly error
