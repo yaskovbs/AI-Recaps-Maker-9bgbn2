@@ -1,5 +1,7 @@
 import React from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
+import { Toaster } from 'sonner';
+import ErrorBoundary from '@/components/ErrorBoundary';
 import Header from '@/components/layout/Header';
 import Footer from '@/components/layout/Footer';
 
@@ -20,13 +22,15 @@ import Privacy from '@/pages/Privacy';
 import FAQ from '@/pages/FAQ';
 import Contact from '@/pages/Contact';
 import Gallery from '@/pages/Gallery';
+import RecapView from '@/pages/RecapView';
 
 function App() {
   return (
     <div className="flex flex-col min-h-screen bg-steampunk-gradient">
       <Header />
       <main className="flex-1">
-        <Routes>
+        <ErrorBoundary>
+          <Routes>
             <Route path="/" element={<Navigate to="/home" replace />} />
             <Route path="/home" element={<Home />} />
             <Route path="/login" element={<Login />} />
@@ -39,15 +43,29 @@ function App() {
             <Route path="/youtube-learning" element={<YouTubeLearning />} />
             <Route path="/leaderboard" element={<Leaderboard />} />
             <Route path="/gallery" element={<Gallery />} />
+            <Route path="/recap/:id" element={<RecapView />} />
             <Route path="/settings" element={<Settings />} />
             <Route path="/faq" element={<FAQ />} />
             <Route path="/contact" element={<Contact />} />
             <Route path="/terms" element={<Terms />} />
             <Route path="/privacy" element={<Privacy />} />
             <Route path="*" element={<div className="container mx-auto px-4 py-20 text-center text-brass-200">404 - Page Not Found</div>} />
-        </Routes>
+          </Routes>
+        </ErrorBoundary>
       </main>
       <Footer />
+      <Toaster
+        position="top-center"
+        richColors
+        dir="rtl"
+        toastOptions={{
+          style: {
+            background: '#1a1510',
+            border: '1px solid rgba(212, 124, 71, 0.3)',
+            color: '#d4a574',
+          },
+        }}
+      />
     </div>
   );
 }
