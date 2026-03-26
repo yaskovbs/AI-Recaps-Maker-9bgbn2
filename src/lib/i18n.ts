@@ -293,8 +293,20 @@ export const translations = {
         amount: 'כמות',
       },
       refresh: 'רענן יתרה',
+      subtitle: 'נהל את הקרדיטים שלך',
+      toasts: {
+        showingAd: 'מציג מודעה מתגמלת...',
+        creditEarned: 'קיבלת קרדיט אחד!',
+        balanceUpdated: 'היתרה עודכנה!',
+      },
+      stats: {
+        received: 'קרדיטים התקבלו',
+        consumed: 'קרדיטים נוצלו',
+        lastReward: 'תגמול אחרון',
+        never: 'אף פעם',
+      },
     },
-    
+
     // Analytics
     analytics: {
       title: 'אנליטיקס',
@@ -373,6 +385,44 @@ export const translations = {
         musicStyle: 'סגנון מוזיקה',
         lastLearning: 'למידה אחרונה',
         noData: 'אין נתוני למידה עדיין',
+      },
+      toasts: {
+        loginRequired: 'יש להתחבר כדי להוסיף ערוצים',
+        enterUrl: 'הזן URL, @handle, או channel ID',
+        channelAdded: 'ערוץ נוסף בהצלחה!',
+        addError: 'שגיאה בהוספת ערוץ',
+        confirmDelete: 'האם למחוק ערוץ זה?',
+        channelRemoved: 'ערוץ הוסר',
+        removeError: 'שגיאה בהסרת ערוץ',
+        channelSynced: 'ערוץ סונכרן!',
+        syncError: 'שגיאה בסנכרון',
+        slotOpened: 'סלוט נפתח! ערוץ נוסף בהצלחה!',
+        adsRemaining: 'נותרו עוד {count} מודעות',
+      },
+      labels: {
+        activeChannels: 'ערוצים פעילים',
+        required: 'נדרשות',
+        ads: 'מודעות',
+        slotProgress: 'התקדמות פתיחת סלוט',
+        supportedFormats: 'פורמטים נתמכים: https://youtube.com/... , @channelhandle , UC...channelID',
+        loadingChannels: 'טוען ערוצים...',
+        videosAnalyzed: 'סרטונים נותחו',
+        sync: 'סנכרן',
+        remove: 'הסר',
+        openSlot: 'פתיחת סלוט ערוץ נוסף',
+        openSlotDesc: 'צפה ב-{required} מודעות כדי לפתוח סלוט זה ({watched} / {required})',
+      },
+      tiers: {
+        free: 'חינם',
+        premium12: '12 ערוצים',
+        premium22: '22 ערוצים',
+        unlimited: 'בלתי מוגבל',
+      },
+      refreshOptions: {
+        everyHour: 'כל שעה',
+        every6Hours: 'כל 6 שעות',
+        every24Hours: 'כל 24 שעות',
+        everyWeek: 'כל שבוע',
       },
     },
     
@@ -835,8 +885,20 @@ export const translations = {
         amount: 'Amount',
       },
       refresh: 'Refresh Balance',
+      subtitle: 'Manage your credits',
+      toasts: {
+        showingAd: 'Showing rewarded ad...',
+        creditEarned: 'You earned one credit!',
+        balanceUpdated: 'Balance updated!',
+      },
+      stats: {
+        received: 'Credits Received',
+        consumed: 'Credits Used',
+        lastReward: 'Last Reward',
+        never: 'Never',
+      },
     },
-    
+
     // Analytics
     analytics: {
       title: 'Analytics',
@@ -902,8 +964,58 @@ export const translations = {
         active: 'Active',
         error: 'Error',
       },
+      insights: {
+        title: 'Learning Insights',
+        videosAnalyzed: 'Videos Analyzed',
+        genres: 'Genres',
+        avgDuration: 'Average Duration',
+        topics: 'Topics',
+        editingStyle: 'Editing Style',
+        colorPalette: 'Color Palette',
+        musicStyle: 'Music Style',
+        lastLearning: 'Last Learning',
+        noData: 'No learning data yet',
+      },
+      toasts: {
+        loginRequired: 'Please log in to add channels',
+        enterUrl: 'Enter a URL, @handle, or channel ID',
+        channelAdded: 'Channel added successfully!',
+        addError: 'Error adding channel',
+        confirmDelete: 'Delete this channel?',
+        channelRemoved: 'Channel removed',
+        removeError: 'Error removing channel',
+        channelSynced: 'Channel synced!',
+        syncError: 'Error syncing',
+        slotOpened: 'Slot opened! Channel added successfully!',
+        adsRemaining: '{count} ads remaining',
+      },
+      labels: {
+        activeChannels: 'active channels',
+        required: 'required',
+        ads: 'ads',
+        slotProgress: 'Slot unlock progress',
+        supportedFormats: 'Supported formats: https://youtube.com/... , @channelhandle , UC...channelID',
+        loadingChannels: 'Loading channels...',
+        videosAnalyzed: 'videos analyzed',
+        sync: 'Sync',
+        remove: 'Remove',
+        openSlot: 'Unlock Additional Channel Slot',
+        openSlotDesc: 'Watch {required} ads to unlock this slot ({watched} / {required})',
+      },
+      tiers: {
+        free: 'Free',
+        premium12: '12 Channels',
+        premium22: '22 Channels',
+        unlimited: 'Unlimited',
+      },
+      refreshOptions: {
+        everyHour: 'Every hour',
+        every6Hours: 'Every 6 hours',
+        every24Hours: 'Every 24 hours',
+        everyWeek: 'Every week',
+      },
     },
-    
+
     // Gallery
     gallery: {
       title: 'גלריית סיכומים',

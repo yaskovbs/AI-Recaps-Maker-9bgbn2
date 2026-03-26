@@ -7,7 +7,8 @@ import { RewardedAd } from '@/components/ads/AdSenseUnit';
 import { Youtube, Plus, Trash2, RefreshCw, Lock, ChevronDown, ChevronUp, Sparkles, Film, Clock, Palette, Music, Tag } from 'lucide-react';
 
 export default function YouTubeLearning() {
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
+  const locale = language === 'he' ? 'he-IL' : language === 'ar' ? 'ar-SA' : 'en-US';
   const { user } = useAuth();
   const {
     channels,
@@ -39,12 +40,12 @@ export default function YouTubeLearning() {
 
   const handleAddChannel = async () => {
     if (!user) {
-      toast.error('יש להתחבר כדי להוסיף ערוצים');
+      toast.error(t.youtube.toasts.loginRequired);
       return;
     }
 
     if (!channelInput.trim()) {
-      toast.error('הזן URL, @handle, או channel ID');
+      toast.error(t.youtube.toasts.enterUrl);
       return;
     }
 
@@ -60,28 +61,28 @@ export default function YouTubeLearning() {
     if (result.success) {
       setChannelInput('');
       setAdsWatchedForSlot(0);
-      toast.success('ערוץ נוסף בהצלחה!');
+      toast.success(t.youtube.toasts.channelAdded);
     } else {
-      toast.error(result.error || 'שגיאה בהוספת ערוץ');
+      toast.error(result.error || t.youtube.toasts.addError);
     }
   };
 
   const handleRemoveChannel = async (channelId: string) => {
-    if (!confirm('האם למחוק ערוץ זה?')) return;
+    if (!confirm(t.youtube.toasts.confirmDelete)) return;
     const success = await removeChannel(channelId);
     if (success) {
-      toast.success('ערוץ הוסר');
+      toast.success(t.youtube.toasts.channelRemoved);
     } else {
-      toast.error('שגיאה בהסרת ערוץ');
+      toast.error(t.youtube.toasts.removeError);
     }
   };
 
   const handleSyncChannel = async (channelId: string) => {
     const success = await syncChannel(channelId);
     if (success) {
-      toast.success('ערוץ סונכרן!');
+      toast.success(t.youtube.toasts.channelSynced);
     } else {
-      toast.error('שגיאה בסנכרון');
+      toast.error(t.youtube.toasts.syncError);
     }
   };
 
@@ -98,12 +99,12 @@ export default function YouTubeLearning() {
         setChannelInput('');
         setPendingChannelInput('');
         setAdsWatchedForSlot(0);
-        toast.success('סלוט נפתח! ערוץ נוסף בהצלחה!');
+        toast.success(t.youtube.toasts.slotOpened);
       } else {
-        toast.error(result.error || 'שגיאה בהוספת ערוץ');
+        toast.error(result.error || t.youtube.toasts.addError);
       }
     } else {
-      toast(`נותרו עוד ${slotInfo.adsRequired - newCount} מודעות`);
+      toast(t.youtube.toasts.adsRemaining.replace('{count}', String(slotInfo.adsRequired - newCount)));
     }
   };
 
@@ -134,7 +135,7 @@ export default function YouTubeLearning() {
                 {slotInfo.freeSlots} / {slotInfo.totalSlots}
               </p>
               <p className="text-xs text-brass-500 mt-1">
-                {slotInfo.usedSlots} ערוצים פעילים
+                {slotInfo.usedSlots} {t.youtube.labels.activeChannels}
               </p>
             </div>
             
@@ -143,13 +144,13 @@ export default function YouTubeLearning() {
                 <div className="flex items-center gap-2 mb-2">
                   <Lock className="w-5 h-5 text-brass-400" />
                   <span className="text-sm text-brass-300">
-                    נדרשות {slotInfo.adsRequired} מודעות
+                    {t.youtube.labels.required} {slotInfo.adsRequired} {t.youtube.labels.ads}
                   </span>
                 </div>
                 <p className="text-xs text-brass-500">
-                  שכבה: {slotInfo.nextTier === 'premium_12' && '12 ערוצים'}
-                  {slotInfo.nextTier === 'premium_22' && '22 ערוצים'}
-                  {slotInfo.nextTier === 'unlimited' && 'בלתי מוגבל'}
+                  {slotInfo.nextTier === 'premium_12' && t.youtube.tiers.premium12}
+                  {slotInfo.nextTier === 'premium_22' && t.youtube.tiers.premium22}
+                  {slotInfo.nextTier === 'unlimited' && t.youtube.tiers.unlimited}
                 </p>
               </div>
             )}
@@ -158,7 +159,7 @@ export default function YouTubeLearning() {
           {slotInfo.needsAdsToUnlock && adsWatchedForSlot > 0 && (
             <div className="mt-4">
               <div className="flex justify-between text-xs text-brass-400 mb-1">
-                <span>התקדמות פתיחת סלוט</span>
+                <span>{t.youtube.labels.slotProgress}</span>
                 <span>{adsWatchedForSlot} / {slotInfo.adsRequired}</span>
               </div>
               <div className="w-full bg-steam-800 rounded-full h-2 overflow-hidden">
@@ -194,7 +195,7 @@ export default function YouTubeLearning() {
             </button>
           </div>
           <p className="text-xs text-brass-400 mt-2">
-            פורמטים נתמכים: https://youtube.com/... , @channelhandle , UC...channelID
+            {t.youtube.labels.supportedFormats}
           </p>
         </div>
 
@@ -207,7 +208,7 @@ export default function YouTubeLearning() {
           {isLoading ? (
             <div className="text-center py-12">
               <div className="w-12 h-12 border-4 border-brass-600/20 border-t-brass-600 rounded-full animate-spin mx-auto mb-4"></div>
-              <p className="text-brass-300">טוען ערוצים...</p>
+              <p className="text-brass-300">{t.youtube.labels.loadingChannels}</p>
             </div>
           ) : channels.length === 0 ? (
             <div className="text-center py-12">
@@ -238,15 +239,15 @@ export default function YouTubeLearning() {
                           </p>
                           <div className="flex items-center gap-3 mt-1">
                             <span className="text-xs px-2 py-0.5 bg-brass-900/50 rounded text-brass-300">
-                              {channel.slot_type === 'free' && 'חינם'}
-                              {channel.slot_type === 'premium_12' && 'פרימיום 12'}
-                              {channel.slot_type === 'premium_22' && 'פרימיום 22'}
-                              {channel.slot_type === 'unlimited' && 'בלתי מוגבל'}
+                              {channel.slot_type === 'free' && t.youtube.tiers.free}
+                              {channel.slot_type === 'premium_12' && t.youtube.tiers.premium12}
+                              {channel.slot_type === 'premium_22' && t.youtube.tiers.premium22}
+                              {channel.slot_type === 'unlimited' && t.youtube.tiers.unlimited}
                             </span>
                             {insights && insights.videos_analyzed > 0 && (
                               <span className="text-xs px-2 py-0.5 bg-purple-900/30 border border-purple-600/30 rounded text-purple-300 flex items-center gap-1">
                                 <Sparkles className="w-3 h-3" />
-                                {insights.videos_analyzed} סרטונים נותחו
+                                {insights.videos_analyzed} {t.youtube.labels.videosAnalyzed}
                               </span>
                             )}
                           </div>
@@ -265,14 +266,14 @@ export default function YouTubeLearning() {
                         <button
                           onClick={() => handleSyncChannel(channel.id)}
                           className="p-2 bg-brass-700/30 hover:bg-brass-700/50 text-brass-200 rounded transition-all"
-                          title="סנכרן"
+                          title={t.youtube.labels.sync}
                         >
                           <RefreshCw className="w-4 h-4" />
                         </button>
                         <button
                           onClick={() => handleRemoveChannel(channel.id)}
                           className="p-2 bg-red-900/30 hover:bg-red-900/50 text-red-300 rounded transition-all"
-                          title="הסר"
+                          title={t.youtube.labels.remove}
                         >
                           <Trash2 className="w-4 h-4" />
                         </button>
@@ -397,7 +398,7 @@ export default function YouTubeLearning() {
                               <div className="bg-steam-800/50 rounded-lg p-4 border border-brass-700/10 md:col-span-2">
                                 <p className="text-xs text-brass-400 mb-1">{t.youtube.insights.lastLearning}</p>
                                 <p className="text-sm text-green-400">
-                                  {new Date(insights.last_learning_at).toLocaleString('he-IL')}
+                                  {new Date(insights.last_learning_at).toLocaleString(locale)}
                                 </p>
                               </div>
                             )}
@@ -423,10 +424,10 @@ export default function YouTubeLearning() {
                 {t.youtube.settings.refreshInterval}
               </label>
               <select className="w-full bg-steam-900/50 border border-brass-600/30 rounded-lg p-3 text-brass-200 focus:outline-none focus:ring-2 focus:ring-brass-500">
-                <option value="3600">כל שעה</option>
-                <option value="21600">כל 6 שעות</option>
-                <option value="86400">כל 24 שעות</option>
-                <option value="604800">כל שבוע</option>
+                <option value="3600">{t.youtube.refreshOptions.everyHour}</option>
+                <option value="21600">{t.youtube.refreshOptions.every6Hours}</option>
+                <option value="86400">{t.youtube.refreshOptions.every24Hours}</option>
+                <option value="604800">{t.youtube.refreshOptions.everyWeek}</option>
               </select>
             </div>
 
@@ -462,10 +463,10 @@ export default function YouTubeLearning() {
         <div className="fixed inset-0 bg-black/90 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="steampunk-card max-w-xl w-full p-6">
             <h3 className="text-xl font-semibold text-brass-200 mb-4">
-              פתיחת סלוט ערוץ נוסף
+              {t.youtube.labels.openSlot}
             </h3>
             <p className="text-brass-300 mb-4">
-              צפה ב-{slotInfo.adsRequired} מודעות כדי לפתוח סלוט זה ({adsWatchedForSlot} / {slotInfo.adsRequired})
+              {t.youtube.labels.openSlotDesc.replace('{required}', String(slotInfo.adsRequired)).replace('{required}', String(slotInfo.adsRequired)).replace('{watched}', String(adsWatchedForSlot))}
             </p>
             
             <RewardedAd

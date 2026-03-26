@@ -5,20 +5,21 @@ import { useWallet } from '@/hooks/useWallet';
 import { Wallet as WalletIcon, Plus, Minus, RefreshCw, TrendingUp, Clock } from 'lucide-react';
 
 export default function Wallet() {
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
+  const locale = language === 'he' ? 'he-IL' : language === 'ar' ? 'ar-SA' : 'en-US';
   const { wallet, rewardCredits, refreshWallet } = useWallet();
 
   const handleWatchAd = () => {
-    toast('מציג מודעה מתגמלת...');
+    toast(t.wallet.toasts.showingAd);
     setTimeout(() => {
       rewardCredits(1, 'Watched rewarded ad from wallet');
-      toast.success('קיבלת קרדיט אחד!');
+      toast.success(t.wallet.toasts.creditEarned);
     }, 1000);
   };
 
   const handleRefresh = () => {
     refreshWallet();
-    toast.success('היתרה עודכנה!');
+    toast.success(t.wallet.toasts.balanceUpdated);
   };
 
   return (
@@ -29,7 +30,7 @@ export default function Wallet() {
           <h1 className="text-4xl font-serif font-bold text-brass-200 mb-2">
             {t.wallet.title}
           </h1>
-          <p className="text-brass-300">נהל את הקרדיטים שלך</p>
+          <p className="text-brass-300">{t.wallet.subtitle}</p>
         </div>
 
         {/* Balance Card */}
@@ -74,7 +75,7 @@ export default function Wallet() {
                 {wallet.history.filter(h => h.type === 'reward').length}
               </span>
             </div>
-            <p className="text-sm text-brass-300">קרדיטים התקבלו</p>
+            <p className="text-sm text-brass-300">{t.wallet.stats.received}</p>
           </div>
 
           <div className="steampunk-card p-6">
@@ -84,7 +85,7 @@ export default function Wallet() {
                 {wallet.history.filter(h => h.type === 'consume').length}
               </span>
             </div>
-            <p className="text-sm text-brass-300">קרדיטים נוצלו</p>
+            <p className="text-sm text-brass-300">{t.wallet.stats.consumed}</p>
           </div>
 
           <div className="steampunk-card p-6 md:col-span-1 col-span-2">
@@ -92,11 +93,11 @@ export default function Wallet() {
               <Clock className="w-5 h-5 text-brass-400" />
               <span className="text-sm font-bold text-brass-100">
                 {wallet.lastRewardAt
-                  ? new Date(wallet.lastRewardAt).toLocaleDateString('he-IL')
-                  : 'אף פעם'}
+                  ? new Date(wallet.lastRewardAt).toLocaleDateString(locale)
+                  : t.wallet.stats.never}
               </span>
             </div>
-            <p className="text-sm text-brass-300">תגמול אחרון</p>
+            <p className="text-sm text-brass-300">{t.wallet.stats.lastReward}</p>
           </div>
         </div>
 
@@ -154,7 +155,7 @@ export default function Wallet() {
                         {transaction.amount}
                       </p>
                       <p className="text-xs text-brass-400">
-                        {new Date(transaction.date).toLocaleString('he-IL')}
+                        {new Date(transaction.date).toLocaleString(locale)}
                       </p>
                     </div>
                   </div>
