@@ -57,12 +57,10 @@ export default function Signup() {
       await loginWithGoogle();
       // Auto-redirects to Google, no need to navigate
     } catch (err: any) {
-      console.error('Google signup error:', err);
-      const errorMessage = err.message || 'הרשמה עם Google נכשלה';
-      
-      // Show user-friendly error
-      if (errorMessage.includes('not enabled') || errorMessage.includes('לא מוגדר')) {
-        setError('⚠️ Google OAuth לא מוגדר במערכת.\n\nצעדים לפתרון:\n1. הגדר VITE_GOOGLE_CLIENT_ID ו-VITE_GOOGLE_CLIENT_SECRET בקובץ .env\n2. OnSpace Cloud Dashboard → User → Auth Settings\n3. הפעל Google Provider\n4. הזן Google Client ID & Secret\n5. שמור והמתן דקה\n6. נסה שוב');
+      const errorMessage = err.message || t.auth.errors.signupFailed;
+
+      if (errorMessage.includes('not enabled') || errorMessage.includes('not configured')) {
+        setError(t.auth.errors.signupFailed);
       } else {
         setError(errorMessage);
       }
@@ -117,7 +115,7 @@ export default function Signup() {
                     <input
                       type="text"
                       value={username}
-                      onChange={e => setUsername(e.target.value)}
+                      onChange={e => { setUsername(e.target.value); setError(''); }}
                       placeholder={t.auth.placeholders.username}
                       className="steampunk-input w-full pr-10"
                       disabled={isLoading}
@@ -136,7 +134,7 @@ export default function Signup() {
                     <input
                       type="email"
                       value={email}
-                      onChange={e => setEmail(e.target.value)}
+                      onChange={e => { setEmail(e.target.value); setError(''); }}
                       placeholder={t.auth.placeholders.email}
                       className="steampunk-input w-full pr-10"
                       disabled={isLoading}
@@ -155,7 +153,7 @@ export default function Signup() {
                     <input
                       type="password"
                       value={password}
-                      onChange={e => setPassword(e.target.value)}
+                      onChange={e => { setPassword(e.target.value); setError(''); }}
                       placeholder={t.auth.placeholders.password}
                       className="steampunk-input w-full pr-10"
                       disabled={isLoading}
@@ -174,7 +172,7 @@ export default function Signup() {
                     <input
                       type="password"
                       value={confirmPassword}
-                      onChange={e => setConfirmPassword(e.target.value)}
+                      onChange={e => { setConfirmPassword(e.target.value); setError(''); }}
                       placeholder={t.auth.placeholders.confirmPassword}
                       className="steampunk-input w-full pr-10"
                       disabled={isLoading}
