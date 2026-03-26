@@ -423,6 +423,33 @@ export const translations = {
       },
     },
     
+    // Contact Page
+    contactPage: {
+      title: 'צור קשר',
+      subtitle: 'נשמח לשמוע ממך ולעזור בכל שאלה',
+      email: 'אימייל',
+      phone: 'טלפון',
+      hours: 'שעות מענה',
+      hoursDays: 'ראשון - חמישי',
+      hoursTime: '9:00 - 18:00',
+      followUs: 'עקוב אחרינו',
+      sendMessage: 'שלח לנו הודעה',
+      success: 'ההודעה נשלחה בהצלחה!',
+      successDetail: 'תודה שפנית אלינו. נחזור אליך בהקדם האפשרי.',
+      errorTitle: 'שגיאה בשליחה',
+      errorDefault: 'שגיאה בשליחת ההודעה. אנא נסה שוב.',
+      nameLabel: 'שם מלא',
+      namePlaceholder: 'הכנס את שמך...',
+      emailLabel: 'אימייל',
+      emailPlaceholder: 'your@email.com',
+      messageLabel: 'הודעה',
+      messagePlaceholder: 'כתוב את הודעתך כאן...',
+      sending: 'שולח...',
+      send: 'שלח הודעה',
+      privacyNote: 'על ידי שליחת הטופס אתה מסכים למדיניות הפרטיות שלנו',
+      invalidEmail: 'כתובת אימייל לא תקינה',
+    },
+
     // Footer
     footer: {
       description: 'הפלטפורמה המתקדמת ביותר ליצירת סיכומי וידאו מונעי AI',
@@ -842,6 +869,33 @@ export const translations = {
       },
     },
     
+    // Contact Page
+    contactPage: {
+      title: 'Contact Us',
+      subtitle: 'We\'d love to hear from you and help with any questions',
+      email: 'Email',
+      phone: 'Phone',
+      hours: 'Response Hours',
+      hoursDays: 'Sunday - Thursday',
+      hoursTime: '9:00 - 18:00',
+      followUs: 'Follow Us',
+      sendMessage: 'Send Us a Message',
+      success: 'Message sent successfully!',
+      successDetail: 'Thank you for reaching out. We\'ll get back to you as soon as possible.',
+      errorTitle: 'Sending Error',
+      errorDefault: 'Error sending message. Please try again.',
+      nameLabel: 'Full Name',
+      namePlaceholder: 'Enter your name...',
+      emailLabel: 'Email',
+      emailPlaceholder: 'your@email.com',
+      messageLabel: 'Message',
+      messagePlaceholder: 'Write your message here...',
+      sending: 'Sending...',
+      send: 'Send Message',
+      privacyNote: 'By submitting this form you agree to our privacy policy',
+      invalidEmail: 'Invalid email address',
+    },
+
     // Footer
     footer: {
       description: 'The most advanced platform for AI-powered video recap creation',

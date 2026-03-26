@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useLanguage } from '@/lib/LanguageContext';
 import { supabase } from '@/lib/supabase';
+import { CONTACT_EMAIL, CONTACT_PHONE } from '@/constants/contact';
 import { Mail, Phone, Send, Clock, CheckCircle, AlertCircle, Loader } from 'lucide-react';
 
 export default function Contact() {
@@ -18,6 +19,14 @@ export default function Contact() {
     setStatus('sending');
     setErrorMessage('');
 
+    // Email validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(formData.email)) {
+      setStatus('error');
+      setErrorMessage(t.contactPage.invalidEmail);
+      return;
+    }
+
     try {
       // Save contact submission to database
       const { error } = await supabase
@@ -30,12 +39,10 @@ export default function Contact() {
         });
 
       if (error) {
-        console.error('Error saving contact submission:', error);
-        // Continue even if DB save fails - show success to user
+        setStatus('error');
+        setErrorMessage(error.message || t.contactPage.errorDefault);
+        return;
       }
-
-      // In production, also send email notification via Edge Function
-      // await supabase.functions.invoke('send-contact-email', { body: formData });
 
       setStatus('success');
       setTimeout(() => {
@@ -43,9 +50,8 @@ export default function Contact() {
         setFormData({ name: '', email: '', message: '' });
       }, 5000);
     } catch (error: any) {
-      console.error('Contact form submission error:', error);
       setStatus('error');
-      setErrorMessage(error.message || 'שגיאה בשליחת ההודעה. אנא נסה שוב.');
+      setErrorMessage(error.message || t.contactPage.errorDefault);
     }
   };
 
@@ -53,8 +59,8 @@ export default function Contact() {
     <div className="min-h-screen py-8">
       <div className="container mx-auto px-4 max-w-5xl">
         <div className="mb-8">
-          <h1 className="text-4xl font-serif font-bold text-brass-200 mb-2">צור קשר</h1>
-          <p className="text-brass-300">נשמח לשמוע ממך ולעזור בכל שאלה</p>
+          <h1 className="text-4xl font-serif font-bold text-brass-200 mb-2">{t.contactPage.title}</h1>
+          <p className="text-brass-300">{t.contactPage.subtitle}</p>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -66,12 +72,12 @@ export default function Contact() {
                   <Mail className="w-6 h-6 text-white" />
                 </div>
                 <div>
-                  <h3 className="text-brass-200 font-semibold mb-1">אימייל</h3>
+                  <h3 className="text-brass-200 font-semibold mb-1">{t.contactPage.email}</h3>
                   <a
-                    href="mailto:contact-us@y-l-b-s-ai-studio-apps.com"
+                    href={`mailto:${CONTACT_EMAIL}`}
                     className="text-brass-300 hover:text-brass-100 text-sm break-all"
                   >
-                    contact-us@y-l-b-s-ai-studio-apps.com
+                    {CONTACT_EMAIL}
                   </a>
                 </div>
               </div>
@@ -81,12 +87,12 @@ export default function Contact() {
                   <Phone className="w-6 h-6 text-white" />
                 </div>
                 <div>
-                  <h3 className="text-brass-200 font-semibold mb-1">טלפון</h3>
+                  <h3 className="text-brass-200 font-semibold mb-1">{t.contactPage.phone}</h3>
                   <a
-                    href="tel:050-818-1948"
+                    href={`tel:${CONTACT_PHONE}`}
                     className="text-brass-300 hover:text-brass-100 text-sm"
                   >
-                    050-818-1948
+                    {CONTACT_PHONE}
                   </a>
                 </div>
               </div>
@@ -96,16 +102,16 @@ export default function Contact() {
                   <Clock className="w-6 h-6 text-white" />
                 </div>
                 <div>
-                  <h3 className="text-brass-200 font-semibold mb-1">שעות מענה</h3>
-                  <p className="text-brass-300 text-sm">ראשון - חמישי</p>
-                  <p className="text-brass-300 text-sm">9:00 - 18:00</p>
+                  <h3 className="text-brass-200 font-semibold mb-1">{t.contactPage.hours}</h3>
+                  <p className="text-brass-300 text-sm">{t.contactPage.hoursDays}</p>
+                  <p className="text-brass-300 text-sm">{t.contactPage.hoursTime}</p>
                 </div>
               </div>
             </div>
 
             {/* Social Links */}
             <div className="steampunk-card p-6">
-              <h3 className="text-brass-200 font-semibold mb-4">עקוב אחרינו</h3>
+              <h3 className="text-brass-200 font-semibold mb-4">{t.contactPage.followUs}</h3>
               <div className="space-y-3">
                 <a
                   href="https://youtube.com/@movies_and_tv_show_recap?si=L20-T0pxH8cBA8Uu"
@@ -154,17 +160,17 @@ export default function Contact() {
           <div className="lg:col-span-2">
             <div className="steampunk-card p-8">
               <h2 className="text-2xl font-serif font-semibold text-brass-200 mb-6">
-                שלח לנו הודעה
+                {t.contactPage.sendMessage}
               </h2>
 
               {status === 'success' ? (
                 <div className="bg-green-900/30 border border-green-600/50 rounded-lg p-8 text-center">
                   <CheckCircle className="w-16 h-16 text-green-400 mx-auto mb-4" />
                   <h3 className="text-xl font-semibold text-green-300 mb-2">
-                    ההודעה נשלחה בהצלחה!
+                    {t.contactPage.success}
                   </h3>
                   <p className="text-green-200">
-                    תודה שפנית אלינו. נחזור אליך בהקדם האפשרי.
+                    {t.contactPage.successDetail}
                   </p>
                 </div>
               ) : (
@@ -173,7 +179,7 @@ export default function Contact() {
                     <div className="bg-red-900/30 border border-red-600/50 rounded-lg p-4 mb-6 flex items-start gap-3">
                       <AlertCircle className="w-5 h-5 text-red-400 flex-shrink-0 mt-0.5" />
                       <div>
-                        <h4 className="text-red-300 font-semibold mb-1">שגיאה בשליחה</h4>
+                        <h4 className="text-red-300 font-semibold mb-1">{t.contactPage.errorTitle}</h4>
                         <p className="text-red-200 text-sm">{errorMessage}</p>
                       </div>
                     </div>
@@ -181,20 +187,20 @@ export default function Contact() {
 
                   <form onSubmit={handleSubmit} className="space-y-6">
                     <div>
-                      <label className="block text-brass-200 font-medium mb-2">שם מלא</label>
+                      <label className="block text-brass-200 font-medium mb-2">{t.contactPage.nameLabel}</label>
                       <input
                         type="text"
                         required
                         disabled={status === 'sending'}
                         value={formData.name}
                         onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                        placeholder="הכנס את שמך..."
+                        placeholder={t.contactPage.namePlaceholder}
                         className="w-full bg-steam-900/50 border border-brass-600/30 rounded-lg p-4 text-brass-200 focus:outline-none focus:ring-2 focus:ring-brass-500 disabled:opacity-50"
                       />
                     </div>
 
                     <div>
-                      <label className="block text-brass-200 font-medium mb-2">אימייל</label>
+                      <label className="block text-brass-200 font-medium mb-2">{t.contactPage.emailLabel}</label>
                       <input
                         type="email"
                         required
@@ -207,13 +213,13 @@ export default function Contact() {
                     </div>
 
                     <div>
-                      <label className="block text-brass-200 font-medium mb-2">הודעה</label>
+                      <label className="block text-brass-200 font-medium mb-2">{t.contactPage.messageLabel}</label>
                       <textarea
                         required
                         disabled={status === 'sending'}
                         value={formData.message}
                         onChange={(e) => setFormData({ ...formData, message: e.target.value })}
-                        placeholder="כתוב את הודעתך כאן..."
+                        placeholder={t.contactPage.messagePlaceholder}
                         rows={6}
                         className="w-full bg-steam-900/50 border border-brass-600/30 rounded-lg p-4 text-brass-200 focus:outline-none focus:ring-2 focus:ring-brass-500 disabled:opacity-50"
                       />
@@ -227,18 +233,18 @@ export default function Contact() {
                       {status === 'sending' ? (
                         <>
                           <Loader className="w-5 h-5 animate-spin" />
-                          שולח...
+                          {t.contactPage.sending}
                         </>
                       ) : (
                         <>
                           <Send className="w-5 h-5" />
-                          שלח הודעה
+                          {t.contactPage.send}
                         </>
                       )}
                     </button>
 
                     <p className="text-xs text-brass-400 text-center">
-                      על ידי שליחת הטופס אתה מסכים למדיניות הפרטיות שלנו
+                      {t.contactPage.privacyNote}
                     </p>
                   </form>
                 </>
