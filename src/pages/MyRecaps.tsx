@@ -23,7 +23,8 @@ interface Recap {
 }
 
 export default function MyRecaps() {
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
+  const locale = language === 'he' ? 'he-IL' : language === 'ar' ? 'ar-SA' : 'en-US';
   const { user } = useAuth();
   const navigate = useNavigate();
   const [recaps, setRecaps] = useState<Recap[]>([]);
@@ -72,8 +73,8 @@ export default function MyRecaps() {
       })) || [];
 
       setRecaps(mergedData);
-    } catch (error) {
-      console.error('Error loading recaps:', error);
+    } catch {
+      toast.error(t.common.error);
     } finally {
       setIsLoading(false);
     }
@@ -98,8 +99,7 @@ export default function MyRecaps() {
         .eq('id', recapId);
 
       setRecaps(recaps.filter(r => r.id !== recapId));
-    } catch (error) {
-      console.error('Error deleting recap:', error);
+    } catch {
       toast.error(t.myRecaps.deleteFailed);
     }
   };
@@ -144,9 +144,8 @@ export default function MyRecaps() {
         r.id === recap.id ? { ...r, is_public: newPublicState } : r
       ));
 
-    } catch (error) {
-      console.error('Error toggling public state:', error);
-      toast.error('שגיאה בעדכון מצב הפרטיות');
+    } catch {
+      toast.error(t.myRecaps.toasts.privacyError);
     }
   };
 
@@ -289,7 +288,7 @@ export default function MyRecaps() {
 
                 <div className="flex items-center gap-2 text-xs text-brass-500">
                   <Calendar className="w-3 h-3" />
-                  <span>{new Date(recap.created_at).toLocaleDateString('he-IL')}</span>
+                  <span>{new Date(recap.created_at).toLocaleDateString(locale)}</span>
                 </div>
               </div>
 

@@ -120,7 +120,7 @@ export default function Create() {
 
   const handleFileUpload = async (type: 'txt' | 'mp3' | 'video') => {
     if (!user) {
-      toast.error('יש להתחבר כדי להעלות קבצים');
+      toast.error(t.create.toasts.loginToUpload);
       return;
     }
 
@@ -165,10 +165,9 @@ export default function Create() {
           setDraft({ ...draft, videoAssetId: publicUrl });
         }
 
-        toast.success(`קובץ ${file.name} הועלה בהצלחה!`);
+        toast.success(t.create.toasts.uploadSuccess.replace('{name}', file.name));
       } catch (error: any) {
-        console.error('Upload error:', error);
-        toast.error(`שגיאה בהעלאת הקובץ: ${error.message}`);
+        toast.error(t.create.toasts.uploadError.replace('{error}', error.message));
       } finally {
         setUploading(false);
       }
@@ -179,7 +178,7 @@ export default function Create() {
 
   const handleCreate = async () => {
     if (!user) {
-      toast.error('יש להתחבר כדי ליצור סיכום');
+      toast.error(t.create.toasts.loginToCreate);
       return;
     }
 
@@ -243,7 +242,7 @@ export default function Create() {
 
     const job = createJob({
       userId: user.id,
-      title: draft.movieTitle || 'סיכום ללא כותרת',
+      title: draft.movieTitle || t.create.toasts.untitledRecap,
       source: {
         inputMode: draft.inputMode,
         scriptText: draft.scriptText,
@@ -329,7 +328,7 @@ export default function Create() {
     link.click();
     document.body.removeChild(link);
     
-    toast.success(`הורדת הסיכום התחילה: ${draft.movieTitle}.mp4`);
+    toast.success(t.create.toasts.downloadStarted.replace('{name}', draft.movieTitle));
   };
 
   return (
@@ -340,7 +339,7 @@ export default function Create() {
           <h1 className="text-4xl font-serif font-bold text-brass-200 mb-2">
             {t.create.title}
           </h1>
-          <p className="text-brass-300">6 שלבים פשוטים ליצירת סיכום AI מושלם</p>
+          <p className="text-brass-300">{t.create.subtitle}</p>
         </div>
 
         {/* Progress Tracker */}
@@ -420,7 +419,7 @@ export default function Create() {
 
                 {draft.inputMode === 'text' && (
                   <div>
-                    <label className="block text-brass-200 font-medium mb-2">תסריט</label>
+                    <label className="block text-brass-200 font-medium mb-2">{t.create.labels.script}</label>
                     <textarea
                       value={draft.scriptText}
                       onChange={(e) => setDraft({ ...draft, scriptText: e.target.value })}
@@ -442,7 +441,7 @@ export default function Create() {
                     {draft.txtAssetId && (
                       <p className="text-green-400 text-sm mt-2 flex items-center gap-2">
                         <CheckCircle className="w-4 h-4" />
-                        קובץ הועלה: {draft.txtAssetId}
+                        {t.create.labels.fileUploaded}{draft.txtAssetId}
                       </p>
                     )}
                   </div>
@@ -460,7 +459,7 @@ export default function Create() {
                     {draft.mp3AssetId && (
                       <p className="text-green-400 text-sm mt-2 flex items-center gap-2">
                         <CheckCircle className="w-4 h-4" />
-                        קובץ הועלה: {draft.mp3AssetId}
+                        {t.create.labels.fileUploaded}{draft.mp3AssetId}
                       </p>
                     )}
                   </div>

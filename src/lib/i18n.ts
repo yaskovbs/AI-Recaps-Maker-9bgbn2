@@ -105,8 +105,15 @@ export const translations = {
       shareRecap: 'שתף סיכום',
       exportRecap: 'ייצוא סיכום',
       untitled: 'ללא כותרת',
+      public: 'ציבורי',
+      private: 'פרטי',
+      makePublic: 'הפוך לציבורי',
+      makePrivate: 'הפוך לפרטי',
+      toasts: {
+        privacyError: 'שגיאה בעדכון מצב הפרטיות',
+      },
     },
-    
+
     // Home
     home: {
       hero: {
@@ -164,6 +171,19 @@ export const translations = {
     // Create Recap
     create: {
       title: 'צור סיכום חדש',
+      subtitle: '6 שלבים פשוטים ליצירת סיכום AI מושלם',
+      toasts: {
+        loginToUpload: 'יש להתחבר כדי להעלות קבצים',
+        uploadSuccess: 'קובץ {name} הועלה בהצלחה!',
+        uploadError: 'שגיאה בהעלאת הקובץ: {error}',
+        loginToCreate: 'יש להתחבר כדי ליצור סיכום',
+        untitledRecap: 'סיכום ללא כותרת',
+        downloadStarted: 'הורדת הסיכום התחילה: {name}.mp4',
+      },
+      labels: {
+        script: 'תסריט',
+        fileUploaded: 'קובץ הועלה:',
+      },
       wizard: {
         step1: 'קלט בסיסי',
         step2: 'עיבוד אודיו',
@@ -701,8 +721,15 @@ export const translations = {
       shareRecap: 'Share Recap',
       exportRecap: 'Export Recap',
       untitled: 'Untitled',
+      public: 'Public',
+      private: 'Private',
+      makePublic: 'Make Public',
+      makePrivate: 'Make Private',
+      toasts: {
+        privacyError: 'Error updating privacy status',
+      },
     },
-    
+
     // Home
     home: {
       hero: {
@@ -760,6 +787,19 @@ export const translations = {
     // Create Recap
     create: {
       title: 'Create New Recap',
+      subtitle: '6 simple steps to create a perfect AI recap',
+      toasts: {
+        loginToUpload: 'Please log in to upload files',
+        uploadSuccess: 'File {name} uploaded successfully!',
+        uploadError: 'Error uploading file: {error}',
+        loginToCreate: 'Please log in to create a recap',
+        untitledRecap: 'Untitled Recap',
+        downloadStarted: 'Download started: {name}.mp4',
+      },
+      labels: {
+        script: 'Script',
+        fileUploaded: 'File uploaded:',
+      },
       wizard: {
         step1: 'Basic Input',
         step2: 'Audio Processing',
