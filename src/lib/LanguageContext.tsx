@@ -51,11 +51,9 @@ export function useLanguage() {
   const context = useContext(LanguageContext);
   if (!context) {
     // Fallback for cache issues - return default values
-    console.warn('⚠️ useLanguage called outside LanguageProvider - using fallback');
     return {
       language: 'he' as Language,
       setLanguage: (lang: Language) => {
-        console.warn('⚠️ setLanguage called outside LanguageProvider');
         localStorage.setItem('language', lang);
         document.documentElement.lang = lang;
         document.documentElement.dir = lang === 'he' || lang === 'ar' ? 'rtl' : 'ltr';

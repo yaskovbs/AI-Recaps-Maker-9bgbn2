@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { toast } from 'sonner';
 import { useLanguage } from '@/lib/LanguageContext';
 import { supabase } from '@/lib/supabase';
 import { Play, Star, Calendar, Filter, Search, TrendingUp, Film } from 'lucide-react';
@@ -17,7 +18,8 @@ interface PublicRecap {
 }
 
 export default function Gallery() {
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
+  const locale = language === 'he' ? 'he-IL' : language === 'ar' ? 'ar-SA' : 'en-US';
   const [recaps, setRecaps] = useState<PublicRecap[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
@@ -63,8 +65,8 @@ export default function Gallery() {
       if (error) throw error;
 
       setRecaps(data || []);
-    } catch (error) {
-      console.error('Failed to load recaps:', error);
+    } catch {
+      toast.error(t.common.error);
     } finally {
       setLoading(false);
     }
@@ -215,7 +217,7 @@ export default function Gallery() {
                     </div>
                     <div className="flex items-center gap-1">
                       <Calendar className="w-4 h-4" />
-                      <span>{new Date(recap.created_at).toLocaleDateString('he-IL')}</span>
+                      <span>{new Date(recap.created_at).toLocaleDateString(locale)}</span>
                     </div>
                   </div>
 
