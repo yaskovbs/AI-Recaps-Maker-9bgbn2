@@ -7,7 +7,8 @@ import SocialShare from '@/components/SocialShare';
 import { Plus, BarChart3, Settings, Wallet, Video, Clock, CheckCircle, AlertCircle } from 'lucide-react';
 
 export default function Dashboard() {
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
+  const locale = language === 'he' ? 'he-IL' : language === 'ar' ? 'ar-SA' : 'en-US';
   const { wallet } = useWallet();
   const jobs = getJobs();
 
@@ -142,11 +143,11 @@ export default function Dashboard() {
                       </h3>
                       <div className="flex items-center justify-between">
                         <p className="text-sm text-brass-400">
-                          {new Date(job.createdAt).toLocaleDateString('he-IL')}
+                          {new Date(job.createdAt).toLocaleDateString(locale)}
                         </p>
                         <SocialShare
                           title={job.title}
-                          description={`סיכום AI מדהים: ${job.title}`}
+                          description={t.dashboard.shareDescription.replace('{title}', job.title)}
                           url={`${window.location.origin}/recap/${job.id}`}
                           className="scale-75"
                         />
@@ -177,7 +178,7 @@ export default function Dashboard() {
                         <div
                           className="h-full bg-gradient-to-r from-brass-500 to-copper-500 transition-all duration-500"
                           style={{
-                            width: `${(job.stages.filter(s => s.status === 'completed').length / job.stages.length) * 100}%`
+                            width: `${job.stages.length > 0 ? (job.stages.filter(s => s.status === 'completed').length / job.stages.length) * 100 : 0}%`
                           }}
                         />
                       </div>

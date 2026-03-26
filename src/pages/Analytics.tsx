@@ -9,7 +9,8 @@ import { getJobs, getJobEvents } from '@/lib/recapService';
 import { BarChart3, TrendingUp, Eye, Users, Clock, CheckCircle, AlertCircle, XCircle, Star, LineChart } from 'lucide-react';
 
 export default function Analytics() {
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
+  const locale = language === 'he' ? 'he-IL' : language === 'ar' ? 'ar-SA' : 'en-US';
   const { stats: ratingStats } = useRating();
   const jobs = getJobs();
   const [lastJobId, setLastJobId] = useState<string | null>(null);
@@ -142,7 +143,7 @@ export default function Analytics() {
                   </span>
                 </div>
                 <p className="text-sm text-brass-400">
-                  {new Date(lastJob.createdAt).toLocaleString('he-IL')}
+                  {new Date(lastJob.createdAt).toLocaleString(locale)}
                 </p>
               </div>
 
@@ -162,9 +163,9 @@ export default function Analytics() {
                           </span>
                           <span className="text-xs text-brass-400">
                             {stage.status === 'completed' && stage.endedAt
-                              ? new Date(stage.endedAt).toLocaleTimeString('he-IL')
+                              ? new Date(stage.endedAt).toLocaleTimeString(locale)
                               : stage.status === 'processing' && stage.startedAt
-                              ? new Date(stage.startedAt).toLocaleTimeString('he-IL')
+                              ? new Date(stage.startedAt).toLocaleTimeString(locale)
                               : ''}
                           </span>
                         </div>
@@ -210,7 +211,7 @@ export default function Analytics() {
                               {getEventTypeLabel(event.type)} - {t.analytics.stage} {event.stage}
                             </span>
                             <span className="text-xs text-brass-400 flex-shrink-0">
-                              {new Date(event.createdAt).toLocaleTimeString('he-IL')}
+                              {new Date(event.createdAt).toLocaleTimeString(locale)}
                             </span>
                           </div>
                           {event.reason && (
@@ -264,7 +265,7 @@ export default function Analytics() {
                     style={{ height: `${(rating.score / 5) * 100}%` }}
                   />
                   <span className="text-xs text-brass-400">
-                    {new Date(rating.created_at).toLocaleDateString('he-IL', { month: 'short', day: 'numeric' })}
+                    {new Date(rating.created_at).toLocaleDateString(locale, { month: 'short', day: 'numeric' })}
                   </span>
                 </div>
               ))}

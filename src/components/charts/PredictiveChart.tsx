@@ -1,5 +1,6 @@
 import React from 'react';
 import { Brain, TrendingUp } from 'lucide-react';
+import { useLanguage } from '@/lib/LanguageContext';
 
 interface PredictiveChartProps {
   historicalData: { date: string; value: number }[];
@@ -14,6 +15,8 @@ export default function PredictiveChart({
   title,
   className = '',
 }: PredictiveChartProps) {
+  const { t, language } = useLanguage();
+  const locale = language === 'he' ? 'he-IL' : language === 'ar' ? 'ar-SA' : 'en-US';
   const allData = [...historicalData, ...prediction];
   const maxValue = Math.max(...allData.map(d => d.value));
   const minValue = Math.min(...allData.map(d => d.value));
@@ -24,7 +27,7 @@ export default function PredictiveChart({
   };
 
   const formatDate = (date: string) => {
-    return new Date(date).toLocaleDateString('he-IL', { month: 'short', day: 'numeric' });
+    return new Date(date).toLocaleDateString(locale, { month: 'short', day: 'numeric' });
   };
 
   return (
@@ -32,7 +35,7 @@ export default function PredictiveChart({
       <div className="flex items-center gap-2 mb-4">
         <Brain className="w-5 h-5 text-brass-400" />
         <h4 className="text-brass-200 font-semibold">{title}</h4>
-        <span className="text-xs text-brass-500 mr-auto">תחזית AI</span>
+        <span className="text-xs text-brass-500 mr-auto">{t.predictiveChart.aiPrediction}</span>
       </div>
 
       <div className="h-64 relative">

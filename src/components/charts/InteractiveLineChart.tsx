@@ -1,6 +1,7 @@
 import React from 'react';
 import { Line } from 'react-chartjs-2';
 import { TrendingUp } from 'lucide-react';
+import { useLanguage } from '@/lib/LanguageContext';
 
 interface InteractiveLineChartProps {
   data: { date: string; value: number }[];
@@ -15,8 +16,10 @@ export default function InteractiveLineChart({
   color = '#D47C47',
   className = '',
 }: InteractiveLineChartProps) {
+  const { language } = useLanguage();
+  const locale = language === 'he' ? 'he-IL' : language === 'ar' ? 'ar-SA' : 'en-US';
   const chartData = {
-    labels: data.map(d => new Date(d.date).toLocaleDateString('he-IL', { month: 'short', day: 'numeric' })),
+    labels: data.map(d => new Date(d.date).toLocaleDateString(locale, { month: 'short', day: 'numeric' })),
     datasets: [
       {
         label: title,

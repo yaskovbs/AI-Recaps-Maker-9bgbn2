@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Heart, MessageCircle, Share2, TrendingUp, Eye, User, Clock } from 'lucide-react';
 import SocialShare from '@/components/SocialShare';
+import { useLanguage } from '@/lib/LanguageContext';
 
 interface FeedPost {
   id: string;
@@ -28,6 +29,8 @@ interface FeedProps {
 }
 
 export default function Feed({ posts, onLike, onComment, className = '' }: FeedProps) {
+  const { t, language } = useLanguage();
+  const locale = language === 'he' ? 'he-IL' : language === 'ar' ? 'ar-SA' : 'en-US';
   const [showShareFor, setShowShareFor] = useState<string | null>(null);
 
   const handleLike = (postId: string) => {
@@ -49,12 +52,12 @@ export default function Feed({ posts, onLike, onComment, className = '' }: FeedP
     const diffHours = Math.floor(diffMins / 60);
     const diffDays = Math.floor(diffHours / 24);
 
-    if (diffMins < 1) return 'עכשיו';
-    if (diffMins < 60) return `לפני ${diffMins} דקות`;
-    if (diffHours < 24) return `לפני ${diffHours} שעות`;
-    if (diffDays === 1) return 'אתמול';
-    if (diffDays < 7) return `לפני ${diffDays} ימים`;
-    return past.toLocaleDateString('he-IL');
+    if (diffMins < 1) return t.feed.now;
+    if (diffMins < 60) return t.feed.minutesAgo.replace('{count}', String(diffMins));
+    if (diffHours < 24) return t.feed.hoursAgo.replace('{count}', String(diffHours));
+    if (diffDays === 1) return t.feed.yesterday;
+    if (diffDays < 7) return t.feed.daysAgo.replace('{count}', String(diffDays));
+    return past.toLocaleDateString(locale);
   };
 
   return (

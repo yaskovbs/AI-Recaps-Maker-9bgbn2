@@ -14,7 +14,8 @@ import SteamEffect from '@/components/steampunk/SteamEffect';
 import { Sparkles, Zap, Brain, Globe2, ArrowRight, Key, TrendingUp, Users, Clock, Star } from 'lucide-react';
 
 export default function Home() {
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
+  const locale = language === 'he' ? 'he-IL' : language === 'ar' ? 'ar-SA' : 'en-US';
   const { wallet, rewardCredits } = useWallet();
   const { stats: ratingStats, submitRating, shouldShowPrompt, markAsAsked } = useRating();
   const [isRatingModalOpen, setIsRatingModalOpen] = useState(false);
@@ -239,7 +240,7 @@ export default function Home() {
             <div className="text-center transform transition-all hover:scale-105">
               <Sparkles className="w-8 h-8 text-brass-500 mx-auto mb-2" />
               <div className="text-4xl font-bold text-brass-100 mb-1">
-                {recapsCount.toLocaleString('he-IL')}
+                {recapsCount.toLocaleString(locale)}
               </div>
               <div className="text-sm text-brass-400">{t.home.stats.recaps}</div>
             </div>
@@ -248,7 +249,7 @@ export default function Home() {
             <div className="text-center transform transition-all hover:scale-105">
               <Users className="w-8 h-8 text-brass-500 mx-auto mb-2" />
               <div className="text-4xl font-bold text-brass-100 mb-1">
-                {usersCount.toLocaleString('he-IL')}
+                {usersCount.toLocaleString(locale)}
               </div>
               <div className="text-sm text-brass-400">{t.home.stats.users}</div>
             </div>

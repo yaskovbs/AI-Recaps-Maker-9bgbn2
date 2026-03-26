@@ -1,5 +1,6 @@
 import React from 'react';
 import { Star } from 'lucide-react';
+import { useLanguage } from '@/lib/LanguageContext';
 
 interface RatingBreakdownProps {
   ratings: Array<{ score: number; comment?: string; created_at: string }>;
@@ -7,6 +8,8 @@ interface RatingBreakdownProps {
 }
 
 export default function RatingBreakdown({ ratings, className = '' }: RatingBreakdownProps) {
+  const { language } = useLanguage();
+  const locale = language === 'he' ? 'he-IL' : language === 'ar' ? 'ar-SA' : 'en-US';
   // Calculate breakdown by stars
   const breakdown = [5, 4, 3, 2, 1].map((stars) => {
     const count = ratings.filter((r) => r.score === stars).length;
@@ -87,7 +90,7 @@ export default function RatingBreakdown({ ratings, className = '' }: RatingBreak
                       />
                     ))}
                     <span className="text-xs text-brass-400">
-                      {new Date(rating.created_at).toLocaleDateString('he-IL')}
+                      {new Date(rating.created_at).toLocaleDateString(locale)}
                     </span>
                   </div>
                   <p className="text-sm text-brass-300 leading-relaxed">

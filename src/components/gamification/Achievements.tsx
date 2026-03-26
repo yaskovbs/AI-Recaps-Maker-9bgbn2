@@ -1,6 +1,7 @@
 import React from 'react';
 import { Trophy, Lock } from 'lucide-react';
 import { Achievement } from '@/hooks/useGamification';
+import { useLanguage } from '@/lib/LanguageContext';
 
 interface AchievementsProps {
   achievements: Achievement[];
@@ -8,6 +9,8 @@ interface AchievementsProps {
 }
 
 export default function Achievements({ achievements, className = '' }: AchievementsProps) {
+  const { t, language } = useLanguage();
+  const locale = language === 'he' ? 'he-IL' : language === 'ar' ? 'ar-SA' : 'en-US';
   const unlocked = achievements.filter(a => a.unlockedAt);
   const locked = achievements.filter(a => !a.unlockedAt);
 
@@ -16,7 +19,7 @@ export default function Achievements({ achievements, className = '' }: Achieveme
       <div className="flex items-center justify-between mb-6">
         <h3 className="text-xl font-serif font-semibold text-brass-200 flex items-center gap-2">
           <Trophy className="w-5 h-5" />
-          הישגים ({unlocked.length}/{achievements.length})
+          {t.gamification.achievementsTitle} ({unlocked.length}/{achievements.length})
         </h3>
       </div>
 
@@ -44,7 +47,7 @@ export default function Achievements({ achievements, className = '' }: Achieveme
               </div>
               {achievement.unlockedAt && (
                 <div className="text-xs text-green-400 mt-2 text-center">
-                  ✓ פתוח ב-{new Date(achievement.unlockedAt).toLocaleDateString('he-IL')}
+                  ✓ {t.gamification.unlockedAt} {new Date(achievement.unlockedAt).toLocaleDateString(locale)}
                 </div>
               )}
             </div>

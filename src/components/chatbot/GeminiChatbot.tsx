@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useChatbot } from '@/hooks/useChatbot';
+import { useLanguage } from '@/lib/LanguageContext';
 import { Send, Bot, User, Sparkles, X, Trash2 } from 'lucide-react';
 
 interface GeminiChatbotProps {
@@ -10,6 +11,8 @@ interface GeminiChatbotProps {
 
 export default function GeminiChatbot({ isOpen, onClose, className = '' }: GeminiChatbotProps) {
   const { messages, isLoading, suggestions, sendMessage, selectSuggestion, clearChat } = useChatbot();
+  const { language } = useLanguage();
+  const locale = language === 'he' ? 'he-IL' : language === 'ar' ? 'ar-SA' : 'en-US';
   const [input, setInput] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -89,7 +92,7 @@ export default function GeminiChatbot({ isOpen, onClose, className = '' }: Gemin
               >
                 <p className="text-sm leading-relaxed whitespace-pre-wrap">{message.content}</p>
                 <span className="text-xs opacity-60 mt-1 block">
-                  {new Date(message.timestamp).toLocaleTimeString('he-IL', {
+                  {new Date(message.timestamp).toLocaleTimeString(locale, {
                     hour: '2-digit',
                     minute: '2-digit',
                   })}

@@ -25,7 +25,8 @@ interface RecapData {
 
 export default function RecapView() {
   const { id } = useParams<{ id: string }>();
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
+  const locale = language === 'he' ? 'he-IL' : language === 'ar' ? 'ar-SA' : 'en-US';
   const [recap, setRecap] = useState<RecapData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
@@ -173,7 +174,7 @@ export default function RecapView() {
             )}
             <span className="flex items-center gap-1">
               <Calendar className="w-3 h-3" />
-              {new Date(recap.created_at).toLocaleDateString('he-IL')}
+              {new Date(recap.created_at).toLocaleDateString(locale)}
             </span>
             {recap.recap_length_seconds > 0 && (
               <span>{formatDuration(recap.recap_length_seconds)}</span>

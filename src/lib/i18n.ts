@@ -288,6 +288,7 @@ export const translations = {
           fallback: 'גיבוי',
         },
       },
+      shareDescription: 'סיכום AI מדהים: {title}',
       quickActions: {
         title: 'פעולות מהירות',
         createNew: 'צור סיכום חדש',
@@ -611,6 +612,16 @@ export const translations = {
       retry: 'נסה שוב',
       home: 'דף הבית',
     },
+    feed: {
+      now: 'עכשיו',
+      minutesAgo: 'לפני {count} דקות',
+      hoursAgo: 'לפני {count} שעות',
+      yesterday: 'אתמול',
+      daysAgo: 'לפני {count} ימים',
+    },
+    predictiveChart: {
+      aiPrediction: 'תחזית AI',
+    },
     socialShare: {
       label: 'שתף:',
       whatsapp: 'שתף ב-WhatsApp',
@@ -673,6 +684,8 @@ export const translations = {
         recapMaster: 'מאסטר סיכומים',
         aiLegend: 'אגדת AI',
       },
+      achievementsTitle: 'הישגים',
+      unlockedAt: 'פתוח ב-',
       notifications: {
         levelUp: 'עלית לרמה {level}!',
         levelUpTitle: 'הרווחת את התואר: {title}',
@@ -1028,6 +1041,7 @@ export const translations = {
           fallback: 'Fallback',
         },
       },
+      shareDescription: 'Amazing AI recap: {title}',
       quickActions: {
         title: 'Quick Actions',
         createNew: 'Create New Recap',
@@ -1338,6 +1352,16 @@ export const translations = {
       retry: 'Try Again',
       home: 'Home Page',
     },
+    feed: {
+      now: 'Just now',
+      minutesAgo: '{count} minutes ago',
+      hoursAgo: '{count} hours ago',
+      yesterday: 'Yesterday',
+      daysAgo: '{count} days ago',
+    },
+    predictiveChart: {
+      aiPrediction: 'AI Prediction',
+    },
     socialShare: {
       label: 'Share:',
       whatsapp: 'Share on WhatsApp',
@@ -1400,6 +1424,8 @@ export const translations = {
         recapMaster: 'Recap Master',
         aiLegend: 'AI Legend',
       },
+      achievementsTitle: 'Achievements',
+      unlockedAt: 'Unlocked on ',
       notifications: {
         levelUp: 'You reached level {level}!',
         levelUpTitle: 'You earned the title: {title}',
