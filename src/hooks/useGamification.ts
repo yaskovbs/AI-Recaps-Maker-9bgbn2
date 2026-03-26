@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useLanguage } from '@/lib/LanguageContext';
 
 export interface Achievement {
   id: string;
@@ -32,25 +33,26 @@ export interface UserLevel {
 const STORAGE_KEY = 'airm_gamification';
 const XP_PER_LEVEL = 100;
 
-const ACHIEVEMENTS: Omit<Achievement, 'unlockedAt' | 'progress'>[] = [
-  { id: 'first_recap', name: 'מתחיל', description: 'צור את הסיכום הראשון שלך', icon: '🌟', xpReward: 50, maxProgress: 1 },
-  { id: 'ten_recaps', name: 'יוצר', description: 'צור 10 סיכומים', icon: '⭐', xpReward: 100, maxProgress: 10 },
-  { id: 'first_share', name: 'משתף', description: 'שתף סיכום ראשון', icon: '📤', xpReward: 30, maxProgress: 1 },
-  { id: 'daily_streak_3', name: 'מחויב', description: '3 ימים רצופים', icon: '🔥', xpReward: 75, maxProgress: 3 },
-  { id: 'high_rated', name: 'מצטיין', description: 'קבל דירוג 5 כוכבים', icon: '⭐⭐⭐⭐⭐', xpReward: 120, maxProgress: 1 },
-  { id: 'fifty_recaps', name: 'מומחה', description: 'צור 50 סיכומים', icon: '🏆', xpReward: 250, maxProgress: 50 },
-  { id: 'hundred_recaps', name: 'אגדה', description: 'צור 100 סיכומים', icon: '👑', xpReward: 500, maxProgress: 100 },
-  { id: 'ai_master', name: 'שולט ב-AI', description: 'השתמש בכל תכונות AI', icon: '🤖', xpReward: 200, maxProgress: 5 },
-  { id: 'social_butterfly', name: 'חברתי', description: 'קבל 50 לייקים', icon: '💖', xpReward: 150, maxProgress: 50 },
-  { id: 'trend_setter', name: 'קובע טרנדים', description: 'היה ב-Trending 3 פעמים', icon: '🔥', xpReward: 300, maxProgress: 3 },
+const ACHIEVEMENT_DEFS = [
+  { id: 'first_recap', key: 'firstRecap' as const, icon: '🌟', xpReward: 50, maxProgress: 1 },
+  { id: 'ten_recaps', key: 'tenRecaps' as const, icon: '⭐', xpReward: 100, maxProgress: 10 },
+  { id: 'first_share', key: 'firstShare' as const, icon: '📤', xpReward: 30, maxProgress: 1 },
+  { id: 'daily_streak_3', key: 'dailyStreak' as const, icon: '🔥', xpReward: 75, maxProgress: 3 },
+  { id: 'high_rated', key: 'highRated' as const, icon: '⭐⭐⭐⭐⭐', xpReward: 120, maxProgress: 1 },
+  { id: 'fifty_recaps', key: 'fiftyRecaps' as const, icon: '🏆', xpReward: 250, maxProgress: 50 },
+  { id: 'hundred_recaps', key: 'hundredRecaps' as const, icon: '👑', xpReward: 500, maxProgress: 100 },
+  { id: 'ai_master', key: 'aiMaster' as const, icon: '🤖', xpReward: 200, maxProgress: 5 },
+  { id: 'social_butterfly', key: 'socialButterfly' as const, icon: '💖', xpReward: 150, maxProgress: 50 },
+  { id: 'trend_setter', key: 'trendSetter' as const, icon: '🔥', xpReward: 300, maxProgress: 3 },
 ];
 
 export function useGamification() {
+  const { t } = useLanguage();
   const [userLevel, setUserLevel] = useState<UserLevel>({
     level: 1,
     currentXP: 0,
     xpForNextLevel: XP_PER_LEVEL,
-    title: 'מתחיל',
+    title: t.gamification.levels.beginner,
   });
 
   const [achievements, setAchievements] = useState<Achievement[]>([]);
@@ -77,8 +79,17 @@ export function useGamification() {
     }
   };
 
+  const getAchievements = () => ACHIEVEMENT_DEFS.map(a => ({
+    id: a.id,
+    name: t.gamification.achievements[a.key].name,
+    description: t.gamification.achievements[a.key].desc,
+    icon: a.icon,
+    xpReward: a.xpReward,
+    maxProgress: a.maxProgress,
+  }));
+
   const initializeAchievements = (): Achievement[] => {
-    return ACHIEVEMENTS.map(a => ({
+    return getAchievements().map(a => ({
       ...a,
       progress: 0,
       unlockedAt: undefined,
@@ -94,36 +105,37 @@ export function useGamification() {
       return;
     }
 
+    const expiresAt = new Date(new Date().setHours(23, 59, 59)).toISOString();
     const challenges: DailyChallenge[] = [
       {
         id: 'daily_1',
-        title: 'צור 3 סיכומים היום',
-        description: 'השלם 3 סיכומים חדשים',
+        title: t.gamification.challenges.create3.title,
+        description: t.gamification.challenges.create3.desc,
         xpReward: 100,
         completed: false,
         progress: 0,
         maxProgress: 3,
-        expiresAt: new Date(new Date().setHours(23, 59, 59)).toISOString(),
+        expiresAt,
       },
       {
         id: 'daily_2',
-        title: 'שתף 2 סיכומים',
-        description: 'שתף סיכומים ברשתות חברתיות',
+        title: t.gamification.challenges.share2.title,
+        description: t.gamification.challenges.share2.desc,
         xpReward: 75,
         completed: false,
         progress: 0,
         maxProgress: 2,
-        expiresAt: new Date(new Date().setHours(23, 59, 59)).toISOString(),
+        expiresAt,
       },
       {
         id: 'daily_3',
-        title: 'צפה ב-5 מודעות',
-        description: 'צבור קרדיטים מצפייה במודעות',
+        title: t.gamification.challenges.watch5Ads.title,
+        description: t.gamification.challenges.watch5Ads.desc,
         xpReward: 50,
         completed: false,
         progress: 0,
         maxProgress: 5,
-        expiresAt: new Date(new Date().setHours(23, 59, 59)).toISOString(),
+        expiresAt,
       },
     ];
 
@@ -154,7 +166,7 @@ export function useGamification() {
 
     // Show notification
     if (newLevel > userLevel.level) {
-      showNotification(`🎉 עלית לרמה ${newLevel}!`, `הרווחת את התואר: ${newUserLevel.title}`);
+      showNotification(t.gamification.notifications.levelUp.replace('{level}', String(newLevel)), t.gamification.notifications.levelUpTitle.replace('{title}', newUserLevel.title));
     } else if (reason) {
       showNotification(`+${amount} XP`, reason);
     }
@@ -171,10 +183,10 @@ export function useGamification() {
     );
 
     setAchievements(updated);
-    addXP(achievement.xpReward, `פתחת הישג: ${achievement.name}`);
+    addXP(achievement.xpReward, t.gamification.notifications.achievementXP.replace('{name}', achievement.name));
     saveGamificationData({ ...loadStoredData(), achievements: updated });
 
-    showNotification(`🏆 הישג חדש!`, achievement.name);
+    showNotification(t.gamification.notifications.achievementUnlocked, achievement.name);
   };
 
   const updateAchievementProgress = (achievementId: string, progress: number) => {
@@ -201,7 +213,7 @@ export function useGamification() {
         const completed = newProgress >= c.maxProgress;
         
         if (completed && !c.completed) {
-          addXP(c.xpReward, `השלמת אתגר: ${c.title}`);
+          addXP(c.xpReward, t.gamification.notifications.challengeComplete.replace('{title}', c.title));
         }
 
         return { ...c, progress: newProgress, completed };
@@ -215,13 +227,13 @@ export function useGamification() {
   };
 
   const getLevelTitle = (level: number): string => {
-    if (level >= 50) return 'אגדת AI';
-    if (level >= 40) return 'מאסטר סיכומים';
-    if (level >= 30) return 'מומחה AI';
-    if (level >= 20) return 'יוצר מתקדם';
-    if (level >= 10) return 'יוצר ותיק';
-    if (level >= 5) return 'יוצר מנוסה';
-    return 'מתחיל';
+    if (level >= 50) return t.gamification.levels.aiLegend;
+    if (level >= 40) return t.gamification.levels.recapMaster;
+    if (level >= 30) return t.gamification.levels.aiExpert;
+    if (level >= 20) return t.gamification.levels.advanced;
+    if (level >= 10) return t.gamification.levels.veteran;
+    if (level >= 5) return t.gamification.levels.experienced;
+    return t.gamification.levels.beginner;
   };
 
   const showNotification = (title: string, message: string) => {

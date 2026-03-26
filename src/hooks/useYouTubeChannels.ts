@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
+import { useLanguage } from '@/lib/LanguageContext';
 
 export interface LearningInsights {
   videos_analyzed: number;
@@ -41,6 +42,7 @@ export interface SlotInfo {
 }
 
 export function useYouTubeChannels(userId: string | undefined) {
+  const { t } = useLanguage();
   const [channels, setChannels] = useState<YouTubeChannel[]>([]);
   const [slotInfo, setSlotInfo] = useState<SlotInfo>({
     totalSlots: 11,
@@ -128,7 +130,7 @@ export function useYouTubeChannels(userId: string | undefined) {
     if (slotInfo.needsAdsToUnlock && !slotUnlockedByAds) {
       return {
         success: false,
-        error: `צריך לצפות ב-${slotInfo.adsRequired} מודעות כדי לפתוח סלוט זה`,
+        error: t.youtubeChannels.errors.needAds.replace('{count}', String(slotInfo.adsRequired)),
       };
     }
 
@@ -152,7 +154,7 @@ export function useYouTubeChannels(userId: string | undefined) {
           channelHandle = '@' + channelInput.split('/@')[1].split(/[/?]/)[0];
         }
       } else {
-        return { success: false, error: 'פורמט לא תקין. השתמש ב-URL, @handle, או UC... ID' };
+        return { success: false, error: t.youtubeChannels.errors.invalidFormat };
       }
 
       // For now, use handle or ID as channel_id (in real app, use YouTube API to resolve)
@@ -184,7 +186,7 @@ export function useYouTubeChannels(userId: string | undefined) {
 
       if (error) {
         if (error.code === '23505') {
-          return { success: false, error: 'ערוץ זה כבר קיים' };
+          return { success: false, error: t.youtubeChannels.errors.channelExists };
         }
         throw error;
       }
@@ -193,7 +195,7 @@ export function useYouTubeChannels(userId: string | undefined) {
       return { success: true };
     } catch (error: any) {
       console.error('Error adding channel:', error);
-      return { success: false, error: error.message || 'שגיאה בהוספת ערוץ' };
+      return { success: false, error: error.message || t.youtubeChannels.errors.addFailed };
     }
   };
 

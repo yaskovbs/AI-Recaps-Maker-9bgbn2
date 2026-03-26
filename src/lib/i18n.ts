@@ -645,6 +645,80 @@ export const translations = {
       empty: 'אין אתגרים זמינים כרגע',
     },
 
+    // Gamification Hook
+    gamification: {
+      achievements: {
+        firstRecap: { name: 'מתחיל', desc: 'צור את הסיכום הראשון שלך' },
+        tenRecaps: { name: 'יוצר', desc: 'צור 10 סיכומים' },
+        firstShare: { name: 'משתף', desc: 'שתף סיכום ראשון' },
+        dailyStreak: { name: 'מחויב', desc: '3 ימים רצופים' },
+        highRated: { name: 'מצטיין', desc: 'קבל דירוג 5 כוכבים' },
+        fiftyRecaps: { name: 'מומחה', desc: 'צור 50 סיכומים' },
+        hundredRecaps: { name: 'אגדה', desc: 'צור 100 סיכומים' },
+        aiMaster: { name: 'שולט ב-AI', desc: 'השתמש בכל תכונות AI' },
+        socialButterfly: { name: 'חברתי', desc: 'קבל 50 לייקים' },
+        trendSetter: { name: 'קובע טרנדים', desc: 'היה ב-Trending 3 פעמים' },
+      },
+      challenges: {
+        create3: { title: 'צור 3 סיכומים היום', desc: 'השלם 3 סיכומים חדשים' },
+        share2: { title: 'שתף 2 סיכומים', desc: 'שתף סיכומים ברשתות חברתיות' },
+        watch5Ads: { title: 'צפה ב-5 מודעות', desc: 'צבור קרדיטים מצפייה במודעות' },
+      },
+      levels: {
+        beginner: 'מתחיל',
+        experienced: 'יוצר מנוסה',
+        veteran: 'יוצר ותיק',
+        advanced: 'יוצר מתקדם',
+        aiExpert: 'מומחה AI',
+        recapMaster: 'מאסטר סיכומים',
+        aiLegend: 'אגדת AI',
+      },
+      notifications: {
+        levelUp: 'עלית לרמה {level}!',
+        levelUpTitle: 'הרווחת את התואר: {title}',
+        achievementUnlocked: 'הישג חדש!',
+        achievementXP: 'פתחת הישג: {name}',
+        challengeComplete: 'השלמת אתגר: {title}',
+      },
+    },
+
+    // Chatbot Hook
+    chatbot: {
+      greeting: 'שלום! אני העוזר החכם שלך ליצירת סיכומים. איך אוכל לעזור לך היום?',
+      suggestions: {
+        howToCreate: 'איך ליצור סיכום טוב?',
+        scriptTips: 'תן לי טיפים לתסריט',
+        recommendedSettings: 'מהן ההגדרות המומלצות?',
+        howToImprove: 'כיצד לשפר את הסיכום?',
+        scriptExamples: 'דוגמאות לתסריטים טובים',
+        compellingHook: 'איך לכתוב הוק משכנע?',
+        idealLength: 'מה האורך האידיאלי?',
+        whatIsAlignment: 'מה זה AI alignment?',
+        howLong: 'כמה זמן צריך סיכום?',
+        whyContinuousLearning: 'למה להשתמש בלמידה מתמשכת?',
+        showExample: 'הצג דוגמה לסיכום',
+        modeDifference: 'מה ההבדל בין המצבים?',
+        howToShare: 'כיצד לשתף ברשתות?',
+      },
+      responses: {
+        scriptTips: 'טיפים לתסריט מעולה:\n\n1. **התחל עם הוק חזק** - משפט פתיחה שימשוך את הקהל\n2. **פרק למקטעים** - כל מקטע צריך להיות 30-60 שניות\n3. **השתמש בשפה פשוטה** - הימנע מז\'רגון מסובך\n4. **סיפור עם התחלה, אמצע וסוף** - מבנה קלאסי עובד!\n5. **קריאה לפעולה** - סיים עם מסר ברור\n\nרוצה עזרה נוספת עם משהו ספציפי?',
+        settings: 'הגדרות מומלצות:\n\n**לסרטים ארוכים (2+ שעות):**\n- אורך סיכום: 3-5 דקות\n- חיתוכים: כל 30 שניות\n- זוהר ברקע: כן\n\n**לסדרות טלוויזיה:**\n- אורך סיכום: 2-3 דקות\n- חיתוכים: כל 20 שניות\n- AI alignment: מומלץ מאוד\n\n**לתוכן קצר:**\n- אורך סיכום: 1-2 דקות\n- חיתוכים: כל 15 שניות\n\nמה סוג התוכן שלך?',
+        optimization: 'דרכים לשפר את הסיכום:\n\n1. **השתמש בלמידה מתמשכת** - המערכת תלמד מההעדפות שלך\n2. **הוסף ערוצי YouTube להשראה** - עד 11 ערוצים!\n3. **התאם את ה-AI alignment** - לסנכרון מושלם\n4. **בדוק sentiment analysis** - לראות איך הקהל מגיב\n5. **שתף ברשתות חברתיות** - לקבל פידבק\n\nרוצה הסבר מפורט על אחד מהנושאים?',
+        gettingStarted: 'בוא נתחיל!\n\n**שלב 1:** לחץ על "צור סיכום חדש"\n**שלב 2:** הדבק את התסריט או העלה קובץ\n**שלב 3:** בחר הגדרות (או השאר את המומלצות)\n**שלב 4:** לחץ "המשך" דרך 5 השלבים\n**שלב 5:** קבל את הסיכום המוכן!\n\n**טיפ:** התחל פשוט ושדרג בהדרגה. המערכת תלמד מההעדפות שלך.\n\nרוצה עזרה עם שלב מסוים?',
+        defaultHelp: 'אני כאן לעזור! אוכל לתת לך:\n\n**עזרה בכתיבת תסריט**\n**המלצות להגדרות**\n**טיפים לאופטימיזציה**\n**ניתוח ביצועים**\n\nמה מעניין אותך?',
+      },
+    },
+
+    // YouTube Channels Hook
+    youtubeChannels: {
+      errors: {
+        needAds: 'צריך לצפות ב-{count} מודעות כדי לפתוח סלוט זה',
+        invalidFormat: 'פורמט לא תקין. השתמש ב-URL, @handle, או UC... ID',
+        channelExists: 'ערוץ זה כבר קיים',
+        addFailed: 'שגיאה בהוספת ערוץ',
+      },
+    },
+
     // Footer
     footer: {
       description: 'הפלטפורמה המתקדמת ביותר ליצירת סיכומי וידאו מונעי AI',
@@ -1296,6 +1370,80 @@ export const translations = {
       hours: 'hours',
       progress: 'Progress',
       empty: 'No challenges available right now',
+    },
+
+    // Gamification Hook
+    gamification: {
+      achievements: {
+        firstRecap: { name: 'Beginner', desc: 'Create your first recap' },
+        tenRecaps: { name: 'Creator', desc: 'Create 10 recaps' },
+        firstShare: { name: 'Sharer', desc: 'Share your first recap' },
+        dailyStreak: { name: 'Committed', desc: '3 consecutive days' },
+        highRated: { name: 'Top Rated', desc: 'Get a 5-star rating' },
+        fiftyRecaps: { name: 'Expert', desc: 'Create 50 recaps' },
+        hundredRecaps: { name: 'Legend', desc: 'Create 100 recaps' },
+        aiMaster: { name: 'AI Master', desc: 'Use all AI features' },
+        socialButterfly: { name: 'Social', desc: 'Get 50 likes' },
+        trendSetter: { name: 'Trend Setter', desc: 'Be trending 3 times' },
+      },
+      challenges: {
+        create3: { title: 'Create 3 recaps today', desc: 'Complete 3 new recaps' },
+        share2: { title: 'Share 2 recaps', desc: 'Share recaps on social media' },
+        watch5Ads: { title: 'Watch 5 ads', desc: 'Earn credits from watching ads' },
+      },
+      levels: {
+        beginner: 'Beginner',
+        experienced: 'Experienced Creator',
+        veteran: 'Veteran Creator',
+        advanced: 'Advanced Creator',
+        aiExpert: 'AI Expert',
+        recapMaster: 'Recap Master',
+        aiLegend: 'AI Legend',
+      },
+      notifications: {
+        levelUp: 'You reached level {level}!',
+        levelUpTitle: 'You earned the title: {title}',
+        achievementUnlocked: 'New Achievement!',
+        achievementXP: 'Unlocked achievement: {name}',
+        challengeComplete: 'Completed challenge: {title}',
+      },
+    },
+
+    // Chatbot Hook
+    chatbot: {
+      greeting: 'Hello! I\'m your smart assistant for creating recaps. How can I help you today?',
+      suggestions: {
+        howToCreate: 'How to create a good recap?',
+        scriptTips: 'Give me script tips',
+        recommendedSettings: 'What are recommended settings?',
+        howToImprove: 'How to improve my recap?',
+        scriptExamples: 'Examples of good scripts',
+        compellingHook: 'How to write a compelling hook?',
+        idealLength: 'What is the ideal length?',
+        whatIsAlignment: 'What is AI alignment?',
+        howLong: 'How long should a recap be?',
+        whyContinuousLearning: 'Why use continuous learning?',
+        showExample: 'Show a recap example',
+        modeDifference: 'What\'s the difference between modes?',
+        howToShare: 'How to share on social media?',
+      },
+      responses: {
+        scriptTips: 'Tips for a great script:\n\n1. **Start with a strong hook** - An opening line that grabs the audience\n2. **Break into segments** - Each segment should be 30-60 seconds\n3. **Use simple language** - Avoid complicated jargon\n4. **Story with beginning, middle, and end** - Classic structure works!\n5. **Call to action** - End with a clear message\n\nWant more help with something specific?',
+        settings: 'Recommended settings:\n\n**For long movies (2+ hours):**\n- Recap length: 3-5 minutes\n- Cuts: Every 30 seconds\n- Background glow: Yes\n\n**For TV series:**\n- Recap length: 2-3 minutes\n- Cuts: Every 20 seconds\n- AI alignment: Highly recommended\n\n**For short content:**\n- Recap length: 1-2 minutes\n- Cuts: Every 15 seconds\n\nWhat type of content is yours?',
+        optimization: 'Ways to improve your recap:\n\n1. **Use continuous learning** - The system will learn from your preferences\n2. **Add YouTube channels for inspiration** - Up to 11 channels!\n3. **Adjust AI alignment** - For perfect synchronization\n4. **Check sentiment analysis** - See how the audience reacts\n5. **Share on social media** - Get feedback\n\nWant a detailed explanation on any topic?',
+        gettingStarted: 'Let\'s get started!\n\n**Step 1:** Click "Create New Recap"\n**Step 2:** Paste the script or upload a file\n**Step 3:** Choose settings (or keep recommended)\n**Step 4:** Click "Continue" through 5 steps\n**Step 5:** Get your finished recap!\n\n**Tip:** Start simple and upgrade gradually. The system will learn from your preferences.\n\nWant help with a specific step?',
+        defaultHelp: 'I\'m here to help! I can provide:\n\n**Script writing help**\n**Settings recommendations**\n**Optimization tips**\n**Performance analysis**\n\nWhat interests you?',
+      },
+    },
+
+    // YouTube Channels Hook
+    youtubeChannels: {
+      errors: {
+        needAds: 'Need to watch {count} ads to unlock this slot',
+        invalidFormat: 'Invalid format. Use URL, @handle, or UC... ID',
+        channelExists: 'This channel already exists',
+        addFailed: 'Error adding channel',
+      },
     },
 
     // Footer
