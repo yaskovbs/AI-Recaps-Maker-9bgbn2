@@ -1,5 +1,6 @@
 import React from 'react';
 import { useLanguage } from '@/lib/LanguageContext';
+import { CONTACT_EMAIL, CONTACT_PHONE } from '@/constants/contact';
 import { FileText, Calendar } from 'lucide-react';
 
 export default function Terms() {
@@ -144,8 +145,8 @@ export default function Terms() {
                 לשאלות או בירורים לגבי תנאי השימוש, ניתן ליצור קשר:
               </p>
               <ul className="list-none text-brass-300 space-y-2">
-                <li>📧 Email: contact-us@y-l-b-s-ai-studio-apps.com</li>
-                <li>📞 Phone: 050-818-1948</li>
+                <li>📧 Email: {CONTACT_EMAIL}</li>
+                <li>📞 Phone: {CONTACT_PHONE}</li>
               </ul>
             </section>
           </div>

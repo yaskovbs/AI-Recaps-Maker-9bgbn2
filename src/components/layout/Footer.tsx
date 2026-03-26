@@ -1,6 +1,7 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { useLanguage } from '@/lib/LanguageContext';
+import { CONTACT_EMAIL, CONTACT_PHONE } from '@/constants/contact';
 import { Youtube, Github, Link as LinkIcon, Mail, Phone } from 'lucide-react';
 
 export default function Footer() {
@@ -32,14 +33,14 @@ export default function Footer() {
             <h3 className="text-brass-200 font-semibold mb-4">{t.footer.contact.title}</h3>
             <div className="space-y-2 text-sm text-brass-300">
               <a
-                href="mailto:contact-us@y-l-b-s-ai-studio-apps.com"
+                href={`mailto:${CONTACT_EMAIL}`}
                 className="flex items-center gap-2 hover:text-brass-100 transition-colors"
               >
                 <Mail className="w-4 h-4" />
                 {t.footer.contact.email}
               </a>
               <a
-                href="tel:050-818-1948"
+                href={`tel:${CONTACT_PHONE}`}
                 className="flex items-center gap-2 hover:text-brass-100 transition-colors"
               >
                 <Phone className="w-4 h-4" />

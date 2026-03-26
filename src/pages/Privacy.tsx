@@ -1,5 +1,6 @@
 import React from 'react';
 import { useLanguage } from '@/lib/LanguageContext';
+import { CONTACT_EMAIL, CONTACT_PHONE } from '@/constants/contact';
 import { Shield, Calendar, Lock, Eye, Database, AlertCircle } from 'lucide-react';
 
 export default function Privacy() {
@@ -198,10 +199,10 @@ export default function Privacy() {
               </p>
               <ul className="list-none text-brass-300 space-y-2">
                 <li className="flex items-center gap-2">
-                  📧 <strong>Email:</strong> contact-us@y-l-b-s-ai-studio-apps.com
+                  📧 <strong>Email:</strong> {CONTACT_EMAIL}
                 </li>
                 <li className="flex items-center gap-2">
-                  📞 <strong>Phone:</strong> 050-818-1948
+                  📞 <strong>Phone:</strong> {CONTACT_PHONE}
                 </li>
               </ul>
             </section>
