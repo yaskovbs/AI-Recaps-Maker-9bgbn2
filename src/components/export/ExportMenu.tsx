@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { FileDown, FileText, Video, Presentation, Settings } from 'lucide-react';
 import { exportRecap, downloadBlob, ExportOptions } from '@/lib/exportService';
+import { useLanguage } from '@/lib/LanguageContext';
 
 interface ExportMenuProps {
   jobId: string;
@@ -11,6 +12,7 @@ interface ExportMenuProps {
 }
 
 export default function ExportMenu({ jobId, title, content, onClose, className = '' }: ExportMenuProps) {
+  const { t } = useLanguage();
   const [isExporting, setIsExporting] = useState(false);
   const [selectedFormat, setSelectedFormat] = useState<'pdf' | 'mp4' | 'slides' | null>(null);
   const [quality, setQuality] = useState<'low' | 'medium' | 'high' | 'ultra'>('high');
@@ -47,9 +49,8 @@ export default function ExportMenu({ jobId, title, content, onClose, className =
         setSelectedFormat(null);
         onClose();
       }, 500);
-    } catch (error) {
-      console.error('Export failed:', error);
-      alert('ייצוא נכשל. נסה שוב.');
+    } catch {
+      alert(t.exportMenu.failed);
       setIsExporting(false);
       setSelectedFormat(null);
     }
@@ -59,7 +60,7 @@ export default function ExportMenu({ jobId, title, content, onClose, className =
     <div className={`export-menu steampunk-card p-6 ${className}`}>
       <h3 className="text-xl font-serif font-semibold text-brass-200 mb-6 flex items-center gap-2">
         <FileDown className="w-5 h-5" />
-        ייצוא סיכום
+        {t.exportMenu.title}
       </h3>
 
       {/* Format Selection */}
@@ -72,8 +73,8 @@ export default function ExportMenu({ jobId, title, content, onClose, className =
           }`}
         >
           <FileText className="w-8 h-8 text-brass-400 mx-auto mb-3" />
-          <div className="text-sm font-semibold text-brass-200 mb-1">PDF מעוצב</div>
-          <div className="text-xs text-brass-400">מסמך מעוצב עם מיתוג</div>
+          <div className="text-sm font-semibold text-brass-200 mb-1">{t.exportMenu.pdfTitle}</div>
+          <div className="text-xs text-brass-400">{t.exportMenu.pdfDesc}</div>
           {isExporting && selectedFormat === 'pdf' && (
             <div className="mt-2">
               <div className="w-full h-1 bg-steam-800 rounded-full overflow-hidden">
@@ -91,8 +92,8 @@ export default function ExportMenu({ jobId, title, content, onClose, className =
           }`}
         >
           <Video className="w-8 h-8 text-brass-400 mx-auto mb-3" />
-          <div className="text-sm font-semibold text-brass-200 mb-1">וידאו MP4</div>
-          <div className="text-xs text-brass-400">סרטון מוכן לפרסום</div>
+          <div className="text-sm font-semibold text-brass-200 mb-1">{t.exportMenu.videoTitle}</div>
+          <div className="text-xs text-brass-400">{t.exportMenu.videoDesc}</div>
           {isExporting && selectedFormat === 'mp4' && (
             <div className="mt-2">
               <div className="w-full h-1 bg-steam-800 rounded-full overflow-hidden">
@@ -110,8 +111,8 @@ export default function ExportMenu({ jobId, title, content, onClose, className =
           }`}
         >
           <Presentation className="w-8 h-8 text-brass-400 mx-auto mb-3" />
-          <div className="text-sm font-semibold text-brass-200 mb-1">מצגת PowerPoint</div>
-          <div className="text-xs text-brass-400">שקופיות מעוצבות</div>
+          <div className="text-sm font-semibold text-brass-200 mb-1">{t.exportMenu.slidesTitle}</div>
+          <div className="text-xs text-brass-400">{t.exportMenu.slidesDesc}</div>
           {isExporting && selectedFormat === 'slides' && (
             <div className="mt-2">
               <div className="w-full h-1 bg-steam-800 rounded-full overflow-hidden">
@@ -125,17 +126,17 @@ export default function ExportMenu({ jobId, title, content, onClose, className =
       {/* Options */}
       <div className="space-y-4 mb-6">
         <div>
-          <label className="block text-sm font-medium text-brass-300 mb-2">איכות</label>
+          <label className="block text-sm font-medium text-brass-300 mb-2">{t.exportMenu.quality}</label>
           <select
             value={quality}
             onChange={e => setQuality(e.target.value as any)}
             className="steampunk-input w-full"
             disabled={isExporting}
           >
-            <option value="low">נמוכה (מהירה)</option>
-            <option value="medium">בינונית</option>
-            <option value="high">גבוהה (מומלץ)</option>
-            <option value="ultra">Ultra HD (איטית)</option>
+            <option value="low">{t.exportMenu.qualityLow}</option>
+            <option value="medium">{t.exportMenu.qualityMedium}</option>
+            <option value="high">{t.exportMenu.qualityHigh}</option>
+            <option value="ultra">{t.exportMenu.qualityUltra}</option>
           </select>
         </div>
 
@@ -149,15 +150,15 @@ export default function ExportMenu({ jobId, title, content, onClose, className =
             disabled={isExporting}
           />
           <label htmlFor="custom-branding" className="text-sm text-brass-300 cursor-pointer">
-            הוסף מיתוג מותאם אישית
+            {t.exportMenu.branding}
           </label>
         </div>
       </div>
 
       {isExporting && (
         <div className="text-center text-sm text-brass-300">
-          <div className="animate-pulse mb-2">מייצא...</div>
-          <p className="text-xs text-brass-500">זה עשוי לקחת כמה שניות</p>
+          <div className="animate-pulse mb-2">{t.exportMenu.exporting}</div>
+          <p className="text-xs text-brass-500">{t.exportMenu.exportingNote}</p>
         </div>
       )}
     </div>

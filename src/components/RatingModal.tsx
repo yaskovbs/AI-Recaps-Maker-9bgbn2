@@ -44,10 +44,10 @@ export default function RatingModal({ isOpen, onClose, onSubmit }: RatingModalPr
             <Star className="w-8 h-8 text-white" />
           </div>
           <h2 className="text-2xl font-serif font-bold text-brass-200 mb-2">
-            אהבתם את השירות?
+            {t.ratingModal.title}
           </h2>
           <p className="text-brass-300 text-sm">
-            נשמח לשמוע מה דעתכם ולשפר את החוויה שלכם
+            {t.ratingModal.subtitle}
           </p>
         </div>
 
@@ -75,23 +75,23 @@ export default function RatingModal({ isOpen, onClose, onSubmit }: RatingModalPr
         {/* Rating Text */}
         {rating > 0 && (
           <p className="text-center text-brass-200 mb-4 font-medium">
-            {rating === 1 && 'לא טוב 😔'}
-            {rating === 2 && 'יכול להיות יותר טוב'}
-            {rating === 3 && 'סביר'}
-            {rating === 4 && 'טוב מאוד! 😊'}
-            {rating === 5 && 'מעולה! 🌟'}
+            {rating === 1 && t.ratingModal.feedback1}
+            {rating === 2 && t.ratingModal.feedback2}
+            {rating === 3 && t.ratingModal.feedback3}
+            {rating === 4 && t.ratingModal.feedback4}
+            {rating === 5 && t.ratingModal.feedback5}
           </p>
         )}
 
         {/* Comment (Optional) */}
         <div className="mb-6">
           <label className="block text-brass-200 text-sm font-medium mb-2">
-            רוצים לשתף עוד? (אופציונלי)
+            {t.ratingModal.feedbackLabel}
           </label>
           <textarea
             value={comment}
             onChange={(e) => setComment(e.target.value)}
-            placeholder="ספרו לנו מה אהבתם או מה ניתן לשפר..."
+            placeholder={t.ratingModal.feedbackPlaceholder}
             className="w-full h-24 bg-steam-900/50 border border-brass-600/30 rounded-lg p-3 text-brass-200 placeholder-brass-400/50 focus:outline-none focus:ring-2 focus:ring-brass-500 resize-none"
           />
         </div>
@@ -102,7 +102,7 @@ export default function RatingModal({ isOpen, onClose, onSubmit }: RatingModalPr
             onClick={handleSkip}
             className="flex-1 px-4 py-3 bg-steam-800 hover:bg-steam-700 text-brass-200 rounded-lg font-semibold transition-all"
           >
-            אולי אחר כך
+            {t.ratingModal.dismiss}
           </button>
           <button
             onClick={handleSubmit}
@@ -110,7 +110,7 @@ export default function RatingModal({ isOpen, onClose, onSubmit }: RatingModalPr
             className="flex-1 steampunk-button px-4 py-3 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <Send className="w-4 h-4" />
-            שלח דירוג
+            {t.ratingModal.submit}
           </button>
         </div>
       </div>

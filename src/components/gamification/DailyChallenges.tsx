@@ -1,6 +1,7 @@
 import React from 'react';
 import { Target, CheckCircle, Clock } from 'lucide-react';
 import { DailyChallenge } from '@/hooks/useGamification';
+import { useLanguage } from '@/lib/LanguageContext';
 
 interface DailyChallengesProps {
   challenges: DailyChallenge[];
@@ -8,6 +9,7 @@ interface DailyChallengesProps {
 }
 
 export default function DailyChallenges({ challenges, className = '' }: DailyChallengesProps) {
+  const { t } = useLanguage();
   const completedCount = challenges.filter(c => c.completed).length;
 
   const getTimeRemaining = (expiresAt: string): string => {
@@ -15,12 +17,12 @@ export default function DailyChallenges({ challenges, className = '' }: DailyCha
     const expires = new Date(expiresAt);
     const diff = expires.getTime() - now.getTime();
     
-    if (diff <= 0) return 'פג תוקף';
-    
+    if (diff <= 0) return t.dailyChallenges.expired;
+
     const hours = Math.floor(diff / (1000 * 60 * 60));
     const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-    
-    return `${hours}:${minutes.toString().padStart(2, '0')} שעות`;
+
+    return `${hours}:${minutes.toString().padStart(2, '0')} ${t.dailyChallenges.hours}`;
   };
 
   return (
@@ -28,7 +30,7 @@ export default function DailyChallenges({ challenges, className = '' }: DailyCha
       <div className="flex items-center justify-between mb-6">
         <h3 className="text-xl font-serif font-semibold text-brass-200 flex items-center gap-2">
           <Target className="w-5 h-5" />
-          אתגרים יומיים ({completedCount}/{challenges.length})
+          {t.dailyChallenges.title} ({completedCount}/{challenges.length})
         </h3>
         {challenges.length > 0 && (
           <div className="flex items-center gap-2 text-sm text-brass-400">
@@ -83,7 +85,7 @@ export default function DailyChallenges({ challenges, className = '' }: DailyCha
                 {/* Progress */}
                 <div className="mt-3">
                   <div className="flex items-center justify-between text-xs text-brass-400 mb-1">
-                    <span>התקדמות</span>
+                    <span>{t.dailyChallenges.progress}</span>
                     <span>
                       {challenge.progress}/{challenge.maxProgress}
                     </span>
@@ -113,7 +115,7 @@ export default function DailyChallenges({ challenges, className = '' }: DailyCha
       {challenges.length === 0 && (
         <div className="text-center py-8 text-brass-400">
           <Target className="w-12 h-12 mx-auto mb-3 opacity-50" />
-          <p>אין אתגרים זמינים כרגע</p>
+          <p>{t.dailyChallenges.empty}</p>
         </div>
       )}
     </div>

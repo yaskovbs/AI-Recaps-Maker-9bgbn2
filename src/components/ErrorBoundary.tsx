@@ -1,5 +1,6 @@
 import React, { Component, ReactNode } from 'react';
 import { AlertCircle, RefreshCw, Home } from 'lucide-react';
+import { translations, Language } from '@/lib/i18n';
 
 interface Props {
   children: ReactNode;
@@ -34,6 +35,8 @@ export default class ErrorBoundary extends Component<Props, State> {
 
   render() {
     if (this.state.hasError) {
+      const lang = (localStorage.getItem('language') || 'he') as Language;
+      const t = translations[lang] || translations.he;
       return (
         <div className="min-h-[60vh] flex items-center justify-center p-4">
           <div className="steampunk-card p-8 max-w-lg w-full text-center">
@@ -41,10 +44,10 @@ export default class ErrorBoundary extends Component<Props, State> {
               <AlertCircle className="w-8 h-8 text-red-400" />
             </div>
             <h2 className="text-2xl font-serif font-bold text-brass-200 mb-3">
-              משהו השתבש
+              {t.errorBoundary.title}
             </h2>
             <p className="text-brass-400 mb-6 text-sm">
-              {this.state.error?.message || 'אירעה שגיאה בלתי צפויה. נסה לרענן את הדף.'}
+              {this.state.error?.message || t.errorBoundary.message}
             </p>
             <div className="flex gap-3 justify-center">
               <button
@@ -52,14 +55,14 @@ export default class ErrorBoundary extends Component<Props, State> {
                 className="steampunk-button flex items-center gap-2 px-6"
               >
                 <RefreshCw className="w-4 h-4" />
-                נסה שוב
+                {t.errorBoundary.retry}
               </button>
               <button
                 onClick={this.handleGoHome}
                 className="steampunk-button-secondary flex items-center gap-2 px-6"
               >
                 <Home className="w-4 h-4" />
-                דף הבית
+                {t.errorBoundary.home}
               </button>
             </div>
           </div>
