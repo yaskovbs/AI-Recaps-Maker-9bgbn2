@@ -77,10 +77,10 @@ export default function Home() {
 
   const handleWatchAd = () => {
     // In production, show real ad
-    toast('מציג מודעה... (במצב דמו)');
+    toast(t.home.ads.showing);
     setTimeout(() => {
       rewardCredits(1, 'Watched ad from home');
-      toast.success('קיבלת קרדיט אחד!');
+      toast.success(t.home.ads.creditEarned);
     }, 1000);
   };
 
@@ -230,9 +230,9 @@ export default function Home() {
       <div id="stats-section" className="py-16 bg-steam-950/50">
         <div className="container mx-auto px-4">
           <h2 className="text-3xl font-serif font-bold text-center text-brass-200 mb-3">
-            המספרים מדברים בעד עצמם
+            {t.home.stats.sectionTitle}
           </h2>
-          <p className="text-center text-brass-300 mb-12">ההישגים שלנו עד היום</p>
+          <p className="text-center text-brass-300 mb-12">{t.home.stats.sectionSubtitle}</p>
 
           <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
             {/* Recaps Created */}
@@ -259,7 +259,7 @@ export default function Home() {
               <div className="text-4xl font-bold text-brass-100 mb-1">
                 {uptime}%
               </div>
-              <div className="text-sm text-brass-400">זמינות השירות</div>
+              <div className="text-sm text-brass-400">{t.home.stats.uptime}</div>
             </div>
 
             {/* User Rating */}
@@ -269,10 +269,10 @@ export default function Home() {
                 {ratingStats.averageRating.toFixed(1)}/5
               </div>
               <div className="text-sm text-brass-400">
-                דירוג משתמשים
+                {t.home.stats.rating}
                 {ratingStats.totalRatings > 0 && (
                   <span className="block text-xs text-brass-500 mt-1">
-                    ({ratingStats.totalRatings} דירוגים)
+                    ({ratingStats.totalRatings} {t.home.stats.ratings})
                   </span>
                 )}
               </div>
@@ -287,7 +287,7 @@ export default function Home() {
                 className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-brass-600/30 to-copper-600/30 hover:from-brass-600/50 hover:to-copper-600/50 border border-brass-500/30 rounded-lg text-brass-200 transition-all"
               >
                 <Star className="w-5 h-5" />
-                אהבתם את השירות? דרגו אותנו כאן
+                {t.home.rating.prompt}
               </button>
             </div>
           )}
@@ -301,17 +301,17 @@ export default function Home() {
       <div className="py-20 bg-gradient-to-b from-steam-950 to-steam-900">
         <div className="container mx-auto px-4 text-center">
           <h2 className="text-4xl font-serif font-bold text-brass-200 mb-6">
-            מוכן להתחיל?
+            {t.home.cta.title}
           </h2>
           <p className="text-lg text-brass-300 mb-8 max-w-2xl mx-auto">
-            צור את הסיכום הראשון שלך עכשיו ותגלה את העוצמה של AI
+            {t.home.cta.subtitle}
           </p>
           <Link
             to="/create"
             className="steampunk-button px-10 py-4 text-lg inline-flex items-center gap-2"
           >
             <Sparkles className="w-5 h-5" />
-            התחל ליצור
+            {t.home.cta.button}
             <ArrowRight className="w-5 h-5" />
           </Link>
         </div>

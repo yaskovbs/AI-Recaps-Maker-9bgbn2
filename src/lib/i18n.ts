@@ -143,9 +143,24 @@ export const translations = {
         satisfaction: 'שביעות רצון',
         uptime: 'זמינות השירות',
         rating: 'דירוג משתמשים',
+        sectionTitle: 'המספרים מדברים בעד עצמם',
+        sectionSubtitle: 'ההישגים שלנו עד היום',
+        ratings: 'דירוגים',
+      },
+      cta: {
+        title: 'מוכן להתחיל?',
+        subtitle: 'צור את הסיכום הראשון שלך עכשיו ותגלה את העוצמה של AI',
+        button: 'התחל ליצור',
+      },
+      rating: {
+        prompt: 'אהבתם את השירות? דרגו אותנו כאן',
+      },
+      ads: {
+        showing: 'מציג מודעה... (במצב דמו)',
+        creditEarned: 'קיבלת קרדיט אחד!',
       },
     },
-    
+
     // Create Recap
     create: {
       title: 'צור סיכום חדש',
@@ -283,11 +298,24 @@ export const translations = {
     // Analytics
     analytics: {
       title: 'אנליטיקס',
+      subtitle: 'סטטיסטיקות וניטור Pipeline',
       summary: 'סיכום',
       totalRecaps: 'סך סיכומים',
       avgDuration: 'אורך ממוצע',
       totalViews: 'צפיות',
       engagement: 'מעורבות',
+      pipelineStages: 'שלבי Pipeline',
+      stage: 'שלב',
+      noEvents: 'אין אירועים עדיין',
+      ratingBreakdown: 'פילוח דירוגים',
+      sentimentAnalysis: 'ניתוח סנטימנט',
+      ratingTrends: 'מגמת דירוגים לאורך זמן',
+      eventLabels: {
+        started: 'התחיל',
+        completed: 'הושלם',
+        fallback: 'גיבוי',
+        failed: 'נכשל',
+      },
       pipelineMonitor: {
         title: 'ניטור Pipeline',
         lastJob: 'עבודה אחרונה',
@@ -618,9 +646,24 @@ export const translations = {
         satisfaction: 'Satisfaction',
         uptime: 'Service Uptime',
         rating: 'User Rating',
+        sectionTitle: 'The Numbers Speak for Themselves',
+        sectionSubtitle: 'Our achievements to date',
+        ratings: 'ratings',
+      },
+      cta: {
+        title: 'Ready to Start?',
+        subtitle: 'Create your first recap now and discover the power of AI',
+        button: 'Start Creating',
+      },
+      rating: {
+        prompt: 'Love our service? Rate us here',
+      },
+      ads: {
+        showing: 'Showing ad... (demo mode)',
+        creditEarned: 'You earned one credit!',
       },
     },
-    
+
     // Create Recap
     create: {
       title: 'Create New Recap',
@@ -754,11 +797,24 @@ export const translations = {
     // Analytics
     analytics: {
       title: 'Analytics',
+      subtitle: 'Statistics and Pipeline Monitoring',
       summary: 'Summary',
       totalRecaps: 'Total Recaps',
       avgDuration: 'Avg Duration',
       totalViews: 'Total Views',
       engagement: 'Engagement',
+      pipelineStages: 'Pipeline Stages',
+      stage: 'Stage',
+      noEvents: 'No events yet',
+      ratingBreakdown: 'Rating Breakdown',
+      sentimentAnalysis: 'Sentiment Analysis',
+      ratingTrends: 'Rating Trends Over Time',
+      eventLabels: {
+        started: 'Started',
+        completed: 'Completed',
+        fallback: 'Fallback',
+        failed: 'Failed',
+      },
       pipelineMonitor: {
         title: 'Pipeline Monitor',
         lastJob: 'Last Job',
@@ -769,7 +825,7 @@ export const translations = {
         time: 'Time',
       },
     },
-    
+
     // YouTube Learning
     youtube: {
       title: 'YouTube Learning Channels Management',

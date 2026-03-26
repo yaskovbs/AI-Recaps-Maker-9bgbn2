@@ -57,10 +57,10 @@ export default function Analytics() {
 
   const getEventTypeLabel = (type: string) => {
     const labels: Record<string, string> = {
-      step_started: 'התחיל',
-      step_completed: 'הושלם',
-      step_fallback: 'גיבוי',
-      step_failed: 'נכשל',
+      step_started: t.analytics.eventLabels.started,
+      step_completed: t.analytics.eventLabels.completed,
+      step_fallback: t.analytics.eventLabels.fallback,
+      step_failed: t.analytics.eventLabels.failed,
     };
     return labels[type] || type;
   };
@@ -73,7 +73,7 @@ export default function Analytics() {
           <h1 className="text-4xl font-serif font-bold text-brass-200 mb-2">
             {t.analytics.title}
           </h1>
-          <p className="text-brass-300">סטטיסטיקות וניטור Pipeline</p>
+          <p className="text-brass-300">{t.analytics.subtitle}</p>
         </div>
 
         {/* Summary Stats */}
@@ -148,7 +148,7 @@ export default function Analytics() {
 
               {/* Stages Progress */}
               <div>
-                <h4 className="text-brass-200 font-semibold mb-4">שלבי Pipeline</h4>
+                <h4 className="text-brass-200 font-semibold mb-4">{t.analytics.pipelineStages}</h4>
                 <div className="space-y-3">
                   {lastJob.stages.map((stage) => (
                     <div key={stage.stage} className="flex items-center gap-4">
@@ -158,7 +158,7 @@ export default function Analytics() {
                       <div className="flex-1">
                         <div className="flex items-center justify-between mb-1">
                           <span className="text-brass-200 font-medium">
-                            שלב {stage.stage}: {stage.message}
+                            {t.analytics.stage} {stage.stage}: {stage.message}
                           </span>
                           <span className="text-xs text-brass-400">
                             {stage.status === 'completed' && stage.endedAt
@@ -194,7 +194,7 @@ export default function Analytics() {
                 </h4>
                 <div className="space-y-2 max-h-96 overflow-y-auto">
                   {events.length === 0 ? (
-                    <p className="text-brass-400 text-sm">אין אירועים עדיין</p>
+                    <p className="text-brass-400 text-sm">{t.analytics.noEvents}</p>
                   ) : (
                     events.map((event, idx) => (
                       <div
@@ -207,7 +207,7 @@ export default function Analytics() {
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center justify-between mb-1">
                             <span className="text-sm font-medium text-brass-200">
-                              {getEventTypeLabel(event.type)} - שלב {event.stage}
+                              {getEventTypeLabel(event.type)} - {t.analytics.stage} {event.stage}
                             </span>
                             <span className="text-xs text-brass-400 flex-shrink-0">
                               {new Date(event.createdAt).toLocaleTimeString('he-IL')}
@@ -233,7 +233,7 @@ export default function Analytics() {
             <div className="steampunk-card p-8">
               <h2 className="text-2xl font-serif font-semibold text-brass-200 mb-6 flex items-center gap-2">
                 <Star className="w-6 h-6" />
-                פילוח דירוגים
+                {t.analytics.ratingBreakdown}
               </h2>
               <RatingBreakdown ratings={ratings} />
             </div>
@@ -242,7 +242,7 @@ export default function Analytics() {
             <div className="steampunk-card p-8">
               <h2 className="text-2xl font-serif font-semibold text-brass-200 mb-6 flex items-center gap-2">
                 <LineChart className="w-6 h-6" />
-                ניתוח סנטימנט
+                {t.analytics.sentimentAnalysis}
               </h2>
               <SentimentAnalysis ratings={ratings} />
             </div>
@@ -254,7 +254,7 @@ export default function Analytics() {
           <div className="steampunk-card p-8 mt-8">
             <h2 className="text-2xl font-serif font-semibold text-brass-200 mb-6 flex items-center gap-2">
               <TrendingUp className="w-6 h-6" />
-              מגמת דירוגים לאורך זמן
+              {t.analytics.ratingTrends}
             </h2>
             <div className="h-64 flex items-end justify-between gap-2">
               {ratings.slice(0, 10).reverse().map((rating, idx) => (
