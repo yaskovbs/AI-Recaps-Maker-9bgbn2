@@ -85,8 +85,8 @@ export default function Settings() {
       if (fromDb) {
         setDbSyncStatus('connected');
       }
-    } catch (error) {
-      console.error('Error loading keys:', error);
+    } catch {
+      // Keys loading failed - will use defaults
     } finally {
       setIsLoading(false);
     }
@@ -98,8 +98,8 @@ export default function Settings() {
     try {
       const hints = await apiKeysService.getKeyHints(user.id);
       setKeyHints(hints);
-    } catch (error) {
-      console.error('Error loading key hints:', error);
+    } catch {
+      // Hints loading failed - will use defaults
     }
   };
 
@@ -257,8 +257,7 @@ export default function Settings() {
       toast.success('חשבון הוקפא בהצלחה. תוכל לשחזר אותו בכניסה הבאה.');
       await logout();
       navigate('/home');
-    } catch (error) {
-      console.error('Freeze error:', error);
+    } catch {
       toast.error('שגיאה בהקפאת החשבון');
     }
   };
@@ -272,7 +271,7 @@ export default function Settings() {
 
     try {
       // Delete user data from all tables
-      await Promise.allSettled([
+      const results = await Promise.allSettled([
         supabase.from('jobs').delete().eq('user_id', user.id),
         supabase.from('api_keys').delete().eq('user_id', user.id),
         supabase.from('ratings').delete().eq('user_id', user.id),
@@ -283,12 +282,18 @@ export default function Settings() {
         supabase.from('user_profiles').delete().eq('id', user.id),
       ]);
 
-      toast.success('חשבון נמחק בהצלחה');
-      localStorage.clear();
+      const failures = results.filter(r => r.status === 'rejected');
+      if (failures.length > 0) {
+        toast.warning(`החשבון נמחק אך ${failures.length} טבלאות לא נמחקו במלואן. פנה לתמיכה אם נדרש.`);
+      } else {
+        toast.success('חשבון נמחק בהצלחה');
+      }
+
+      // Targeted localStorage cleanup instead of clearing everything
+      ['airm_user', 'wallet_data', 'airm_ratings', 'airm_rating_asked', 'recap_jobs', 'recap_draft', 'recap_events', 'last_job_id', 'airm_api_keys_backup', 'airm_api_keys_hints', 'airm_gamification', 'airm_notifications', 'airm_learning'].forEach(key => localStorage.removeItem(key));
       await logout();
       navigate('/home');
     } catch (error) {
-      console.error('Delete error:', error);
       toast.error('שגיאה במחיקת החשבון');
     }
   };
@@ -303,9 +308,8 @@ export default function Settings() {
           window.location.href = '/home';
         }, 100);
       } catch (error) {
-        console.error('Logout error:', error);
         toast.error('שגיאה בהתנתקות');
-        localStorage.clear();
+        ['airm_user'].forEach(key => localStorage.removeItem(key));
         window.location.href = '/home';
       }
     }
