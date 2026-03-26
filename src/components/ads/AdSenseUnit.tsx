@@ -37,7 +37,6 @@ export default function AdSenseUnit({
       setAdLoaded(true);
       onAdLoaded?.();
     } catch (error) {
-      console.error('AdSense error:', error);
       setAdError(error);
       onAdFailed?.(error);
     }
@@ -161,7 +160,6 @@ export function RewardedAd({ onRewardEarned, onAdClosed, onAdFailed, rewardType 
             adFormat="auto"
             onAdLoaded={() => {}}
             onAdFailed={(error) => {
-              console.error('Rewarded ad failed:', error);
               onAdFailed?.(error);
             }}
           />
@@ -233,7 +231,6 @@ export function InterstitialAd({ onAdClosed, onAdFailed }: InterstitialAdProps) 
               adFormat="auto"
               onAdLoaded={() => {}}
               onAdFailed={(error) => {
-                console.error('Interstitial ad failed:', error);
                 onAdFailed?.(error);
               }}
             />

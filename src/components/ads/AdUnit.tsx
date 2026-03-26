@@ -17,8 +17,8 @@ export default function AdUnit({
     try {
       // @ts-ignore
       (window.adsbygoogle = window.adsbygoogle || []).push({});
-    } catch (err) {
-      console.error('AdSense error:', err);
+    } catch {
+      // AdSense initialization may fail if blocked
     }
   }, []);
 

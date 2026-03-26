@@ -13,8 +13,8 @@ function SidebarAd({ slot, format, fullWidthResponsive }: {
     try {
       // @ts-ignore
       (window.adsbygoogle = window.adsbygoogle || []).push({});
-    } catch (err) {
-      console.error('AdSense sidebar error:', err);
+    } catch {
+      // AdSense initialization may fail if blocked
     }
   }, []);
 
