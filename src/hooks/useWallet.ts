@@ -18,7 +18,7 @@ export function useWallet() {
   const [wallet, setWallet] = useState<WalletData>(() => {
     const saved = localStorage.getItem(WALLET_KEY);
     if (saved) {
-      return JSON.parse(saved);
+      try { return JSON.parse(saved); } catch { /* corrupted data, use default */ }
     }
     return {
       balance: 5, // Starting balance

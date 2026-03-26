@@ -85,7 +85,10 @@ export function useRating() {
     // 1. User hasn't been asked before
     // 2. User has created at least 1 recap
     const jobs = localStorage.getItem('airm_jobs');
-    const hasJobs = jobs ? JSON.parse(jobs).length > 0 : false;
+    let hasJobs = false;
+    if (jobs) {
+      try { hasJobs = JSON.parse(jobs).length > 0; } catch { /* corrupted data */ }
+    }
     return !hasAsked && hasJobs;
   };
 

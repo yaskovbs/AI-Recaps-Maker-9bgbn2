@@ -27,7 +27,7 @@ export default function Analytics() {
     // Load ratings from localStorage
     const stored = localStorage.getItem('airm_ratings');
     if (stored) {
-      setRatings(JSON.parse(stored));
+      try { setRatings(JSON.parse(stored)); } catch { /* corrupted data, ignore */ }
     }
   }, []);
 

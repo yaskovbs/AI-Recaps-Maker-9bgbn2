@@ -78,7 +78,7 @@ export function saveDraft(draft: RecapDraft) {
 export function loadDraft(): RecapDraft | null {
   const saved = localStorage.getItem(DRAFT_KEY);
   if (!saved) return null;
-  return JSON.parse(saved);
+  try { return JSON.parse(saved); } catch { return null; }
 }
 
 export function clearDraft() {
@@ -100,7 +100,7 @@ export function saveJob(job: RecapJob) {
 export function getJobs(): RecapJob[] {
   const saved = localStorage.getItem(JOBS_KEY);
   if (!saved) return [];
-  return JSON.parse(saved);
+  try { return JSON.parse(saved); } catch { return []; }
 }
 
 export function getJobById(id: string): RecapJob | null {
@@ -124,7 +124,7 @@ export function addJobEvent(jobId: string, event: RecapEvent) {
 function getEventsMap(): Record<string, RecapEvent[]> {
   const saved = localStorage.getItem(EVENTS_KEY);
   if (!saved) return {};
-  return JSON.parse(saved);
+  try { return JSON.parse(saved); } catch { return {}; }
 }
 
 export function getJobEvents(jobId: string): RecapEvent[] {

@@ -66,7 +66,8 @@ export function useGamification() {
   const loadGamificationData = () => {
     const stored = localStorage.getItem(STORAGE_KEY);
     if (stored) {
-      const data = JSON.parse(stored);
+      let data: any;
+      try { data = JSON.parse(stored); } catch { data = {}; }
       setUserLevel(data.userLevel || userLevel);
       setAchievements(data.achievements || initializeAchievements());
       setStreak(data.streak || 0);
@@ -89,7 +90,7 @@ export function useGamification() {
     const stored = localStorage.getItem(`${STORAGE_KEY}_challenges_${today}`);
     
     if (stored) {
-      setDailyChallenges(JSON.parse(stored));
+      try { setDailyChallenges(JSON.parse(stored)); } catch { /* corrupted data */ }
       return;
     }
 
@@ -230,7 +231,8 @@ export function useGamification() {
 
   const loadStoredData = () => {
     const stored = localStorage.getItem(STORAGE_KEY);
-    return stored ? JSON.parse(stored) : {};
+    if (!stored) return {};
+    try { return JSON.parse(stored); } catch { return {}; }
   };
 
   const saveGamificationData = (data: any) => {

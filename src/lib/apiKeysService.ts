@@ -187,7 +187,7 @@ class APIKeysService {
       if (backup) {
         const decrypted = await this.decrypt(backup);
         if (decrypted) {
-          return JSON.parse(decrypted);
+          try { return JSON.parse(decrypted); } catch { return {}; }
         }
       }
     } catch (e) {
