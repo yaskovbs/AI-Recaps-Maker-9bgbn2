@@ -61,9 +61,9 @@ export default function Leaderboard() {
         <div className="mb-8 text-center">
           <h1 className="text-4xl font-serif font-bold text-brass-200 mb-2 flex items-center justify-center gap-3">
             <Trophy className="w-10 h-10 text-brass-400" />
-            טבלת מובילים
+            {t.leaderboard.title}
           </h1>
-          <p className="text-brass-300">היוצרים הטובים ביותר והסיכומים המדורגים ביותר</p>
+          <p className="text-brass-300">{t.leaderboard.subtitle}</p>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
@@ -71,7 +71,7 @@ export default function Leaderboard() {
           <div className="steampunk-card p-6">
             <h2 className="text-2xl font-serif font-semibold text-brass-200 mb-4 flex items-center gap-2">
               <TrendingUp className="w-6 h-6" />
-              יוצרים מובילים
+              {t.leaderboard.topCreators}
             </h2>
             <div className="space-y-4">
               {topContributors.map((user, idx) => (
@@ -98,12 +98,12 @@ export default function Leaderboard() {
                       </div>
                     </div>
                     <div className="flex items-center gap-4 text-sm text-brass-400">
-                      <span>{user.recaps_count} סיכומים</span>
+                      <span>{user.recaps_count} {t.leaderboard.recaps}</span>
                       <span className="flex items-center gap-1">
                         <Star className="w-3 h-3 fill-brass-400" />
                         {user.avg_rating.toFixed(1)}
                       </span>
-                      <span>{user.total_ratings} דירוגים</span>
+                      <span>{user.total_ratings} {t.leaderboard.ratings}</span>
                     </div>
                   </div>
                 </div>
@@ -115,7 +115,7 @@ export default function Leaderboard() {
           <div className="steampunk-card p-6">
             <h2 className="text-2xl font-serif font-semibold text-brass-200 mb-4 flex items-center gap-2">
               <Star className="w-6 h-6" />
-              סיכומים מדורגים
+              {t.leaderboard.topRecaps}
             </h2>
             <div className="space-y-4">
               {topRecaps.map((recap, idx) => (
@@ -139,7 +139,7 @@ export default function Leaderboard() {
                         <Star className="w-3 h-3 fill-brass-400" />
                         {recap.avg_rating.toFixed(1)}
                       </span>
-                      <span>{recap.ratings_count} דירוגים</span>
+                      <span>{recap.ratings_count} {t.leaderboard.ratings}</span>
                     </div>
                   </div>
                 </div>
@@ -152,7 +152,7 @@ export default function Leaderboard() {
         <div className="steampunk-card p-6">
           <h2 className="text-2xl font-serif font-semibold text-brass-200 mb-4 flex items-center gap-2">
             <Zap className="w-6 h-6 text-copper-400" />
-            משתמשים פעילים השבוע
+            {t.leaderboard.activeThisWeek}
           </h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {activeUsers.map((user) => (
@@ -171,7 +171,7 @@ export default function Leaderboard() {
                     ))}
                   </div>
                   <div className="flex items-center gap-4 text-sm text-brass-400">
-                    <span>{user.recaps_count} סיכומים</span>
+                    <span>{user.recaps_count} {t.leaderboard.recaps}</span>
                     <span className="flex items-center gap-1">
                       <Star className="w-3 h-3 fill-brass-400" />
                       {user.avg_rating.toFixed(1)}
@@ -187,16 +187,16 @@ export default function Leaderboard() {
         <div className="steampunk-card p-6 mt-8">
           <h2 className="text-2xl font-serif font-semibold text-brass-200 mb-6 flex items-center gap-2">
             <Award className="w-6 h-6" />
-            תגים והישגים
+            {t.leaderboard.badges.title}
           </h2>
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
             {[
-              { icon: '🌟', name: 'מתחיל', desc: 'סיכום ראשון', tier: 'bronze' },
-              { icon: '⭐', name: 'יוצר', desc: '10 סיכומים', tier: 'silver' },
-              { icon: '🏆', name: 'מומחה', desc: '50 סיכומים', tier: 'gold' },
-              { icon: '👑', name: 'אגדה', desc: '100 סיכומים', tier: 'platinum' },
-              { icon: '⭐⭐⭐⭐⭐', name: 'מדורג גבוה', desc: 'ממוצע 4.5', tier: 'gold' },
-              { icon: '💰', name: 'צבר קרדיטים', desc: '50 קרדיטים', tier: 'silver' },
+              { icon: '🌟', name: t.leaderboard.badges.beginner, desc: t.leaderboard.badges.beginnerDesc, tier: 'bronze' },
+              { icon: '⭐', name: t.leaderboard.badges.creator, desc: t.leaderboard.badges.creatorDesc, tier: 'silver' },
+              { icon: '🏆', name: t.leaderboard.badges.expert, desc: t.leaderboard.badges.expertDesc, tier: 'gold' },
+              { icon: '👑', name: t.leaderboard.badges.legend, desc: t.leaderboard.badges.legendDesc, tier: 'platinum' },
+              { icon: '⭐⭐⭐⭐⭐', name: t.leaderboard.badges.highRated, desc: t.leaderboard.badges.highRatedDesc, tier: 'gold' },
+              { icon: '💰', name: t.leaderboard.badges.creditCollector, desc: t.leaderboard.badges.creditCollectorDesc, tier: 'silver' },
             ].map((badge, idx) => (
               <div
                 key={idx}

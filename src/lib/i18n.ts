@@ -389,6 +389,49 @@ export const translations = {
       by: 'מאת',
     },
     
+    // Leaderboard
+    leaderboard: {
+      title: 'טבלת מובילים',
+      subtitle: 'היוצרים הטובים ביותר והסיכומים המדורגים ביותר',
+      topCreators: 'יוצרים מובילים',
+      topRecaps: 'סיכומים מדורגים',
+      activeThisWeek: 'משתמשים פעילים השבוע',
+      recaps: 'סיכומים',
+      ratings: 'דירוגים',
+      badges: {
+        title: 'תגים והישגים',
+        beginner: 'מתחיל',
+        beginnerDesc: 'סיכום ראשון',
+        creator: 'יוצר',
+        creatorDesc: '10 סיכומים',
+        expert: 'מומחה',
+        expertDesc: '50 סיכומים',
+        legend: 'אגדה',
+        legendDesc: '100 סיכומים',
+        highRated: 'מדורג גבוה',
+        highRatedDesc: 'ממוצע 4.5',
+        creditCollector: 'צבר קרדיטים',
+        creditCollectorDesc: '50 קרדיטים',
+      },
+    },
+
+    // Recap View
+    recapView: {
+      loading: 'טוען סיכום...',
+      notFound: 'סיכום לא נמצא',
+      notFoundMessage: 'הסיכום שחיפשת לא קיים או שאינו ציבורי',
+      gallery: 'גלריית סיכומים',
+      noTitle: 'ללא כותרת',
+      by: 'מאת',
+      views: 'צפיות',
+      share: 'שתף',
+      download: 'הורד',
+      galleryLink: 'גלריה',
+      shareRecap: 'שתף סיכום',
+      videoSoon: 'וידאו יהיה זמין בקרוב',
+      loadError: 'שגיאה בטעינת הסיכום',
+    },
+
     // Settings
     settings: {
       title: 'הגדרות',
@@ -874,6 +917,49 @@ export const translations = {
       by: 'מאת',
     },
     
+    // Leaderboard
+    leaderboard: {
+      title: 'Leaderboard',
+      subtitle: 'The best creators and top-rated recaps',
+      topCreators: 'Top Creators',
+      topRecaps: 'Top Rated Recaps',
+      activeThisWeek: 'Active Users This Week',
+      recaps: 'recaps',
+      ratings: 'ratings',
+      badges: {
+        title: 'Badges & Achievements',
+        beginner: 'Beginner',
+        beginnerDesc: 'First recap',
+        creator: 'Creator',
+        creatorDesc: '10 recaps',
+        expert: 'Expert',
+        expertDesc: '50 recaps',
+        legend: 'Legend',
+        legendDesc: '100 recaps',
+        highRated: 'Highly Rated',
+        highRatedDesc: 'Average 4.5',
+        creditCollector: 'Credit Collector',
+        creditCollectorDesc: '50 credits',
+      },
+    },
+
+    // Recap View
+    recapView: {
+      loading: 'Loading recap...',
+      notFound: 'Recap Not Found',
+      notFoundMessage: 'The recap you\'re looking for doesn\'t exist or isn\'t public',
+      gallery: 'Recap Gallery',
+      noTitle: 'Untitled',
+      by: 'By',
+      views: 'views',
+      share: 'Share',
+      download: 'Download',
+      galleryLink: 'Gallery',
+      shareRecap: 'Share Recap',
+      videoSoon: 'Video will be available soon',
+      loadError: 'Error loading recap',
+    },
+
     // Settings
     settings: {
       title: 'Settings',

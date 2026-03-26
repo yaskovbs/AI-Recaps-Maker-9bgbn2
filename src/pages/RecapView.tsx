@@ -28,6 +28,7 @@ export default function RecapView() {
   const { t } = useLanguage();
   const [recap, setRecap] = useState<RecapData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [showShare, setShowShare] = useState(false);
 
   useEffect(() => {
@@ -73,7 +74,7 @@ export default function RecapView() {
       if (jobData) {
         setRecap({
           id: jobData.id,
-          title: jobData.title || jobData.movie_title || 'ללא כותרת',
+          title: jobData.title || jobData.movie_title || t.recapView.noTitle,
           description: jobData.description,
           genre: jobData.genre,
           status: jobData.status,
@@ -85,8 +86,8 @@ export default function RecapView() {
           metadata: jobData.metadata,
         });
       }
-    } catch (error) {
-      console.error('Error loading recap:', error);
+    } catch {
+      setLoadError(true);
     } finally {
       setIsLoading(false);
     }
@@ -103,28 +104,28 @@ export default function RecapView() {
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
           <div className="w-12 h-12 border-4 border-brass-500/30 border-t-brass-500 rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-brass-300">טוען סיכום...</p>
+          <p className="text-brass-300">{t.recapView.loading}</p>
         </div>
       </div>
     );
   }
 
-  if (!recap) {
+  if (!recap || loadError) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="steampunk-card p-8 max-w-md text-center">
           <Film className="w-16 h-16 text-brass-500 mx-auto mb-4 opacity-50" />
           <h2 className="text-2xl font-serif font-bold text-brass-200 mb-3">
-            סיכום לא נמצא
+            {loadError ? t.recapView.loadError : t.recapView.notFound}
           </h2>
           <p className="text-brass-400 mb-6">
-            הסיכום שחיפשת לא קיים או שאינו ציבורי
+            {t.recapView.notFoundMessage}
           </p>
           <Link
             to="/gallery"
             className="steampunk-button inline-flex items-center gap-2"
           >
-            גלריית סיכומים
+            {t.recapView.gallery}
             <ArrowRight className="w-4 h-4" />
           </Link>
         </div>
@@ -148,7 +149,7 @@ export default function RecapView() {
             <>
               <Film className="w-20 h-20 text-brass-500 opacity-30" />
               <div className="absolute bottom-4 left-4 px-3 py-1 bg-steam-950/90 rounded text-sm text-brass-300">
-                {recap.status === 'completed' ? 'וידאו יהיה זמין בקרוב' : `סטטוס: ${recap.status}`}
+                {recap.status === 'completed' ? t.recapView.videoSoon : `${recap.status}`}
               </div>
             </>
           )}
@@ -168,7 +169,7 @@ export default function RecapView() {
               </span>
             )}
             {recap.username && (
-              <span>מאת: {recap.username}</span>
+              <span>{t.recapView.by}: {recap.username}</span>
             )}
             <span className="flex items-center gap-1">
               <Calendar className="w-3 h-3" />
@@ -186,7 +187,7 @@ export default function RecapView() {
             {recap.views !== undefined && recap.views > 0 && (
               <span className="flex items-center gap-1">
                 <Eye className="w-3 h-3" />
-                {recap.views} צפיות
+                {recap.views} {t.recapView.views}
               </span>
             )}
           </div>
@@ -204,7 +205,7 @@ export default function RecapView() {
               className="steampunk-button flex items-center gap-2"
             >
               <Share2 className="w-4 h-4" />
-              שתף
+              {t.recapView.share}
             </button>
 
             {recap.video_url && (
@@ -214,7 +215,7 @@ export default function RecapView() {
                 className="steampunk-button-secondary flex items-center gap-2 px-6"
               >
                 <Download className="w-4 h-4" />
-                הורד
+                {t.recapView.download}
               </a>
             )}
 
@@ -222,7 +223,7 @@ export default function RecapView() {
               to="/gallery"
               className="steampunk-button-secondary flex items-center gap-2 px-6"
             >
-              גלריה
+              {t.recapView.galleryLink}
               <ArrowRight className="w-4 h-4" />
             </Link>
           </div>
@@ -231,7 +232,7 @@ export default function RecapView() {
         {/* Share Section */}
         {showShare && (
           <div className="steampunk-card p-6 mb-6">
-            <h3 className="text-lg font-semibold text-brass-200 mb-4">שתף סיכום</h3>
+            <h3 className="text-lg font-semibold text-brass-200 mb-4">{t.recapView.shareRecap}</h3>
             <SocialShare
               url={window.location.href}
               title={recap.title}
