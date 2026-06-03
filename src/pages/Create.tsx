@@ -1,14 +1,15 @@
-
 import React, { useState, useEffect } from 'react';
 import { useLanguage } from '@/lib/LanguageContext';
 import { useAuth } from '@/lib/AuthContext';
 import { useWallet } from '@/hooks/useWallet';
-import { RewardedAd, InterstitialAd } from '@/components/ads/AdSenseUnit';
-import AdSenseUnit from '@/components/ads/AdSenseUnit';
 import { createJob } from '@/lib/recapService';
 import { supabase } from '@/lib/supabase';
-import { ChevronRight, ChevronLeft, Upload, FileText, Music, Video, Sparkles, CircleAlert as AlertCircle, CircleCheck as CheckCircle, Share2 } from 'lucide-react';
-import { MessageCircle, Facebook, Twitter } from 'lucide-react';
+import {
+  ChevronRight, ChevronLeft, Upload, FileText, Music, Video,
+  Sparkles, AlertCircle, CheckCircle, Share2, MessageCircle,
+  Facebook, Twitter, Loader2, Cpu, Eye, Layers, Key, Brain,
+  Globe, BookOpen, Info
+} from 'lucide-react';
 
 type InputMode = 'text' | 'txt' | 'mp3';
 
@@ -33,1001 +34,592 @@ interface Draft {
   globalLearningOptIn: boolean;
 }
 
+const GENRES_HE: Record<string, string> = {
+  action: 'אקשן', adventure: 'הרפתקאות', animation: 'אנימציה', comedy: 'קומדיה',
+  crime: 'פשע', documentary: 'דוקומנטרי', drama: 'דרמה', fantasy: 'פנטזיה',
+  horror: 'אימה', mystery: 'מסתורין', romance: 'רומנטי', scifi: 'מדע בדיוני',
+  thriller: 'מתח', western: 'וסטרן', war: 'מלחמה', musical: 'מוזיקלי',
+  biography: 'ביוגרפיה', history: 'היסטוריה', sport: 'ספורט', family: 'משפחה',
+};
+
 export default function Create() {
   const { t } = useLanguage();
   const { user } = useAuth();
-  const { wallet, consumeCredits, rewardCredits, loadWallet } = useWallet();
+  const { wallet, consumeCredits, rewardCredits } = useWallet();
   const [currentStep, setCurrentStep] = useState(1);
-  const totalSteps = 6;
-  const [showRewardedAd, setShowRewardedAd] = useState(false);
-  const [showInterstitialAd, setShowInterstitialAd] = useState(false);
+  const totalSteps = 5;
   const [autoProgress, setAutoProgress] = useState(0);
   const [uploading, setUploading] = useState(false);
   const [isRendering, setIsRendering] = useState(false);
   const [renderProgress, setRenderProgress] = useState(0);
   const [renderComplete, setRenderComplete] = useState(false);
-  const [outputVideoUrl, setOutputVideoUrl] = useState<string>('');
+  const [outputVideoUrl, setOutputVideoUrl] = useState('');
+  const [showRewardAlert, setShowRewardAlert] = useState(false);
+
   const [draft, setDraft] = useState<Draft>({
-    inputMode: 'text',
-    scriptText: '',
-    txtAssetId: '',
-    mp3AssetId: '',
-    videoAssetId: '',
-    youtubeUrl: '',
-    movieTitle: '',
-    description: '',
-    genre: 'action',
-    targetDurationHours: 0,
-    targetDurationMinutes: 4,
-    targetDurationSeconds: 0,
-    cutEveryMinutes: 0,
-    cutEverySeconds: 9,
-    webSearchEnabled: false,
-    youtubeLearningEnabled: false,
-    continuousLearningEnabled: true,
-    globalLearningOptIn: false,
+    inputMode: 'text', scriptText: '', txtAssetId: '', mp3AssetId: '',
+    videoAssetId: '', youtubeUrl: '', movieTitle: '', description: '',
+    genre: 'action', targetDurationHours: 0, targetDurationMinutes: 4, targetDurationSeconds: 0,
+    cutEveryMinutes: 0, cutEverySeconds: 9, webSearchEnabled: false,
+    youtubeLearningEnabled: false, continuousLearningEnabled: true, globalLearningOptIn: false,
   });
 
-  const genres = [
-    'action', 'adventure', 'animation', 'comedy', 'crime', 'documentary',
-    'drama', 'fantasy', 'horror', 'mystery', 'romance', 'scifi',
-    'thriller', 'western', 'war', 'musical', 'biography', 'history',
-    'sport', 'family'
-  ];
-
-  // Calculate estimated clips
   const totalSeconds = draft.targetDurationHours * 3600 + draft.targetDurationMinutes * 60 + draft.targetDurationSeconds;
   const intervalSeconds = draft.cutEveryMinutes * 60 + draft.cutEverySeconds;
   const estimatedClips = intervalSeconds > 0 ? Math.floor(totalSeconds / intervalSeconds) : 0;
-  const clipDuration = 1; // 1 second per clip
 
-  // Auto-advance for processing steps (2 and 5)
+  // Step 2 auto-progress
   useEffect(() => {
-    if (currentStep === 2 || currentStep === 5) {
+    if (currentStep === 2) {
       setAutoProgress(0);
-      
-      const duration = 4000; // 4 seconds
-      const interval = 50; // Update every 50ms
-      const increment = (100 / duration) * interval;
-      
       const timer = setInterval(() => {
         setAutoProgress(prev => {
-          const newProgress = prev + increment;
-          if (newProgress >= 100) {
-            clearInterval(timer);
-            // Auto-advance to next step
-            setTimeout(() => {
-              setCurrentStep(currentStep + 1);
-            }, 300);
-            return 100;
-          }
-          return newProgress;
+          if (prev >= 100) { clearInterval(timer); setTimeout(() => setCurrentStep(3), 300); return 100; }
+          return prev + 2;
         });
-      }, interval);
-      
+      }, 60);
       return () => clearInterval(timer);
     }
   }, [currentStep]);
 
-  const handleNext = () => {
-    if (currentStep < totalSteps) setCurrentStep(currentStep + 1);
-  };
-
-  const handlePrev = () => {
-    if (currentStep > 1) setCurrentStep(currentStep - 1);
-  };
-
   const handleFileUpload = async (type: 'txt' | 'mp3' | 'video') => {
-    if (!user) {
-      alert('יש להתחבר כדי להעלות קבצים');
-      return;
-    }
-
+    if (!user) { alert('יש להתחבר כדי להעלות קבצים'); return; }
     const input = document.createElement('input');
     input.type = 'file';
     input.accept = type === 'txt' ? '.txt' : type === 'mp3' ? '.mp3,.wav' : 'video/*';
-    
     input.onchange = async (e) => {
       const file = (e.target as HTMLInputElement).files?.[0];
       if (!file) return;
-
       setUploading(true);
       try {
-        // Upload to Supabase Storage
         const fileExt = file.name.split('.').pop();
         const fileName = `${user.id}/${type}-${Date.now()}.${fileExt}`;
-        const bucketName = 'recap-assets';
-
-        const { data, error } = await supabase.storage
-          .from(bucketName)
-          .upload(fileName, file, {
-            cacheControl: '3600',
-            upsert: false,
-          });
-
+        const { data, error } = await supabase.storage.from('recap-assets').upload(fileName, file, { cacheControl: '3600', upsert: false });
         if (error) throw error;
-
-        // Get public URL
-        const { data: { publicUrl } } = supabase.storage
-          .from(bucketName)
-          .getPublicUrl(fileName);
-
-        // Update draft with the URL
+        const { data: { publicUrl } } = supabase.storage.from('recap-assets').getPublicUrl(fileName);
         if (type === 'txt') {
-          setDraft({ ...draft, txtAssetId: publicUrl });
-          // Read text content
           const text = await file.text();
-          setDraft(prev => ({ ...prev, scriptText: text }));
+          setDraft(prev => ({ ...prev, txtAssetId: publicUrl, scriptText: text }));
         } else if (type === 'mp3') {
-          setDraft({ ...draft, mp3AssetId: publicUrl });
-        } else if (type === 'video') {
-          setDraft({ ...draft, videoAssetId: publicUrl });
+          setDraft(prev => ({ ...prev, mp3AssetId: publicUrl }));
+        } else {
+          setDraft(prev => ({ ...prev, videoAssetId: publicUrl }));
         }
-
-        alert(`✅ קובץ ${file.name} הועלה בהצלחה!`);
-      } catch (error: any) {
-        console.error('Upload error:', error);
-        alert(`❌ שגיאה בהעלאת הקובץ: ${error.message}`);
+      } catch (err: any) {
+        alert(`שגיאה: ${err.message}`);
       } finally {
         setUploading(false);
       }
     };
-    
     input.click();
   };
 
   const handleCreate = async () => {
-    if (!user) {
-      alert('יש להתחבר כדי ליצור סיכום');
-      return;
-    }
-
-    // Check credits
-    if (wallet.balance < 1) {
-      setShowRewardedAd(true);
-      return;
-    }
-
-    // Show interstitial ad before final creation
-    setShowInterstitialAd(true);
-  };
-
-  const handleAdReward = async () => {
-    // Record ad view
-    if (user) {
-      await supabase.from('ad_views').insert({
-        user_id: user.id,
-        ad_type: 'rewarded',
-        reward_credits: 1,
-      });
-    }
-
-    // Grant credit
-    rewardCredits(1, 'Watched rewarded ad for recap creation');
-    setShowRewardedAd(false);
-    
-    // Reload wallet
-    await loadWallet();
-  };
-
-  const handleInterstitialClose = async () => {
-    setShowInterstitialAd(false);
-
-    // Record ad view
-    if (user) {
-      await supabase.from('ad_views').insert({
-        user_id: user.id,
-        ad_type: 'interstitial',
-        reward_credits: 0,
-      });
-    }
-
-    // Proceed with creation
+    if (!user) { alert('יש להתחבר'); return; }
+    if (wallet.balance < 1) { setShowRewardAlert(true); return; }
     await proceedWithCreation();
   };
 
   const proceedWithCreation = async () => {
     if (!user) return;
-
-    const targetDuration =
-      draft.targetDurationHours * 3600 +
-      draft.targetDurationMinutes * 60 +
-      draft.targetDurationSeconds;
-
-    const cutEvery = draft.cutEveryMinutes * 60 + draft.cutEverySeconds;
-
+    const targetDuration = totalSeconds;
+    const cutEvery = intervalSeconds;
     const job = createJob({
       userId: user.id,
       title: draft.movieTitle || 'סיכום ללא כותרת',
-      source: {
-        inputMode: draft.inputMode,
-        scriptText: draft.scriptText,
-        txtAssetId: draft.txtAssetId,
-        mp3AssetId: draft.mp3AssetId,
-        youtubeUrl: draft.youtubeUrl,
-      },
-      settings: {
-        recapLengthSeconds: targetDuration,
-        clipLengthSeconds: cutEvery,
-        gapSeconds: 5,
-      },
-      advanced: {
-        movieTitle: draft.movieTitle,
-        description: draft.description,
-        genre: draft.genre,
-        webSearchEnabled: draft.webSearchEnabled,
-        youtubeLearningEnabled: draft.youtubeLearningEnabled,
-        continuousLearningEnabled: draft.continuousLearningEnabled,
-        continuousLearningConsent: draft.continuousLearningEnabled,
-        learningProfileEnabled: draft.continuousLearningEnabled,
-        globalLearningOptIn: draft.globalLearningOptIn,
-        globalLearningConsentedAt: draft.globalLearningOptIn ? new Date().toISOString() : undefined,
-      },
+      source: { inputMode: draft.inputMode, scriptText: draft.scriptText, txtAssetId: draft.txtAssetId, mp3AssetId: draft.mp3AssetId, youtubeUrl: draft.youtubeUrl },
+      settings: { recapLengthSeconds: targetDuration, clipLengthSeconds: cutEvery, gapSeconds: 5 },
+      advanced: { movieTitle: draft.movieTitle, description: draft.description, genre: draft.genre, webSearchEnabled: draft.webSearchEnabled, youtubeLearningEnabled: draft.youtubeLearningEnabled, continuousLearningEnabled: draft.continuousLearningEnabled, continuousLearningConsent: draft.continuousLearningEnabled, learningProfileEnabled: draft.continuousLearningEnabled, globalLearningOptIn: draft.globalLearningOptIn },
       pipeline: ['script', 'audio', 'video', 'align', 'render'],
     });
-
     consumeCredits(1, `Created recap: ${job.title}`);
-    localStorage.setItem('lastJobId', job.id);
-    
-    await supabase.from('jobs').insert({
-      id: job.id,
-      user_id: user.id,
-      title: job.title,
-      status: job.status,
-      video_url: draft.youtubeUrl || draft.videoAssetId || '',
-      description: draft.description,
-      genre: draft.genre,
-      duration: targetDuration,
-      metadata: {
-        source: job.source,
-        settings: job.settings,
-        advanced: job.advanced,
-      },
-    });
 
-    // Start rendering simulation
     setIsRendering(true);
     setRenderProgress(0);
-    
-    // Simulate rendering progress (6 seconds)
-    const duration = 6000;
-    const interval = 100;
-    const increment = (100 / duration) * interval;
-    
     const timer = setInterval(() => {
       setRenderProgress(prev => {
-        const newProgress = prev + increment;
-        if (newProgress >= 100) {
-          clearInterval(timer);
-          setIsRendering(false);
-          setRenderComplete(true);
-          // In real app, this would be the actual rendered video URL from backend
-          setOutputVideoUrl(`https://example.com/recaps/${job.id}.mp4`);
-          return 100;
-        }
-        return newProgress;
+        if (prev >= 100) { clearInterval(timer); setIsRendering(false); setRenderComplete(true); setOutputVideoUrl(`https://example.com/recaps/${job.id}.mp4`); return 100; }
+        return prev + 1.5;
       });
-    }, interval);
+    }, 90);
   };
 
-  const handleDownloadVideo = () => {
-    if (!outputVideoUrl) return;
-    
-    // In real app, trigger actual download
-    // For now, show mock success
-    const link = document.createElement('a');
-    link.href = outputVideoUrl;
-    link.download = `${draft.movieTitle || 'recap'}.mp4`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    
-    alert(`✅ הורדת הסיכום התחילה: ${draft.movieTitle}.mp4`);
-  };
+  const stepLabels = [
+    { icon: FileText, label: 'תסריט + אודיו' },
+    { icon: Cpu, label: 'ניתוח AI' },
+    { icon: Video, label: 'העלאת וידאו' },
+    { icon: Key, label: 'הגדרות AI' },
+    { icon: Eye, label: 'הורדה ושיתוף' },
+  ];
 
   return (
-    <div className="min-h-screen py-8">
-      <div className="container mx-auto px-4 max-w-4xl">
+    <div className="min-h-screen py-8" style={{ background: '#0a0a14' }}>
+      <div className="container mx-auto px-4 max-w-3xl">
         {/* Header */}
         <div className="mb-8">
-          <h1 className="text-4xl font-serif font-bold text-brass-200 mb-2">
+          <div className="neon-badge neon-badge-cyan mb-3 inline-flex">Wizard</div>
+          <h1 className="text-4xl font-bold mb-2" style={{ color: '#f0f0ff', fontFamily: 'Syne, sans-serif' }}>
             {t.create.title}
           </h1>
-          <p className="text-brass-300">6 שלבים פשוטים ליצירת סיכום AI מושלם</p>
+          <p className="text-sm" style={{ color: 'rgba(160,160,210,0.6)' }}>
+            {totalSteps} שלבים ליצירת סיכום AI מושלם
+          </p>
         </div>
 
-        {/* Progress Tracker */}
+        {/* Step Indicator */}
         <div className="mb-8">
-          <div className="flex items-center justify-between">
-            {[1, 2, 3, 4, 5, 6].map((step) => (
-              <div key={step} className="flex items-center flex-1">
-                <div
-                  className={`w-10 h-10 rounded-full flex items-center justify-center font-bold transition-all ${
-                    step === currentStep
-                      ? 'bg-gradient-to-br from-brass-500 to-copper-600 text-white scale-110 glow-brass'
-                      : step < currentStep
-                      ? 'bg-brass-600/50 text-brass-200'
-                      : 'bg-steam-800 text-brass-400'
-                  }`}
-                >
-                  {step < currentStep ? <CheckCircle className="w-5 h-5" /> : step}
-                </div>
-                {step < 6 && (
-                  <div
-                    className={`flex-1 h-1 mx-2 transition-all ${
-                      step < currentStep ? 'bg-brass-600' : 'bg-steam-800'
-                    }`}
-                  />
-                )}
-              </div>
-            ))}
-          </div>
-          <div className="flex justify-between mt-2 text-xs text-brass-300">
-            <span>{t.create.wizard.step1}</span>
-            <span>{t.create.wizard.step2}</span>
-            <span>{t.create.wizard.step3}</span>
-            <span>{t.create.wizard.step4}</span>
-            <span>{t.create.wizard.step5}</span>
-            <span>{t.create.wizard.step6}</span>
+          <div className="flex items-center">
+            {stepLabels.map((step, i) => {
+              const stepNum = i + 1;
+              const Icon = step.icon;
+              const isActive = currentStep === stepNum;
+              const isDone = currentStep > stepNum;
+              return (
+                <React.Fragment key={i}>
+                  <div className="flex flex-col items-center">
+                    <div
+                      className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold text-sm transition-all ${
+                        isActive ? 'wizard-step-active scale-110' : isDone ? 'wizard-step-done' : 'wizard-step-idle'
+                      }`}
+                    >
+                      {isDone ? <CheckCircle className="w-4 h-4" /> : <Icon className="w-4 h-4" />}
+                    </div>
+                    <span className="text-xs mt-1.5 hidden sm:block text-center max-w-[70px]" style={{ color: isActive ? '#00D4FF' : isDone ? 'rgba(0,212,255,0.5)' : 'rgba(150,150,200,0.35)', fontSize: '10px' }}>
+                      {step.label}
+                    </span>
+                  </div>
+                  {i < stepLabels.length - 1 && (
+                    <div className={`flex-1 h-0.5 mx-1 transition-all ${isDone ? 'wizard-line-active' : 'wizard-line-idle'}`} />
+                  )}
+                </React.Fragment>
+              );
+            })}
           </div>
         </div>
 
         {/* Step Content */}
-        <div className="steampunk-card p-8 mb-6">
-          {/* Step 1: Basic Input */}
+        <div className="ai-card p-7 mb-5">
+
+          {/* ── STEP 1: Script + Audio ── */}
           {currentStep === 1 && (
-            <div>
-              <h2 className="text-2xl font-serif font-semibold text-brass-200 mb-4">
-                {t.create.step1.title}
-              </h2>
-              <p className="text-brass-300 mb-6">{t.create.step1.description}</p>
+            <div className="animate-slide-up">
+              <h2 className="text-2xl font-bold mb-2" style={{ color: '#f0f0ff', fontFamily: 'Syne, sans-serif' }}>{t.create.step1.title}</h2>
+              <p className="text-sm mb-7" style={{ color: 'rgba(160,160,210,0.6)' }}>{t.create.step1.description}</p>
 
-              <div className="space-y-6">
-                <div>
-                  <label className="block text-brass-200 font-medium mb-2">
-                    {t.create.step1.inputMode}
-                  </label>
-                  <div className="grid grid-cols-3 gap-4">
-                    {(['text', 'txt', 'mp3'] as InputMode[]).map((mode) => (
-                      <button
-                        key={mode}
-                        onClick={() => setDraft({ ...draft, inputMode: mode })}
-                        className={`p-4 rounded-lg border-2 transition-all ${
-                          draft.inputMode === mode
-                            ? 'border-brass-500 bg-brass-900/50'
-                            : 'border-brass-700/30 hover:border-brass-600/50'
-                        }`}
-                      >
-                        {mode === 'text' && <FileText className="w-6 h-6 text-brass-400 mx-auto mb-2" />}
-                        {mode === 'txt' && <Upload className="w-6 h-6 text-brass-400 mx-auto mb-2" />}
-                        {mode === 'mp3' && <Music className="w-6 h-6 text-brass-400 mx-auto mb-2" />}
-                        <span className="text-sm text-brass-200">
-                          {mode === 'text' && t.create.step1.text}
-                          {mode === 'txt' && t.create.step1.txtFile}
-                          {mode === 'mp3' && t.create.step1.mp3File}
-                        </span>
-                      </button>
-                    ))}
-                  </div>
+              {/* Input Mode */}
+              <div className="mb-6">
+                <label className="block text-sm font-semibold mb-3" style={{ color: 'rgba(200,200,240,0.8)' }}>{t.create.step1.inputMode}</label>
+                <div className="grid grid-cols-3 gap-3">
+                  {(['text', 'txt', 'mp3'] as InputMode[]).map((mode) => (
+                    <button
+                      key={mode}
+                      onClick={() => setDraft({ ...draft, inputMode: mode })}
+                      className="p-4 rounded-xl transition-all text-center"
+                      style={{
+                        background: draft.inputMode === mode ? 'rgba(0,212,255,0.1)' : 'rgba(255,255,255,0.03)',
+                        border: `1px solid ${draft.inputMode === mode ? 'rgba(0,212,255,0.4)' : 'rgba(255,255,255,0.08)'}`,
+                        boxShadow: draft.inputMode === mode ? '0 0 15px rgba(0,212,255,0.1)' : 'none',
+                      }}
+                    >
+                      {mode === 'text' && <FileText className="w-5 h-5 mx-auto mb-2" style={{ color: draft.inputMode === mode ? '#00D4FF' : 'rgba(160,160,210,0.5)' }} />}
+                      {mode === 'txt' && <Upload className="w-5 h-5 mx-auto mb-2" style={{ color: draft.inputMode === mode ? '#00D4FF' : 'rgba(160,160,210,0.5)' }} />}
+                      {mode === 'mp3' && <Music className="w-5 h-5 mx-auto mb-2" style={{ color: draft.inputMode === mode ? '#00D4FF' : 'rgba(160,160,210,0.5)' }} />}
+                      <span className="text-sm font-medium" style={{ color: draft.inputMode === mode ? '#00D4FF' : 'rgba(160,160,210,0.6)' }}>
+                        {mode === 'text' ? t.create.step1.text : mode === 'txt' ? t.create.step1.txtFile : t.create.step1.mp3File}
+                      </span>
+                    </button>
+                  ))}
                 </div>
-
-                {draft.inputMode === 'text' && (
-                  <div>
-                    <label className="block text-brass-200 font-medium mb-2">תסריט</label>
-                    <textarea
-                      value={draft.scriptText}
-                      onChange={(e) => setDraft({ ...draft, scriptText: e.target.value })}
-                      placeholder={t.create.step1.scriptPlaceholder}
-                      className="w-full h-48 bg-steam-900/50 border border-brass-600/30 rounded-lg p-4 text-brass-200 focus:outline-none focus:ring-2 focus:ring-brass-500"
-                    />
-                  </div>
-                )}
-
-                {draft.inputMode === 'txt' && (
-                  <div>
-                    <button
-                      onClick={() => handleFileUpload('txt')}
-                      className="steampunk-button w-full flex items-center justify-center gap-2"
-                    >
-                      <Upload className="w-5 h-5" />
-                      {t.create.step1.uploadTxt}
-                    </button>
-                    {draft.txtAssetId && (
-                      <p className="text-green-400 text-sm mt-2 flex items-center gap-2">
-                        <CheckCircle className="w-4 h-4" />
-                        קובץ הועלה: {draft.txtAssetId}
-                      </p>
-                    )}
-                  </div>
-                )}
-
-                {draft.inputMode === 'mp3' && (
-                  <div>
-                    <button
-                      onClick={() => handleFileUpload('mp3')}
-                      className="steampunk-button w-full flex items-center justify-center gap-2"
-                    >
-                      <Upload className="w-5 h-5" />
-                      {t.create.step1.uploadMp3}
-                    </button>
-                    {draft.mp3AssetId && (
-                      <p className="text-green-400 text-sm mt-2 flex items-center gap-2">
-                        <CheckCircle className="w-4 h-4" />
-                        קובץ הועלה: {draft.mp3AssetId}
-                      </p>
-                    )}
-                  </div>
-                )}
               </div>
+
+              {draft.inputMode === 'text' && (
+                <div>
+                  <label className="block text-sm font-semibold mb-2" style={{ color: 'rgba(200,200,240,0.8)' }}>תסריט</label>
+                  <textarea
+                    value={draft.scriptText}
+                    onChange={(e) => setDraft({ ...draft, scriptText: e.target.value })}
+                    placeholder={t.create.step1.scriptPlaceholder}
+                    rows={7}
+                    className="ai-input resize-none"
+                  />
+                </div>
+              )}
+
+              {draft.inputMode === 'txt' && (
+                <div>
+                  <button onClick={() => handleFileUpload('txt')} disabled={uploading} className="btn-neon-cyan w-full flex items-center justify-center gap-2 disabled:opacity-50">
+                    {uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+                    {t.create.step1.uploadTxt}
+                  </button>
+                  {draft.txtAssetId && <p className="text-sm mt-3 flex items-center gap-2" style={{ color: '#00ff80' }}><CheckCircle className="w-4 h-4" /> קובץ הועלה בהצלחה</p>}
+                </div>
+              )}
+
+              {draft.inputMode === 'mp3' && (
+                <div>
+                  <button onClick={() => handleFileUpload('mp3')} disabled={uploading} className="btn-neon-purple w-full flex items-center justify-center gap-2 disabled:opacity-50">
+                    {uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Music className="w-4 h-4" />}
+                    {t.create.step1.uploadMp3}
+                  </button>
+                  {draft.mp3AssetId && <p className="text-sm mt-3 flex items-center gap-2" style={{ color: '#00ff80' }}><CheckCircle className="w-4 h-4" /> קובץ הועלה בהצלחה</p>}
+                </div>
+              )}
             </div>
           )}
 
-          {/* Step 2: Audio Processing (AUTO-ADVANCE) */}
+          {/* ── STEP 2: AI Analysis (auto-advance) ── */}
           {currentStep === 2 && (
-            <div>
-              <h2 className="text-2xl font-serif font-semibold text-brass-200 mb-4">
-                {t.create.step2.title}
-              </h2>
-              <p className="text-brass-300 mb-6">{t.create.step2.description}</p>
+            <div className="animate-slide-up text-center py-4">
+              <h2 className="text-2xl font-bold mb-2" style={{ color: '#f0f0ff', fontFamily: 'Syne, sans-serif' }}>ניתוח AI</h2>
+              <p className="text-sm mb-10" style={{ color: 'rgba(160,160,210,0.6)' }}>מנתח ומעבד את התוכן שהעלית...</p>
 
-              <div className="space-y-6">
-                <div className="bg-steam-900/30 border border-brass-600/30 rounded-lg p-6">
-                  <div className="flex items-center gap-4 mb-4">
-                    <div className="w-12 h-12 rounded-full bg-gradient-to-br from-brass-500 to-copper-600 flex items-center justify-center">
-                      <Music className="w-6 h-6 text-white animate-pulse" />
-                    </div>
-                    <div className="flex-1">
-                      <p className="text-brass-200 font-medium">{t.create.step2.processing}</p>
-                      <div className="w-full bg-steam-800 rounded-full h-2 mt-2 overflow-hidden">
-                        <div 
-                          className="bg-gradient-to-r from-brass-500 to-copper-500 h-full transition-all duration-100"
-                          style={{ width: `${autoProgress}%` }}
-                        ></div>
-                      </div>
-                      <p className="text-xs text-brass-400 mt-1">{Math.round(autoProgress)}%</p>
-                    </div>
+              <div className="w-20 h-20 rounded-2xl flex items-center justify-center mx-auto mb-8" style={{ background: 'linear-gradient(135deg, rgba(0,212,255,0.15), rgba(178,75,243,0.15))', border: '1px solid rgba(0,212,255,0.3)', boxShadow: '0 0 30px rgba(0,212,255,0.1)' }}>
+                <Brain className="w-9 h-9 animate-pulse" style={{ color: '#00D4FF' }} />
+              </div>
+
+              <div className="max-w-sm mx-auto mb-5">
+                <div className="flex justify-between text-xs mb-2" style={{ color: 'rgba(160,160,210,0.6)' }}>
+                  <span>עיבוד AI</span>
+                  <span style={{ color: '#00D4FF', fontWeight: 700 }}>{Math.round(autoProgress)}%</span>
+                </div>
+                <div className="progress-neon">
+                  <div className="progress-neon-fill" style={{ width: `${autoProgress}%` }} />
+                </div>
+              </div>
+
+              <div className="space-y-2 max-w-xs mx-auto">
+                {[
+                  { label: 'מחלץ מאפיינים', threshold: 30 },
+                  { label: 'מנתח שפה ומבנה', threshold: 60 },
+                  { label: 'יוצר פרופיל תוכן', threshold: 90 },
+                ].map((item, i) => (
+                  <div key={i} className="flex items-center gap-3 text-sm" style={{ color: autoProgress >= item.threshold ? '#00ff80' : 'rgba(150,150,200,0.4)' }}>
+                    <CheckCircle className={`w-4 h-4 flex-shrink-0 ${autoProgress >= item.threshold ? 'text-[#00ff80]' : 'text-[rgba(150,150,200,0.3)]'}`} />
+                    {item.label}
                   </div>
-                  <ul className="space-y-2 text-sm text-brass-400">
-                    <li className="flex items-center gap-2">
-                      <CheckCircle className={`w-4 h-4 ${autoProgress > 50 ? 'text-green-400' : 'text-brass-500'}`} />
-                      {t.create.step2.extracting}
-                    </li>
-                    <li className="flex items-center gap-2">
-                      <CheckCircle className={`w-4 h-4 ${autoProgress > 80 ? 'text-green-400' : 'text-brass-500'}`} />
-                      {t.create.step2.analyzing}
-                    </li>
-                  </ul>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* ── STEP 3: Upload Video ── */}
+          {currentStep === 3 && (
+            <div className="animate-slide-up">
+              <h2 className="text-2xl font-bold mb-2" style={{ color: '#f0f0ff', fontFamily: 'Syne, sans-serif' }}>{t.create.step3.title}</h2>
+              <p className="text-sm mb-7" style={{ color: 'rgba(160,160,210,0.6)' }}>{t.create.step3.description}</p>
+
+              <div className="space-y-5">
+                <div>
+                  <label className="block text-sm font-semibold mb-3" style={{ color: 'rgba(200,200,240,0.8)' }}>{t.create.step3.uploadVideo}</label>
+                  <button
+                    onClick={() => handleFileUpload('video')}
+                    disabled={uploading}
+                    className="btn-neon-cyan w-full py-4 flex items-center justify-center gap-2 disabled:opacity-50"
+                  >
+                    {uploading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Upload className="w-5 h-5" />}
+                    {uploading ? t.create.step3.uploading : t.create.step3.uploadVideo}
+                  </button>
+                  {draft.videoAssetId && <p className="text-sm mt-2 flex items-center gap-2" style={{ color: '#00ff80' }}><CheckCircle className="w-4 h-4" /> {t.create.step3.uploadComplete}</p>}
+                </div>
+
+                <div className="relative">
+                  <div className="neon-divider" />
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <span className="px-4 text-sm" style={{ background: '#0f0f1e', color: 'rgba(160,160,210,0.5)' }}>או</span>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-semibold mb-2" style={{ color: 'rgba(200,200,240,0.8)' }}>{t.create.step3.youtubeUrl}</label>
+                  <input
+                    type="url"
+                    value={draft.youtubeUrl}
+                    onChange={(e) => setDraft({ ...draft, youtubeUrl: e.target.value })}
+                    placeholder={t.create.step3.urlPlaceholder}
+                    className="ai-input"
+                  />
                 </div>
               </div>
             </div>
           )}
 
-          {/* Step 3: Advanced Settings */}
-          {currentStep === 3 && (
-            <div>
-              <h2 className="text-2xl font-serif font-semibold text-brass-200 mb-4">
-                {t.create.step5.title}
-              </h2>
-              <p className="text-brass-300 mb-6">{t.create.step5.description}</p>
+          {/* ── STEP 4: AI Settings ── */}
+          {currentStep === 4 && (
+            <div className="animate-slide-up">
+              <h2 className="text-2xl font-bold mb-2" style={{ color: '#f0f0ff', fontFamily: 'Syne, sans-serif' }}>הגדרות AI</h2>
+              <p className="text-sm mb-7" style={{ color: 'rgba(160,160,210,0.6)' }}>הגדר את הסיכום האידאלי שלך</p>
 
-              <div className="space-y-6">
-                {/* Movie Title */}
+              <div className="space-y-5">
                 <div>
-                  <label className="block text-brass-200 font-medium mb-2">
-                    {t.create.step3.movieTitle} <span className="text-red-400">*</span>
+                  <label className="block text-sm font-semibold mb-2" style={{ color: 'rgba(200,200,240,0.8)' }}>
+                    {t.create.step3?.movieTitle || 'כותרת'} <span style={{ color: '#ff4444' }}>*</span>
                   </label>
                   <input
                     type="text"
                     value={draft.movieTitle}
                     onChange={(e) => setDraft({ ...draft, movieTitle: e.target.value })}
-                    placeholder={t.create.step3.movieTitlePlaceholder}
-                    className="w-full bg-steam-900/50 border border-brass-600/30 rounded-lg p-4 text-brass-200 focus:outline-none focus:ring-2 focus:ring-brass-500"
+                    placeholder={t.create.step3?.movieTitlePlaceholder || 'שם הסרט/סדרה...'}
+                    className="ai-input"
                   />
                 </div>
 
-                {/* Genre */}
                 <div>
-                  <label className="block text-brass-200 font-medium mb-2">
-                    {t.create.step3.genre}
-                  </label>
+                  <label className="block text-sm font-semibold mb-2" style={{ color: 'rgba(200,200,240,0.8)' }}>ז'אנר</label>
                   <select
                     value={draft.genre}
                     onChange={(e) => setDraft({ ...draft, genre: e.target.value })}
-                    className="w-full bg-steam-900/50 border border-brass-600/30 rounded-lg p-4 text-brass-200 focus:outline-none focus:ring-2 focus:ring-brass-500"
+                    className="ai-input"
                   >
-                    {genres.map(genre => (
-                      <option key={genre} value={genre}>
-                        {t.create.step3.genres[genre as keyof typeof t.create.step3.genres]}
-                      </option>
+                    {Object.entries(GENRES_HE).map(([key, label]) => (
+                      <option key={key} value={key} style={{ background: '#0f0f1e' }}>{label}</option>
                     ))}
                   </select>
                 </div>
 
-                {/* Description */}
                 <div>
-                  <label className="block text-brass-200 font-medium mb-2">
-                    {t.create.step3.descriptionLabel}
-                  </label>
-                  <div className="bg-blue-900/20 border border-blue-600/30 rounded-lg p-3 mb-2">
-                    <p className="text-sm text-blue-300 flex items-start gap-2">
-                      <Sparkles className="w-4 h-4 flex-shrink-0 mt-0.5" />
-                      <span>{t.create.step3.descriptionTip}</span>
-                    </p>
-                  </div>
+                  <label className="block text-sm font-semibold mb-2" style={{ color: 'rgba(200,200,240,0.8)' }}>תיאור</label>
                   <textarea
                     value={draft.description}
                     onChange={(e) => setDraft({ ...draft, description: e.target.value })}
-                    placeholder={t.create.step3.descriptionPlaceholder}
-                    rows={4}
-                    className="w-full bg-steam-900/50 border border-brass-600/30 rounded-lg p-4 text-brass-200 focus:outline-none focus:ring-2 focus:ring-brass-500"
+                    placeholder="תיאור קצר של הסרט/סדרה (יעזור ל-AI לייצר סיכום מדויק יותר)..."
+                    rows={3}
+                    className="ai-input resize-none"
                   />
                 </div>
 
-                {/* Target Duration */}
+                {/* Duration */}
                 <div>
-                  <label className="block text-brass-200 font-medium mb-2">
-                    {t.create.step3.recapLength}
-                  </label>
-                  <div className="grid grid-cols-3 gap-4">
-                    <div>
-                      <label className="text-xs text-brass-400 mb-1 block">{t.create.step5.hours}</label>
-                      <input
-                        type="number"
-                        min="0"
-                        max="3"
-                        value={draft.targetDurationHours}
-                        onChange={(e) => setDraft({ ...draft, targetDurationHours: Math.min(3, parseInt(e.target.value) || 0) })}
-                        className="w-full bg-steam-900/50 border border-brass-600/30 rounded-lg p-3 text-brass-200 text-center text-xl focus:outline-none focus:ring-2 focus:ring-brass-500"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-xs text-brass-400 mb-1 block">{t.create.step5.minutes}</label>
-                      <input
-                        type="number"
-                        min="0"
-                        max="59"
-                        value={draft.targetDurationMinutes}
-                        onChange={(e) => setDraft({ ...draft, targetDurationMinutes: parseInt(e.target.value) || 0 })}
-                        className="w-full bg-steam-900/50 border border-brass-600/30 rounded-lg p-3 text-brass-200 text-center text-xl focus:outline-none focus:ring-2 focus:ring-brass-500"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-xs text-brass-400 mb-1 block">{t.create.step5.seconds}</label>
-                      <input
-                        type="number"
-                        min="0"
-                        max="59"
-                        value={draft.targetDurationSeconds}
-                        onChange={(e) => setDraft({ ...draft, targetDurationSeconds: parseInt(e.target.value) || 0 })}
-                        className="w-full bg-steam-900/50 border border-brass-600/30 rounded-lg p-3 text-brass-200 text-center text-xl focus:outline-none focus:ring-2 focus:ring-brass-500"
-                      />
-                    </div>
+                  <label className="block text-sm font-semibold mb-3" style={{ color: 'rgba(200,200,240,0.8)' }}>אורך סיכום יעד</label>
+                  <div className="grid grid-cols-3 gap-3">
+                    {[
+                      { label: 'שעות', max: 3, val: draft.targetDurationHours, key: 'targetDurationHours' as const },
+                      { label: 'דקות', max: 59, val: draft.targetDurationMinutes, key: 'targetDurationMinutes' as const },
+                      { label: 'שניות', max: 59, val: draft.targetDurationSeconds, key: 'targetDurationSeconds' as const },
+                    ].map(f => (
+                      <div key={f.key}>
+                        <label className="block text-xs mb-1" style={{ color: 'rgba(150,150,200,0.55)' }}>{f.label}</label>
+                        <input
+                          type="number" min={0} max={f.max}
+                          value={f.val}
+                          onChange={(e) => setDraft({ ...draft, [f.key]: parseInt(e.target.value) || 0 })}
+                          className="ai-input text-center text-lg font-bold"
+                          style={{ color: '#00D4FF' }}
+                        />
+                      </div>
+                    ))}
                   </div>
                 </div>
 
-                {/* Cut Every */}
+                {/* Cut Interval */}
                 <div>
-                  <label className="block text-brass-200 font-medium mb-2">
-                    {t.create.step3.cutEvery}
-                  </label>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="text-xs text-brass-400 mb-1 block">{t.create.step5.minutes}</label>
-                      <input
-                        type="number"
-                        min="0"
-                        value={draft.cutEveryMinutes}
-                        onChange={(e) => setDraft({ ...draft, cutEveryMinutes: parseInt(e.target.value) || 0 })}
-                        className="w-full bg-steam-900/50 border border-brass-600/30 rounded-lg p-3 text-brass-200 text-center text-xl focus:outline-none focus:ring-2 focus:ring-brass-500"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-xs text-brass-400 mb-1 block">{t.create.step5.seconds}</label>
-                      <input
-                        type="number"
-                        min="0"
-                        max="59"
-                        value={draft.cutEverySeconds}
-                        onChange={(e) => setDraft({ ...draft, cutEverySeconds: parseInt(e.target.value) || 0 })}
-                        className="w-full bg-steam-900/50 border border-brass-600/30 rounded-lg p-3 text-brass-200 text-center text-xl focus:outline-none focus:ring-2 focus:ring-brass-500"
-                      />
-                    </div>
+                  <label className="block text-sm font-semibold mb-3" style={{ color: 'rgba(200,200,240,0.8)' }}>מרווח חיתוך</label>
+                  <div className="grid grid-cols-2 gap-3">
+                    {[
+                      { label: 'דקות', val: draft.cutEveryMinutes, key: 'cutEveryMinutes' as const },
+                      { label: 'שניות', val: draft.cutEverySeconds, max: 59, key: 'cutEverySeconds' as const },
+                    ].map(f => (
+                      <div key={f.key}>
+                        <label className="block text-xs mb-1" style={{ color: 'rgba(150,150,200,0.55)' }}>{f.label}</label>
+                        <input
+                          type="number" min={0} max={f.max ?? 99}
+                          value={f.val}
+                          onChange={(e) => setDraft({ ...draft, [f.key]: parseInt(e.target.value) || 0 })}
+                          className="ai-input text-center text-lg font-bold"
+                          style={{ color: '#B24BF3' }}
+                        />
+                      </div>
+                    ))}
                   </div>
-                  <p className="text-sm text-brass-400 mt-2">
-                    {t.create.step3.cutEveryInfo} {draft.cutEveryMinutes}:{String(draft.cutEverySeconds).padStart(2, '0')} {t.create.step3.cutEveryInfoEnd}
+                  <p className="text-xs mt-2" style={{ color: 'rgba(140,140,190,0.5)' }}>
+                    ~{estimatedClips} קליפים יוצרו
                   </p>
                 </div>
 
-                {/* Settings Summary */}
-                <div className="bg-brass-900/30 border border-brass-600/30 rounded-lg p-6">
-                  <h3 className="text-brass-200 font-semibold mb-4">{t.create.step3.settingsSummary}</h3>
-                  <div className="space-y-2 text-sm">
-                    <div className="flex justify-between">
-                      <span className="text-brass-400">{t.create.step3.recapLength}:</span>
-                      <span className="text-brass-200 font-mono">
-                        {String(draft.targetDurationHours).padStart(2, '0')}:
-                        {String(draft.targetDurationMinutes).padStart(2, '0')}:
-                        {String(draft.targetDurationSeconds).padStart(2, '0')}
-                      </span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-brass-400">{t.create.step3.cutInterval}:</span>
-                      <span className="text-brass-200 font-mono">
-                        {String(draft.cutEveryMinutes).padStart(2, '0')}:
-                        {String(draft.cutEverySeconds).padStart(2, '0')}
-                      </span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-brass-400">{t.create.step3.estimatedClips}:</span>
-                      <span className="text-brass-200">~{estimatedClips} {t.create.step3.clips}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-brass-400">{t.create.step3.clipDuration}:</span>
-                      <span className="text-brass-200">{clipDuration} {t.create.step5.seconds}</span>
-                    </div>
-                  </div>
+                {/* Toggle settings */}
+                <div className="space-y-3 pt-2">
+                  {[
+                    { key: 'webSearchEnabled' as const, icon: Globe, label: 'חיפוש באינטרנט', desc: 'שיפור הסיכום עם מידע נוסף' },
+                    { key: 'youtubeLearningEnabled' as const, icon: BookOpen, label: 'למידה מ-YouTube', desc: 'שימוש בערוצים שחיברת' },
+                    { key: 'continuousLearningEnabled' as const, icon: Brain, label: 'למידה מתמשכת', desc: 'שיפור מהעדפות שלך' },
+                    { key: 'globalLearningOptIn' as const, icon: Info, label: 'למידה גלובלית (אנונימי)', desc: 'תרומה אנונימית לשיפור המערכת' },
+                  ].map(item => {
+                    const Icon = item.icon;
+                    return (
+                      <div key={item.key} className="flex items-center justify-between p-4 rounded-xl" style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)' }}>
+                        <div className="flex items-start gap-3">
+                          <Icon className="w-4 h-4 mt-0.5 flex-shrink-0" style={{ color: 'rgba(0,212,255,0.5)' }} />
+                          <div>
+                            <div className="text-sm font-medium" style={{ color: 'rgba(200,200,240,0.85)' }}>{item.label}</div>
+                            <div className="text-xs" style={{ color: 'rgba(130,130,180,0.5)' }}>{item.desc}</div>
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setDraft(prev => ({ ...prev, [item.key]: !prev[item.key] }))}
+                          className="relative flex-shrink-0 w-12 h-6 rounded-full transition-all"
+                          style={{ background: draft[item.key] ? 'linear-gradient(135deg, #00D4FF, #B24BF3)' : 'rgba(255,255,255,0.1)' }}
+                        >
+                          <div className="absolute top-0.5 h-5 w-5 rounded-full bg-white transition-all shadow-sm" style={{ left: draft[item.key] ? '26px' : '2px' }} />
+                        </button>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             </div>
           )}
 
-          {/* Step 4: Upload Video */}
-          {currentStep === 4 && (
-            <div>
-              <h2 className="text-2xl font-serif font-semibold text-brass-200 mb-4">
-                {t.create.step5.title}
-              </h2>
-              <p className="text-brass-300 mb-6">{t.create.step5.description}</p>
-
-              <div className="space-y-6">
-                <div>
-                  <label className="block text-brass-200 font-medium mb-2">
-                    {t.create.step4.uploadVideo}
-                  </label>
-                  <button
-                    onClick={() => handleFileUpload('video')}
-                    disabled={uploading}
-                    className="steampunk-button w-full py-4 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    {uploading ? (
-                      <>
-                        <div className="w-5 h-5 border-2 border-white/20 border-t-white rounded-full animate-spin" />
-                        {t.create.step4.uploading}
-                      </>
-                    ) : (
-                      <>
-                        <Upload className="w-5 h-5" />
-                        {t.create.step4.uploadVideo}
-                      </>
-                    )}
-                  </button>
-                  {draft.videoAssetId && (
-                    <p className="text-green-400 text-sm mt-2 flex items-center gap-2">
-                      <CheckCircle className="w-4 h-4" />
-                      {t.create.step4.uploadComplete}
-                    </p>
-                  )}
-                </div>
-
-                <div className="relative">
-                  <div className="absolute inset-0 flex items-center">
-                    <div className="w-full border-t border-brass-600/30"></div>
-                  </div>
-                  <div className="relative flex justify-center text-sm">
-                    <span className="px-4 bg-steam-900 text-brass-400">או</span>
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-brass-200 font-medium mb-2">
-                    {t.create.step4.youtubeUrl}
-                  </label>
-                  <input
-                    type="url"
-                    value={draft.youtubeUrl}
-                    onChange={(e) => setDraft({ ...draft, youtubeUrl: e.target.value })}
-                    placeholder={t.create.step4.urlPlaceholder}
-                    className="w-full bg-steam-900/50 border border-brass-600/30 rounded-lg p-4 text-brass-200 focus:outline-none focus:ring-2 focus:ring-brass-500"
-                  />
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Step 5: Video Analysis (AUTO-ADVANCE) */}
+          {/* ── STEP 5: Process + Download ── */}
           {currentStep === 5 && (
-            <div>
-              <h2 className="text-2xl font-serif font-semibold text-brass-200 mb-4">
-                {t.create.step5.title}
-              </h2>
-              <p className="text-brass-300 mb-6">{t.create.step5.description}</p>
+            <div className="animate-slide-up">
+              <h2 className="text-2xl font-bold mb-2" style={{ color: '#f0f0ff', fontFamily: 'Syne, sans-serif' }}>{t.create.step6.title}</h2>
+              <p className="text-sm mb-7" style={{ color: 'rgba(160,160,210,0.6)' }}>{t.create.step6.description}</p>
 
-              <div className="space-y-6">
-                <div className="bg-steam-900/30 border border-brass-600/30 rounded-lg p-6">
-                  <div className="flex items-center gap-4 mb-4">
-                    <div className="w-12 h-12 rounded-full bg-gradient-to-br from-brass-500 to-copper-600 flex items-center justify-center">
-                      <Video className="w-6 h-6 text-white animate-pulse" />
-                    </div>
-                    <div className="flex-1">
-                      <p className="text-brass-200 font-medium">{t.create.step5.analyzing}</p>
-                      <div className="w-full bg-steam-800 rounded-full h-2 mt-2 overflow-hidden">
-                        <div 
-                          className="bg-gradient-to-r from-brass-500 to-copper-500 h-full transition-all duration-100"
-                          style={{ width: `${autoProgress}%` }}
-                        ></div>
-                      </div>
-                      <p className="text-xs text-brass-400 mt-1">{Math.round(autoProgress)}%</p>
-                    </div>
+              {isRendering && (
+                <div className="p-6 rounded-xl mb-6 text-center" style={{ background: 'rgba(0,212,255,0.05)', border: '1px solid rgba(0,212,255,0.2)' }}>
+                  <Sparkles className="w-10 h-10 mx-auto mb-4 animate-pulse" style={{ color: '#00D4FF' }} />
+                  <p className="text-base font-semibold mb-4" style={{ color: '#f0f0ff' }}>מעבד את הסיכום שלך...</p>
+                  <div className="progress-neon mb-2">
+                    <div className="progress-neon-fill" style={{ width: `${renderProgress}%` }} />
                   </div>
-                  <ul className="space-y-2 text-sm text-brass-400">
-                    <li className="flex items-center gap-2">
-                      <CheckCircle className={`w-4 h-4 ${autoProgress > 50 ? 'text-green-400' : 'text-brass-500'}`} />
-                      {t.create.step5.metadata}
-                    </li>
-                    <li className="flex items-center gap-2">
-                      <CheckCircle className={`w-4 h-4 ${autoProgress > 80 ? 'text-green-400' : 'text-brass-500'}`} />
-                      {t.create.step5.extracting}
-                    </li>
-                  </ul>
+                  <div className="flex justify-between text-xs" style={{ color: 'rgba(160,160,210,0.5)' }}>
+                    <span>מרנדר</span>
+                    <span style={{ color: '#00D4FF', fontWeight: 700 }}>{Math.round(renderProgress)}%</span>
+                  </div>
+                  <div className="mt-4 space-y-2">
+                    {[{ l: 'מרנדר וידאו', t: 30 }, { l: 'ממזג אודיו ווידאו', t: 60 }, { l: 'משלים עיבוד', t: 90 }].map((item, i) => (
+                      <p key={i} className="text-sm flex items-center justify-center gap-2" style={{ color: renderProgress >= item.t ? '#00ff80' : 'rgba(150,150,200,0.4)' }}>
+                        <CheckCircle className="w-4 h-4" /> {item.l}
+                      </p>
+                    ))}
+                  </div>
                 </div>
-              </div>
-            </div>
-          )}
+              )}
 
-          {/* Step 6: Final Render */}
-          {currentStep === 6 && (
-            <div>
-              <h2 className="text-2xl font-serif font-semibold text-brass-200 mb-4">
-                {t.create.step6.title}
-              </h2>
-              <p className="text-brass-300 mb-6">{t.create.step6.description}</p>
-
-              <div className="space-y-6">
-                {/* Rendering Progress */}
-                {isRendering && (
-                  <div className="bg-steam-900/30 border border-brass-600/30 rounded-lg p-6">
-                    <div className="flex items-center gap-4 mb-4">
-                      <div className="w-12 h-12 rounded-full bg-gradient-to-br from-brass-500 to-copper-600 flex items-center justify-center">
-                        <Sparkles className="w-6 h-6 text-white animate-pulse" />
-                      </div>
-                      <div className="flex-1">
-                        <p className="text-brass-200 font-medium">{t.create.step6.rendering}</p>
-                        <div className="w-full bg-steam-800 rounded-full h-2 mt-2 overflow-hidden">
-                          <div 
-                            className="bg-gradient-to-r from-brass-500 to-copper-500 h-full transition-all duration-100"
-                            style={{ width: `${renderProgress}%` }}
-                          ></div>
-                        </div>
-                        <p className="text-xs text-brass-400 mt-1">{Math.round(renderProgress)}%</p>
-                      </div>
+              {renderComplete && (
+                <div className="space-y-5">
+                  <div className="p-5 rounded-xl flex items-center gap-4" style={{ background: 'rgba(0,255,128,0.07)', border: '1px solid rgba(0,255,128,0.2)' }}>
+                    <div className="w-12 h-12 rounded-xl flex items-center justify-center" style={{ background: 'rgba(0,255,128,0.15)' }}>
+                      <CheckCircle className="w-6 h-6" style={{ color: '#00ff80' }} />
                     </div>
-                    <ul className="space-y-2 text-sm text-brass-400">
-                      <li className="flex items-center gap-2">
-                        <CheckCircle className={`w-4 h-4 ${renderProgress > 30 ? 'text-green-400' : 'text-brass-500'}`} />
-                        {t.create.step6.rendering}
-                      </li>
-                      <li className="flex items-center gap-2">
-                        <CheckCircle className={`w-4 h-4 ${renderProgress > 60 ? 'text-green-400' : 'text-brass-500'}`} />
-                        {t.create.step6.merging}
-                      </li>
-                      <li className="flex items-center gap-2">
-                        <CheckCircle className={`w-4 h-4 ${renderProgress > 90 ? 'text-green-400' : 'text-brass-500'}`} />
-                        {t.create.step6.finalizing}
-                      </li>
-                    </ul>
-                  </div>
-                )}
-
-                {/* Render Complete - Video Player & Actions */}
-                {renderComplete && (
-                  <div className="space-y-6">
-                    {/* Success Message */}
-                    <div className="bg-green-900/20 border border-green-600/30 rounded-lg p-6">
-                      <div className="flex items-center gap-4">
-                        <div className="w-12 h-12 rounded-full bg-gradient-to-br from-green-500 to-emerald-600 flex items-center justify-center">
-                          <CheckCircle className="w-6 h-6 text-white" />
-                        </div>
-                        <div className="flex-1">
-                          <p className="text-green-200 font-bold text-xl">🎉 הסיכום הושלם בהצלחה!</p>
-                          <p className="text-green-300 text-sm mt-1">צפה, הורד או שתף את הסיכום שלך</p>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Video Player */}
-                    <div className="bg-steam-900/30 border border-brass-600/30 rounded-lg p-4">
-                      <h3 className="text-brass-200 font-semibold mb-3">{t.create.step6.preview}</h3>
-                      <video
-                        controls
-                        className="w-full rounded-lg bg-black"
-                        poster="https://via.placeholder.com/800x450/1a1a1a/ffffff?text=Recap+Preview"
-                      >
-                        <source src={outputVideoUrl} type="video/mp4" />
-                        {t.create.step6.videoNotSupported}
-                      </video>
-                    </div>
-
-                    {/* Download Button */}
-                    <button
-                      onClick={handleDownloadVideo}
-                      className="w-full steampunk-button py-4 text-lg flex items-center justify-center gap-2"
-                    >
-                      <Video className="w-5 h-5" />
-                      {t.create.step6.download}
-                    </button>
-
-                    {/* Social Share Buttons */}
-                    <div className="bg-brass-900/30 border border-brass-600/30 rounded-lg p-6">
-                      <h3 className="text-brass-200 font-semibold mb-4 flex items-center gap-2">
-                        <Share2 className="w-5 h-5" />
-                        {t.create.step6.shareTitle}
-                      </h3>
-                      <div className="grid grid-cols-3 gap-4">
-                        {/* WhatsApp */}
-                        <button
-                          onClick={() => {
-                            const text = encodeURIComponent(`🎬 ${draft.movieTitle}\n${draft.description}\n\nצפו בסיכום המלא:`);
-                            const url = encodeURIComponent(window.location.origin + '/gallery');
-                            window.open(`https://wa.me/?text=${text}%20${url}`, '_blank');
-                          }}
-                          className="flex flex-col items-center gap-2 p-4 bg-[#25D366]/20 hover:bg-[#25D366]/30 border border-[#25D366]/30 rounded-lg transition-all"
-                        >
-                          <MessageCircle className="w-6 h-6 text-[#25D366]" />
-                          <span className="text-sm text-brass-200">WhatsApp</span>
-                        </button>
-
-                        {/* Facebook */}
-                        <button
-                          onClick={() => {
-                            const url = encodeURIComponent(window.location.origin + '/gallery');
-                            window.open(`https://www.facebook.com/sharer/sharer.php?u=${url}`, '_blank');
-                          }}
-                          className="flex flex-col items-center gap-2 p-4 bg-[#1877F2]/20 hover:bg-[#1877F2]/30 border border-[#1877F2]/30 rounded-lg transition-all"
-                        >
-                          <Facebook className="w-6 h-6 text-[#1877F2]" />
-                          <span className="text-sm text-brass-200">Facebook</span>
-                        </button>
-
-                        {/* Twitter/X */}
-                        <button
-                          onClick={() => {
-                            const text = encodeURIComponent(`🎬 ${draft.movieTitle}\n${draft.description}`);
-                            const url = encodeURIComponent(window.location.origin + '/gallery');
-                            window.open(`https://twitter.com/intent/tweet?text=${text}&url=${url}`, '_blank');
-                          }}
-                          className="flex flex-col items-center gap-2 p-4 bg-black/50 hover:bg-black/70 border border-white/20 rounded-lg transition-all"
-                        >
-                          <Twitter className="w-6 h-6 text-white" />
-                          <span className="text-sm text-brass-200">Twitter</span>
-                        </button>
-                      </div>
+                    <div>
+                      <p className="font-bold text-lg" style={{ color: '#f0f0ff' }}>🎉 הסיכום הושלם!</p>
+                      <p className="text-sm" style={{ color: 'rgba(160,160,210,0.65)' }}>צפה, הורד או שתף את הסיכום</p>
                     </div>
                   </div>
-                )}
 
-                {!isRendering && !renderComplete && (
-                  <>
-                  {/* Settings Summary */}
-                  <div className="bg-brass-900/30 border border-brass-600/30 rounded-lg p-6">
-                    <h3 className="text-brass-200 font-semibold mb-4">{t.create.step3.settingsSummary}</h3>
+                  <div className="p-5 rounded-xl" style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)' }}>
+                    <h3 className="text-sm font-semibold mb-3" style={{ color: 'rgba(200,200,240,0.8)' }}>{t.create.step6.preview}</h3>
+                    <video controls className="w-full rounded-xl bg-black" style={{ maxHeight: '300px' }}>
+                      <source src={outputVideoUrl} type="video/mp4" />
+                    </video>
+                  </div>
+
+                  <button
+                    onClick={() => {
+                      const link = document.createElement('a');
+                      link.href = outputVideoUrl;
+                      link.download = `${draft.movieTitle || 'recap'}.mp4`;
+                      document.body.appendChild(link); link.click(); document.body.removeChild(link);
+                    }}
+                    className="btn-neon-cyan w-full py-4 text-base flex items-center justify-center gap-2"
+                  >
+                    <Video className="w-5 h-5" /> {t.create.step6.download}
+                  </button>
+
+                  {/* Social Share */}
+                  <div className="p-5 rounded-xl" style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)' }}>
+                    <h3 className="text-sm font-semibold mb-4 flex items-center gap-2" style={{ color: 'rgba(200,200,240,0.8)' }}>
+                      <Share2 className="w-4 h-4" style={{ color: '#00D4FF' }} /> {t.create.step6.shareTitle}
+                    </h3>
+                    <div className="grid grid-cols-3 gap-3">
+                      <button onClick={() => window.open(`https://wa.me/?text=${encodeURIComponent(`🎬 ${draft.movieTitle}\n${window.location.origin}/gallery`)}`, '_blank')} className="flex flex-col items-center gap-2 p-4 rounded-xl transition-all hover:scale-105" style={{ background: 'rgba(37,211,102,0.1)', border: '1px solid rgba(37,211,102,0.25)', color: '#25D366' }}>
+                        <MessageCircle className="w-5 h-5" /><span className="text-xs font-medium">WhatsApp</span>
+                      </button>
+                      <button onClick={() => window.open(`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(`${window.location.origin}/gallery`)}`, '_blank')} className="flex flex-col items-center gap-2 p-4 rounded-xl transition-all hover:scale-105" style={{ background: 'rgba(24,119,242,0.1)', border: '1px solid rgba(24,119,242,0.25)', color: '#1877F2' }}>
+                        <Facebook className="w-5 h-5" /><span className="text-xs font-medium">Facebook</span>
+                      </button>
+                      <button onClick={() => window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(`🎬 ${draft.movieTitle}`)}&url=${encodeURIComponent(`${window.location.origin}/gallery`)}`, '_blank')} className="flex flex-col items-center gap-2 p-4 rounded-xl transition-all hover:scale-105" style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.15)', color: '#ffffff' }}>
+                        <Twitter className="w-5 h-5" /><span className="text-xs font-medium">X</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {!isRendering && !renderComplete && (
+                <div className="space-y-5">
+                  {/* Summary */}
+                  <div className="p-5 rounded-xl" style={{ background: 'rgba(0,212,255,0.04)', border: '1px solid rgba(0,212,255,0.12)' }}>
+                    <h3 className="text-sm font-semibold mb-4" style={{ color: '#00D4FF' }}>סיכום הגדרות</h3>
                     <div className="space-y-2 text-sm">
-                      <div className="flex justify-between">
-                        <span className="text-brass-400">{t.create.step3.movieTitle}:</span>
-                        <span className="text-brass-200">{draft.movieTitle || t.myRecaps.untitled}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-brass-400">{t.create.step3.genre}:</span>
-                        <span className="text-brass-200">{t.create.step3.genres[draft.genre as keyof typeof t.create.step3.genres]}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-brass-400">{t.create.step3.recapLength}:</span>
-                        <span className="text-brass-200 font-mono">
-                          {String(draft.targetDurationHours).padStart(2, '0')}:
-                          {String(draft.targetDurationMinutes).padStart(2, '0')}:
-                          {String(draft.targetDurationSeconds).padStart(2, '0')}
-                        </span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-brass-400">{t.create.step3.cutInterval}:</span>
-                        <span className="text-brass-200 font-mono">
-                          {String(draft.cutEveryMinutes).padStart(2, '0')}:
-                          {String(draft.cutEverySeconds).padStart(2, '0')}
-                        </span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-brass-400">{t.create.step3.estimatedClips}:</span>
-                        <span className="text-brass-200">~{estimatedClips} {t.create.step3.clips}</span>
-                      </div>
+                      {[
+                        { label: 'כותרת', val: draft.movieTitle || '—' },
+                        { label: "ז'אנר", val: GENRES_HE[draft.genre] || draft.genre },
+                        { label: 'אורך סיכום', val: `${String(draft.targetDurationHours).padStart(2,'0')}:${String(draft.targetDurationMinutes).padStart(2,'0')}:${String(draft.targetDurationSeconds).padStart(2,'0')}` },
+                        { label: 'מרווח חיתוך', val: `${String(draft.cutEveryMinutes).padStart(2,'0')}:${String(draft.cutEverySeconds).padStart(2,'0')}` },
+                        { label: 'קליפים משוערים', val: `~${estimatedClips}` },
+                      ].map((item, i) => (
+                        <div key={i} className="flex justify-between">
+                          <span style={{ color: 'rgba(140,140,190,0.55)' }}>{item.label}:</span>
+                          <span style={{ color: 'rgba(220,220,250,0.85)', fontWeight: 600 }}>{item.val}</span>
+                        </div>
+                      ))}
                     </div>
                   </div>
 
-                  {/* Credits Check */}
-                  <div className="bg-brass-900/30 border border-brass-600/30 rounded-lg p-6">
-                    <div className="flex items-center justify-between mb-4">
-                      <span className="text-brass-200 font-medium">{t.create.step6.credits}</span>
-                      <span className="text-2xl font-bold text-brass-100">{wallet.balance}</span>
-                    </div>
-                    {wallet.balance < 1 && (
-                      <div className="flex items-start gap-2 text-copper-300 text-sm mb-4">
-                        <AlertCircle className="w-5 h-5 flex-shrink-0 mt-0.5" />
-                        <span>{t.create.step6.needCredits}</span>
-                      </div>
-                    )}
+                  {/* Credits check */}
+                  <div className="p-5 rounded-xl flex items-center justify-between" style={{ background: wallet.balance < 1 ? 'rgba(255,60,60,0.07)' : 'rgba(255,255,255,0.02)', border: `1px solid ${wallet.balance < 1 ? 'rgba(255,60,60,0.2)' : 'rgba(255,255,255,0.06)'}` }}>
+                    <span className="text-sm font-semibold" style={{ color: 'rgba(200,200,240,0.8)' }}>{t.create.step6.credits}</span>
+                    <span className="text-2xl font-bold" style={{ color: wallet.balance < 1 ? '#ff4444' : '#00D4FF' }}>{wallet.balance}</span>
                   </div>
 
-                  {/* Create Button */}
+                  {showRewardAlert && (
+                    <div className="p-4 rounded-xl flex items-start gap-3" style={{ background: 'rgba(255,200,0,0.07)', border: '1px solid rgba(255,200,0,0.2)' }}>
+                      <AlertCircle className="w-5 h-5 flex-shrink-0 mt-0.5" style={{ color: '#ffcc00' }} />
+                      <div>
+                        <p className="text-sm font-medium" style={{ color: '#ffdd44' }}>נדרש קרדיט אחד</p>
+                        <button onClick={() => { rewardCredits(1, 'Ad reward'); setShowRewardAlert(false); }} className="text-xs mt-1.5 underline" style={{ color: '#ffcc00' }}>
+                          צפה במודעה לקבלת קרדיט חינם
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
                   <button
                     onClick={handleCreate}
                     disabled={!user || !draft.movieTitle}
-                    className="steampunk-button w-full py-4 text-lg flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="btn-neon-cyan w-full py-4 text-base flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
                   >
-                    <Sparkles className="w-5 h-5" />
-                    {t.create.step6.createRecap}
+                    <Sparkles className="w-5 h-5" /> {t.create.step6.createRecap}
                   </button>
-                  </>
-                )}
-              </div>
+                </div>
+              )}
             </div>
           )}
         </div>
-
-        {/* AdSense Unit - Step 4 */}
-        {currentStep === 4 && (
-          <div className="mb-6">
-            <AdSenseUnit
-              adSlot="5544332211"
-              adFormat="auto"
-              className="max-w-full"
-            />
-          </div>
-        )}
 
         {/* Navigation */}
         <div className="flex justify-between items-center">
           <button
-            onClick={handlePrev}
-            disabled={currentStep === 1 || currentStep === 2 || currentStep === 5}
-            className="px-6 py-3 bg-steam-800 hover:bg-steam-700 text-brass-200 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center gap-2"
+            onClick={() => currentStep > 1 && setCurrentStep(currentStep - 1)}
+            disabled={currentStep === 1 || currentStep === 2}
+            className="btn-ghost flex items-center gap-2 disabled:opacity-30 disabled:cursor-not-allowed"
           >
-            <ChevronRight className="w-5 h-5" />
-            {t.common.back}
+            <ChevronRight className="w-4 h-4" /> {t.common.back}
           </button>
 
-          {currentStep < 6 && currentStep !== 2 && currentStep !== 5 && (
+          {currentStep < totalSteps && currentStep !== 2 && (
             <button
-              onClick={handleNext}
-              disabled={(currentStep === 3 && !draft.movieTitle) || uploading}
-              className="steampunk-button px-8 py-3 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+              onClick={() => setCurrentStep(currentStep + 1)}
+              disabled={(currentStep === 4 && !draft.movieTitle) || uploading}
+              className="btn-neon-cyan flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
             >
-              {t.common.continue}
-              <ChevronLeft className="w-5 h-5" />
+              {t.common.continue} <ChevronLeft className="w-4 h-4" />
             </button>
           )}
         </div>
       </div>
-
-      {/* Rewarded Ad Dialog */}
-      {showRewardedAd && (
-        <div className="fixed inset-0 bg-black/90 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="steampunk-card max-w-xl w-full p-6">
-            <h3 className="text-xl font-semibold text-brass-200 mb-4">
-              נדרש קרדיט אחד
-            </h3>
-            <RewardedAd
-              onRewardEarned={handleAdReward}
-              onAdClosed={() => setShowRewardedAd(false)}
-              rewardType="credit"
-            />
-          </div>
-        </div>
-      )}
-
-      {/* Interstitial Ad Dialog */}
-      {showInterstitialAd && (
-        <InterstitialAd
-          onAdClosed={handleInterstitialClose}
-        />
-      )}
     </div>
   );
 }
