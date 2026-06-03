@@ -50,6 +50,9 @@ export default function Create() {
   const totalSteps = 5;
   const [autoProgress, setAutoProgress] = useState(0);
   const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [uploadFileName, setUploadFileName] = useState('');
+  const [uploadFileSize, setUploadFileSize] = useState(0);
   const [isRendering, setIsRendering] = useState(false);
   const [renderProgress, setRenderProgress] = useState(0);
   const [renderComplete, setRenderComplete] = useState(false);
@@ -82,21 +85,76 @@ export default function Create() {
     }
   }, [currentStep]);
 
+  const MAX_VIDEO_SIZE = 2.2 * 1024 * 1024 * 1024; // 2.2 GB
+  const MAX_AUDIO_SIZE = 200 * 1024 * 1024; // 200 MB
+  const MAX_TXT_SIZE = 10 * 1024 * 1024; // 10 MB
+
+  const formatBytes = (bytes: number) => {
+    if (bytes >= 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)} GB`;
+    if (bytes >= 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+    return `${(bytes / 1024).toFixed(0)} KB`;
+  };
+
   const handleFileUpload = async (type: 'txt' | 'mp3' | 'video') => {
     if (!user) { alert('יש להתחבר כדי להעלות קבצים'); return; }
     const input = document.createElement('input');
     input.type = 'file';
-    input.accept = type === 'txt' ? '.txt' : type === 'mp3' ? '.mp3,.wav' : 'video/*';
+    input.accept = type === 'txt' ? '.txt' : type === 'mp3' ? '.mp3,.wav,.aac,.m4a' : 'video/mp4,video/avi,video/quicktime,video/x-matroska,video/webm,video/*';
     input.onchange = async (e) => {
       const file = (e.target as HTMLInputElement).files?.[0];
       if (!file) return;
+
+      // Validate file size
+      const maxSize = type === 'video' ? MAX_VIDEO_SIZE : type === 'mp3' ? MAX_AUDIO_SIZE : MAX_TXT_SIZE;
+      if (file.size > maxSize) {
+        alert(`הקובץ גדול מדי. הגודל המקסימלי הוא ${formatBytes(maxSize)}. גודל הקובץ שלך: ${formatBytes(file.size)}`);
+        return;
+      }
+
       setUploading(true);
+      setUploadProgress(0);
+      setUploadFileName(file.name);
+      setUploadFileSize(file.size);
+
       try {
         const fileExt = file.name.split('.').pop();
         const fileName = `${user.id}/${type}-${Date.now()}.${fileExt}`;
-        const { data, error } = await supabase.storage.from('recap-assets').upload(fileName, file, { cacheControl: '3600', upsert: false });
-        if (error) throw error;
+
+        // Use XMLHttpRequest for real progress tracking on large files
+        const uploadWithProgress = (): Promise<void> => {
+          return new Promise(async (resolve, reject) => {
+            // Get upload URL from Supabase
+            const { data: signedData, error: signedError } = await supabase.storage
+              .from('recap-assets')
+              .createSignedUploadUrl(fileName);
+
+            if (signedError) { reject(signedError); return; }
+
+            const xhr = new XMLHttpRequest();
+            xhr.upload.addEventListener('progress', (e) => {
+              if (e.lengthComputable) {
+                setUploadProgress(Math.round((e.loaded / e.total) * 100));
+              }
+            });
+
+            xhr.addEventListener('load', () => {
+              if (xhr.status >= 200 && xhr.status < 300) { resolve(); }
+              else { reject(new Error(`שגיאת העלאה: ${xhr.statusText} (${xhr.status})`)); }
+            });
+
+            xhr.addEventListener('error', () => reject(new Error('חיבור נכשל. בדוק את החיבור לאינטרנט ונסה שוב.')));
+            xhr.addEventListener('abort', () => reject(new Error('ההעלאה בוטלה.')));
+
+            xhr.open('PUT', signedData.signedUrl);
+            xhr.setRequestHeader('x-upsert', 'false');
+            xhr.setRequestHeader('Content-Type', file.type || 'application/octet-stream');
+            xhr.send(file);
+          });
+        };
+
+        await uploadWithProgress();
         const { data: { publicUrl } } = supabase.storage.from('recap-assets').getPublicUrl(fileName);
+
         if (type === 'txt') {
           const text = await file.text();
           setDraft(prev => ({ ...prev, txtAssetId: publicUrl, scriptText: text }));
@@ -105,8 +163,11 @@ export default function Create() {
         } else {
           setDraft(prev => ({ ...prev, videoAssetId: publicUrl }));
         }
+        setUploadProgress(100);
       } catch (err: any) {
-        alert(`שגיאה: ${err.message}`);
+        console.error('Upload error:', err);
+        alert(`שגיאת העלאה: ${err.message || 'נסה שוב'}`);
+        setUploadProgress(0);
       } finally {
         setUploading(false);
       }
@@ -310,16 +371,36 @@ export default function Create() {
 
               <div className="space-y-5">
                 <div>
-                  <label className="block text-sm font-semibold mb-3" style={{ color: 'rgba(200,200,240,0.8)' }}>{t.create.step3.uploadVideo}</label>
+                  <label className="block text-sm font-semibold mb-2" style={{ color: 'rgba(200,200,240,0.8)' }}>{t.create.step3.uploadVideo}</label>
+                  <p className="text-xs mb-3" style={{ color: 'rgba(120,120,170,0.6)' }}>MP4, AVI, MOV, MKV, WebM — עד 2.2 GB</p>
                   <button
                     onClick={() => handleFileUpload('video')}
                     disabled={uploading}
                     className="btn-neon-cyan w-full py-4 flex items-center justify-center gap-2 disabled:opacity-50"
                   >
                     {uploading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Upload className="w-5 h-5" />}
-                    {uploading ? t.create.step3.uploading : t.create.step3.uploadVideo}
+                    {uploading ? `מעלה... ${uploadProgress}%` : t.create.step3.uploadVideo}
                   </button>
-                  {draft.videoAssetId && <p className="text-sm mt-2 flex items-center gap-2" style={{ color: '#00ff80' }}><CheckCircle className="w-4 h-4" /> {t.create.step3.uploadComplete}</p>}
+
+                  {/* Upload Progress */}
+                  {uploading && uploadFileSize > 0 && (
+                    <div className="mt-4 p-4 rounded-xl" style={{ background: 'rgba(0,212,255,0.05)', border: '1px solid rgba(0,212,255,0.15)' }}>
+                      <div className="flex justify-between text-xs mb-2" style={{ color: 'rgba(160,160,210,0.7)' }}>
+                        <span className="truncate max-w-[200px]">{uploadFileName}</span>
+                        <span style={{ color: '#00D4FF', fontWeight: 700 }}>{uploadProgress}%</span>
+                      </div>
+                      <div className="progress-neon mb-2">
+                        <div className="progress-neon-fill transition-all duration-300" style={{ width: `${uploadProgress}%` }} />
+                      </div>
+                      <div className="text-xs" style={{ color: 'rgba(120,120,170,0.55)' }}>
+                        {formatBytes(uploadFileSize * uploadProgress / 100)} / {formatBytes(uploadFileSize)}
+                      </div>
+                    </div>
+                  )}
+
+                  {draft.videoAssetId && !uploading && (
+                    <p className="text-sm mt-3 flex items-center gap-2" style={{ color: '#00ff80' }}><CheckCircle className="w-4 h-4" /> {t.create.step3.uploadComplete}</p>
+                  )}
                 </div>
 
                 <div className="relative">
