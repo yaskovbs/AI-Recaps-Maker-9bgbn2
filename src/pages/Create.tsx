@@ -117,6 +117,11 @@ export default function Create() {
   const [txtInfo, setTxtInfo] = useState<TxtFileInfo | null>(null);
   const [analyzingTxt, setAnalyzingTxt] = useState(false);
 
+  // Drag-and-drop state
+  const [dragOverTxt, setDragOverTxt]   = useState(false);
+  const [dragOverAudio, setDragOverAudio] = useState(false);
+  const [dragOverVideo, setDragOverVideo] = useState(false);
+
   // Mini audio player state
   const [isPlaying, setIsPlaying] = useState(false);
   const [audioCurrentTime, setAudioCurrentTime] = useState(0);
@@ -125,10 +130,43 @@ export default function Create() {
   const waveformCanvasRef = useRef<HTMLCanvasElement>(null);
   const animFrameRef = useRef<number>(0);
 
-  // IDs for label-based file inputs (most reliable cross-browser approach)
+  // IDs for label-based file inputs
   const TXT_INPUT_ID   = 'file-input-txt';
   const AUDIO_INPUT_ID = 'file-input-audio';
   const VIDEO_INPUT_ID = 'file-input-video';
+
+  // ── Drag-and-drop helpers ──
+  const preventDefaults = (e: React.DragEvent) => { e.preventDefault(); e.stopPropagation(); };
+
+  const detectFileType = (file: File): 'txt' | 'mp3' | 'video' | null => {
+    const mime = file.type.toLowerCase();
+    const ext  = file.name.split('.').pop()?.toLowerCase() || '';
+    if (mime === 'text/plain' || ext === 'txt') return 'txt';
+    if (mime.startsWith('audio/') || ['mp3','wav','aac','m4a','ogg','flac'].includes(ext)) return 'mp3';
+    if (mime.startsWith('video/') || ['mp4','avi','mov','mkv','webm'].includes(ext)) return 'video';
+    return null;
+  };
+
+  const makeDragHandlers = (
+    setOver: (v: boolean) => void,
+    acceptedTypes: ('txt'|'mp3'|'video')[]
+  ) => ({
+    onDragOver:  (e: React.DragEvent) => { preventDefaults(e); setOver(true);  },
+    onDragEnter: (e: React.DragEvent) => { preventDefaults(e); setOver(true);  },
+    onDragLeave: (e: React.DragEvent) => { preventDefaults(e); setOver(false); },
+    onDrop: (e: React.DragEvent) => {
+      preventDefaults(e);
+      setOver(false);
+      const file = e.dataTransfer.files?.[0];
+      if (!file) return;
+      const type = detectFileType(file);
+      if (!type || !acceptedTypes.includes(type)) {
+        alert('סוג קובץ לא נתמך לאזור זה');
+        return;
+      }
+      processSelectedFile(file, type);
+    },
+  });
 
   const [draft, setDraft] = useState<Draft>({
     inputMode: 'text', scriptText: '', txtAssetId: '', mp3AssetId: '',
@@ -750,14 +788,14 @@ export default function Create() {
     }, 90);
   };
 
-  // ── Hidden file inputs using stable IDs (label-based — most reliable cross-browser) ──
+  // ── Hidden file inputs (visually hidden but label-accessible) ──
   const hiddenInputs = (
     <>
       <input
         id={TXT_INPUT_ID}
         type="file"
         accept=".txt,text/plain"
-        style={{ position: 'absolute', width: 1, height: 1, opacity: 0, overflow: 'hidden', pointerEvents: 'none' }}
+        className="file-input-hidden"
         tabIndex={-1}
         onChange={(e) => {
           const file = e.target.files?.[0];
@@ -769,7 +807,7 @@ export default function Create() {
         id={AUDIO_INPUT_ID}
         type="file"
         accept="audio/mpeg,audio/wav,audio/aac,audio/mp4,audio/x-m4a,audio/ogg,audio/flac,.mp3,.wav,.aac,.m4a,.ogg,.flac"
-        style={{ position: 'absolute', width: 1, height: 1, opacity: 0, overflow: 'hidden', pointerEvents: 'none' }}
+        className="file-input-hidden"
         tabIndex={-1}
         onChange={(e) => {
           const file = e.target.files?.[0];
@@ -781,7 +819,7 @@ export default function Create() {
         id={VIDEO_INPUT_ID}
         type="file"
         accept="video/mp4,video/avi,video/quicktime,video/x-matroska,video/webm,video/*,.mp4,.avi,.mov,.mkv,.webm"
-        style={{ position: 'absolute', width: 1, height: 1, opacity: 0, overflow: 'hidden', pointerEvents: 'none' }}
+        className="file-input-hidden"
         tabIndex={-1}
         onChange={(e) => {
           const file = e.target.files?.[0];
@@ -896,15 +934,33 @@ export default function Create() {
 
               {draft.inputMode === 'txt' && (
                 <div className="space-y-4">
-                  {/* Format badge */}
-                  <div className="flex flex-wrap gap-2">
-                    <span className="text-xs px-2.5 py-1 rounded-lg font-semibold" style={{ background: 'rgba(0,212,255,0.12)', border: '1px solid rgba(0,212,255,0.25)', color: '#00D4FF' }}>TXT</span>
-                    <span className="text-xs px-2.5 py-1 rounded-lg" style={{ color: 'rgba(140,140,190,0.5)', border: '1px solid rgba(255,255,255,0.06)' }}>עד 10 MB</span>
+                  {/* Drop Zone */}
+                  <div
+                    className={`drop-zone p-6 text-center ${dragOverTxt ? 'drag-over-cyan' : ''}`}
+                    style={{
+                      border: `2px dashed ${dragOverTxt ? 'rgba(0,212,255,0.8)' : 'rgba(0,212,255,0.25)'}`,
+                      background: dragOverTxt ? 'rgba(0,212,255,0.07)' : 'rgba(0,212,255,0.03)',
+                    }}
+                    {...makeDragHandlers(setDragOverTxt, ['txt'])}
+                  >
+                    <div className="flex flex-col items-center gap-3 pointer-events-none">
+                      <div className="w-12 h-12 rounded-xl flex items-center justify-center" style={{ background: dragOverTxt ? 'rgba(0,212,255,0.2)' : 'rgba(0,212,255,0.1)' }}>
+                        {dragOverTxt
+                          ? <Upload className="w-6 h-6" style={{ color: '#00D4FF' }} />
+                          : <FileText className="w-6 h-6" style={{ color: '#00D4FF' }} />}
+                      </div>
+                      <div>
+                        <p className="text-sm font-semibold" style={{ color: dragOverTxt ? '#00D4FF' : 'rgba(200,200,240,0.7)' }}>
+                          {dragOverTxt ? 'שחרר כאן!' : 'גרור קובץ TXT לכאן'}
+                        </p>
+                        <p className="text-xs mt-0.5" style={{ color: 'rgba(140,140,190,0.5)' }}>TXT · עד 10 MB</p>
+                      </div>
+                    </div>
                   </div>
 
                   <label
                     htmlFor={!uploading && !analyzingTxt ? TXT_INPUT_ID : undefined}
-                    className={`btn-neon-cyan w-full flex items-center justify-center gap-2 cursor-pointer select-none ${uploading || analyzingTxt ? 'opacity-50 pointer-events-none' : ''}`}
+                    className={`btn-neon-cyan w-full flex items-center justify-center gap-2 select-none ${uploading || analyzingTxt ? 'opacity-50 pointer-events-none cursor-not-allowed' : 'cursor-pointer'}`}
                     style={{ display: 'flex' }}
                   >
                     {analyzingTxt ? <><Loader2 className="w-4 h-4 animate-spin" />מנתח קובץ...</> :
@@ -1055,19 +1111,33 @@ export default function Create() {
 
               {draft.inputMode === 'mp3' && (
                 <div className="space-y-4">
-                  {/* Format badges */}
-                  <div className="flex flex-wrap gap-2">
-                    {['MP3', 'WAV', 'AAC', 'M4A'].map(fmt => (
-                      <span key={fmt} className="text-xs px-2.5 py-1 rounded-lg font-semibold" style={{ background: 'rgba(178,75,243,0.12)', border: '1px solid rgba(178,75,243,0.25)', color: '#B24BF3' }}>
-                        {fmt}
-                      </span>
-                    ))}
-                    <span className="text-xs px-2.5 py-1 rounded-lg" style={{ color: 'rgba(140,140,190,0.5)', border: '1px solid rgba(255,255,255,0.06)' }}>עד 200 MB</span>
+                  {/* Drop Zone */}
+                  <div
+                    className={`drop-zone p-6 text-center ${dragOverAudio ? 'drag-over-purple' : ''}`}
+                    style={{
+                      border: `2px dashed ${dragOverAudio ? 'rgba(178,75,243,0.8)' : 'rgba(178,75,243,0.25)'}`,
+                      background: dragOverAudio ? 'rgba(178,75,243,0.07)' : 'rgba(178,75,243,0.03)',
+                    }}
+                    {...makeDragHandlers(setDragOverAudio, ['mp3'])}
+                  >
+                    <div className="flex flex-col items-center gap-3 pointer-events-none">
+                      <div className="w-12 h-12 rounded-xl flex items-center justify-center" style={{ background: dragOverAudio ? 'rgba(178,75,243,0.25)' : 'rgba(178,75,243,0.12)' }}>
+                        {dragOverAudio
+                          ? <Upload className="w-6 h-6" style={{ color: '#B24BF3' }} />
+                          : <Music  className="w-6 h-6" style={{ color: '#B24BF3' }} />}
+                      </div>
+                      <div>
+                        <p className="text-sm font-semibold" style={{ color: dragOverAudio ? '#B24BF3' : 'rgba(200,200,240,0.7)' }}>
+                          {dragOverAudio ? 'שחרר כאן!' : 'גרור קובץ שמע לכאן'}
+                        </p>
+                        <p className="text-xs mt-0.5" style={{ color: 'rgba(140,140,190,0.5)' }}>MP3 · WAV · AAC · M4A · עד 200 MB</p>
+                      </div>
+                    </div>
                   </div>
 
                   <label
                     htmlFor={!uploading && !analyzingAudio ? AUDIO_INPUT_ID : undefined}
-                    className={`btn-neon-purple w-full flex items-center justify-center gap-2 cursor-pointer select-none ${uploading || analyzingAudio ? 'opacity-50 pointer-events-none' : ''}`}
+                    className={`btn-neon-purple w-full flex items-center justify-center gap-2 select-none ${uploading || analyzingAudio ? 'opacity-50 pointer-events-none cursor-not-allowed' : 'cursor-pointer'}`}
                     style={{ display: 'flex' }}
                   >
                     {analyzingAudio ? <><Loader2 className="w-4 h-4 animate-spin" />מנתח קובץ...</> :
@@ -1296,9 +1366,33 @@ export default function Create() {
                 <div>
                   <label className="block text-sm font-semibold mb-2" style={{ color: 'rgba(200,200,240,0.8)' }}>{t.create.step3.uploadVideo}</label>
                   <p className="text-xs mb-3" style={{ color: 'rgba(120,120,170,0.6)' }}>MP4, AVI, MOV, MKV, WebM — עד 2.2 GB</p>
+                  {/* Drop Zone for Video */}
+                  <div
+                    className={`drop-zone p-8 text-center mb-2 ${dragOverVideo ? 'drag-over-cyan' : ''}`}
+                    style={{
+                      border: `2px dashed ${dragOverVideo ? 'rgba(0,212,255,0.8)' : 'rgba(0,212,255,0.2)'}`,
+                      background: dragOverVideo ? 'rgba(0,212,255,0.07)' : 'rgba(0,212,255,0.02)',
+                    }}
+                    {...makeDragHandlers(setDragOverVideo, ['video'])}
+                  >
+                    <div className="flex flex-col items-center gap-3 pointer-events-none">
+                      <div className="w-14 h-14 rounded-2xl flex items-center justify-center" style={{ background: dragOverVideo ? 'rgba(0,212,255,0.2)' : 'rgba(0,212,255,0.08)' }}>
+                        {dragOverVideo
+                          ? <Upload className="w-7 h-7" style={{ color: '#00D4FF' }} />
+                          : <Video  className="w-7 h-7" style={{ color: '#00D4FF' }} />}
+                      </div>
+                      <div>
+                        <p className="text-base font-bold" style={{ color: dragOverVideo ? '#00D4FF' : 'rgba(200,200,240,0.75)' }}>
+                          {dragOverVideo ? 'שחרר כאן!' : 'גרור קובץ וידאו לכאן'}
+                        </p>
+                        <p className="text-xs mt-1" style={{ color: 'rgba(140,140,190,0.5)' }}>MP4 · AVI · MOV · MKV · WebM · עד 2.2 GB</p>
+                      </div>
+                    </div>
+                  </div>
+
                   <label
                     htmlFor={!uploading ? VIDEO_INPUT_ID : undefined}
-                    className={`btn-neon-cyan w-full py-4 flex items-center justify-center gap-2 cursor-pointer select-none ${uploading ? 'opacity-50 pointer-events-none' : ''}`}
+                    className={`btn-neon-cyan w-full py-4 flex items-center justify-center gap-2 select-none ${uploading ? 'opacity-50 pointer-events-none cursor-not-allowed' : 'cursor-pointer'}`}
                     style={{ display: 'flex' }}
                   >
                     {uploading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Upload className="w-5 h-5" />}
