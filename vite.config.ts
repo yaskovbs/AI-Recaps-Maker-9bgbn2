@@ -7,6 +7,11 @@ export default defineConfig({
   server: {
     host: "::",
     port: 8080,
+    headers: {
+      // Required for FFmpeg.wasm SharedArrayBuffer support
+      'Cross-Origin-Opener-Policy': 'same-origin',
+      'Cross-Origin-Embedder-Policy': 'require-corp',
+    },
   },
   plugins: [
     react(),
@@ -15,5 +20,8 @@ export default defineConfig({
     alias: {
       "@": path.resolve(__dirname, "./src"),
     },
+  },
+  optimizeDeps: {
+    exclude: ['@ffmpeg/ffmpeg', '@ffmpeg/util'],
   },
 });

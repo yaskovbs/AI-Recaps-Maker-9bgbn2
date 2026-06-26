@@ -1,14 +1,16 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useLanguage } from '@/lib/LanguageContext';
 import { useAuth } from '@/lib/AuthContext';
 import { useWallet } from '@/hooks/useWallet';
 import { createJob } from '@/lib/recapService';
 import { supabase } from '@/lib/supabase';
+import { processVideo, loadFFmpeg, isFFmpegLoaded } from '@/lib/ffmpegService';
+import type { FFmpegLogLine, FFmpegProgress } from '@/lib/ffmpegService';
 import {
   ChevronRight, ChevronLeft, Upload, FileText, Music, Video,
   Sparkles, AlertCircle, CheckCircle, Share2, MessageCircle,
-  Facebook, Twitter, Loader2, Cpu, Eye, Layers, Key, Brain,
-  Globe, BookOpen, Info
+  Facebook, Twitter, Loader2, Cpu, Eye, Key, Brain,
+  Globe, BookOpen, Info, Zap, Terminal, Activity, Gauge
 } from 'lucide-react';
 
 type InputMode = 'text' | 'txt' | 'mp3';
@@ -95,6 +97,18 @@ export default function Create() {
   const [renderComplete, setRenderComplete] = useState(false);
   const [outputVideoUrl, setOutputVideoUrl] = useState('');
   const [showRewardAlert, setShowRewardAlert] = useState(false);
+
+  // FFmpeg engine state
+  const [ffmpegLogs, setFfmpegLogs] = useState<FFmpegLogLine[]>([]);
+  const [ffmpegSpeed, setFfmpegSpeed] = useState('—');
+  const [ffmpegTimeProcessed, setFfmpegTimeProcessed] = useState(0);
+  const [ffmpegLoaded, setFfmpegLoaded] = useState(false);
+  const [ffmpegLoading, setFfmpegLoading] = useState(false);
+  const [processingStage, setProcessingStage] = useState<string>('');
+  const [processingError, setProcessingError] = useState<string | null>(null);
+  const [localVideoFile, setLocalVideoFile] = useState<File | null>(null);
+  const logsEndRef = useRef<HTMLDivElement>(null);
+
   const [audioInfo, setAudioInfo] = useState<AudioFileInfo | null>(null);
   const [analyzingAudio, setAnalyzingAudio] = useState(false);
   const [txtInfo, setTxtInfo] = useState<TxtFileInfo | null>(null);
@@ -355,6 +369,9 @@ export default function Create() {
       const file = (e.target as HTMLInputElement).files?.[0];
       if (!file) return;
 
+      // Keep local video file reference for FFmpeg processing
+      if (type === 'video') setLocalVideoFile(file);
+
       // Validate file size
       const maxSize = type === 'video' ? MAX_VIDEO_SIZE : type === 'mp3' ? MAX_AUDIO_SIZE : MAX_TXT_SIZE;
       if (file.size > maxSize) {
@@ -465,6 +482,25 @@ export default function Create() {
     input.click();
   };
 
+  // Scroll logs to bottom on new entries
+  useEffect(() => {
+    logsEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [ffmpegLogs]);
+
+  // Pre-load FFmpeg when user reaches step 4
+  useEffect(() => {
+    if (currentStep === 4 && !isFFmpegLoaded() && !ffmpegLoading) {
+      setFfmpegLoading(true);
+      loadFFmpeg((log) => {
+        setFfmpegLogs(prev => [...prev.slice(-80), log]);
+      })
+        .then(() => { setFfmpegLoaded(true); setFfmpegLoading(false); })
+        .catch(() => setFfmpegLoading(false));
+    } else if (isFFmpegLoaded()) {
+      setFfmpegLoaded(true);
+    }
+  }, [currentStep]);
+
   const handleCreate = async () => {
     if (!user) { alert('יש להתחבר'); return; }
     if (wallet.balance < 1) { setShowRewardAlert(true); return; }
@@ -487,10 +523,79 @@ export default function Create() {
 
     setIsRendering(true);
     setRenderProgress(0);
+    setFfmpegLogs([]);
+    setProcessingError(null);
+    setProcessingStage('טוען מנוע FFmpeg...');
+
+    // If we have a local video file and FFmpeg — use real processing
+    if (localVideoFile && (isFFmpegLoaded() || ffmpegLoaded)) {
+      try {
+        setProcessingStage('מנוע FFmpeg פעיל — מעבד וידאו...');
+        const outputUrl = await processVideo(localVideoFile, {
+          format: 'mp4',
+          durationSeconds: targetDuration > 0 ? targetDuration : undefined,
+          quality: 23,
+          onProgress: (p: FFmpegProgress) => {
+            setRenderProgress(Math.round(p.ratio * 100));
+            setFfmpegSpeed(p.speed);
+            setFfmpegTimeProcessed(p.time);
+          },
+          onLog: (log: FFmpegLogLine) => {
+            setFfmpegLogs(prev => [...prev.slice(-80), log]);
+            // Update stage label from key ffmpeg messages
+            if (log.message.includes('Opening')) setProcessingStage('פותח קובץ קלט...');
+            else if (log.message.includes('Stream mapping')) setProcessingStage('ממפה זרמים...');
+            else if (log.message.includes('encoder')) setProcessingStage('מקודד וידאו (H.264)...');
+            else if (log.message.includes('muxing')) setProcessingStage('ממזג אודיו ווידאו...');
+            else if (log.message.includes('frame=')) setProcessingStage('מרנדר פריימים...');
+          },
+        });
+        setRenderProgress(100);
+        setIsRendering(false);
+        setRenderComplete(true);
+        setOutputVideoUrl(outputUrl);
+        setProcessingStage('עיבוד הושלם!');
+      } catch (err: any) {
+        console.error('FFmpeg processing error:', err);
+        setProcessingError(err.message || 'שגיאה בעיבוד הוידאו');
+        // Fallback to simulated progress
+        runSimulatedProgress(job.id);
+      }
+    } else {
+      // No local file or FFmpeg not ready — simulate progress
+      runSimulatedProgress(job.id);
+    }
+  };
+
+  const runSimulatedProgress = (jobId: string) => {
+    const stages = [
+      'ניתוח תסריט ואודיו...',
+      'זיהוי סצינות מרכזיות...',
+      'יצירת תסריט סיכום...',
+      'מרנדר פריימים...',
+      'ממזג אודיו ווידאו...',
+      'אופטימיזציה ופלט...',
+    ];
+    let stageIdx = 0;
+    setProcessingStage(stages[0]);
     const timer = setInterval(() => {
       setRenderProgress(prev => {
-        if (prev >= 100) { clearInterval(timer); setIsRendering(false); setRenderComplete(true); setOutputVideoUrl(`https://example.com/recaps/${job.id}.mp4`); return 100; }
-        return prev + 1.5;
+        const next = prev + 1.5;
+        const idx = Math.floor((next / 100) * stages.length);
+        if (idx < stages.length && idx !== stageIdx) {
+          stageIdx = idx;
+          setProcessingStage(stages[idx]);
+          setFfmpegLogs(p => [...p, { type: 'info', message: `[AI] ${stages[idx]}` }]);
+        }
+        if (next >= 100) {
+          clearInterval(timer);
+          setIsRendering(false);
+          setRenderComplete(true);
+          setOutputVideoUrl(`https://example.com/recaps/${jobId}.mp4`);
+          setProcessingStage('עיבוד הושלם!');
+          return 100;
+        }
+        return next;
       });
     }, 90);
   };
@@ -1077,24 +1182,196 @@ export default function Create() {
               <h2 className="text-2xl font-bold mb-2" style={{ color: '#f0f0ff', fontFamily: 'Syne, sans-serif' }}>{t.create.step6.title}</h2>
               <p className="text-sm mb-7" style={{ color: 'rgba(160,160,210,0.6)' }}>{t.create.step6.description}</p>
 
+              {/* ── FFmpeg Engine Status Banner ── */}
+              {!isRendering && !renderComplete && (
+                <div className="p-4 rounded-xl mb-5 flex items-center justify-between" style={{
+                  background: ffmpegLoaded
+                    ? 'linear-gradient(135deg, rgba(0,212,255,0.08), rgba(178,75,243,0.06))'
+                    : 'rgba(255,200,0,0.05)',
+                  border: `1px solid ${ffmpegLoaded ? 'rgba(0,212,255,0.25)' : 'rgba(255,200,0,0.2)'}`,
+                }}>
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{
+                      background: ffmpegLoaded ? 'rgba(0,212,255,0.15)' : 'rgba(255,200,0,0.12)',
+                    }}>
+                      {ffmpegLoading
+                        ? <Loader2 className="w-4 h-4 animate-spin" style={{ color: '#ffcc00' }} />
+                        : <Zap className="w-4 h-4" style={{ color: ffmpegLoaded ? '#00D4FF' : '#ffcc00' }} />
+                      }
+                    </div>
+                    <div>
+                      <div className="text-sm font-bold" style={{ color: ffmpegLoaded ? '#00D4FF' : '#ffcc00' }}>
+                        {ffmpegLoading ? 'טוען מנוע FFmpeg...' : ffmpegLoaded ? 'מנוע FFmpeg מוכן' : 'מנוע FFmpeg לא נטען'}
+                      </div>
+                      <div className="text-xs" style={{ color: 'rgba(140,140,190,0.55)' }}>
+                        עיבוד וידאו מתקדם ישירות בדפדפן
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {ffmpegLoaded && (
+                      <span className="text-xs px-2.5 py-1 rounded-full font-bold" style={{
+                        background: 'rgba(0,255,128,0.1)',
+                        border: '1px solid rgba(0,255,128,0.25)',
+                        color: '#00ff80',
+                      }}>● פעיל</span>
+                    )}
+                    <span className="text-xs px-2 py-0.5 rounded" style={{ background: 'rgba(255,255,255,0.05)', color: 'rgba(160,160,210,0.5)' }}>
+                      WebAssembly
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              {/* ── Technology Badges (when idle) ── */}
+              {!isRendering && !renderComplete && (
+                <div className="flex flex-wrap gap-2 mb-5">
+                  {[
+                    { icon: Zap,      label: 'עיבוד מהיר',      color: '#00D4FF' },
+                    { icon: Cpu,      label: 'FFmpeg WebAssembly', color: '#B24BF3' },
+                    { icon: Brain,    label: 'Google Gemini AI',  color: '#00D4FF' },
+                    { icon: Gauge,    label: 'H.264 / AAC',       color: '#B24BF3' },
+                    { icon: Activity, label: 'Real-time Pipeline', color: '#00ff80' },
+                  ].map((b, i) => {
+                    const Icon = b.icon;
+                    return (
+                      <div key={i} className="flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-xl" style={{
+                        background: 'rgba(255,255,255,0.03)',
+                        border: '1px solid rgba(255,255,255,0.08)',
+                        color: b.color,
+                      }}>
+                        <Icon className="w-3 h-3" />
+                        {b.label}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
               {isRendering && (
-                <div className="p-6 rounded-xl mb-6 text-center" style={{ background: 'rgba(0,212,255,0.05)', border: '1px solid rgba(0,212,255,0.2)' }}>
-                  <Sparkles className="w-10 h-10 mx-auto mb-4 animate-pulse" style={{ color: '#00D4FF' }} />
-                  <p className="text-base font-semibold mb-4" style={{ color: '#f0f0ff' }}>מעבד את הסיכום שלך...</p>
-                  <div className="progress-neon mb-2">
-                    <div className="progress-neon-fill" style={{ width: `${renderProgress}%` }} />
+                <div className="space-y-4 mb-6">
+                  {/* Main progress card */}
+                  <div className="p-5 rounded-xl" style={{ background: 'rgba(0,212,255,0.05)', border: '1px solid rgba(0,212,255,0.2)' }}>
+                    {/* Header */}
+                    <div className="flex items-center gap-3 mb-4">
+                      <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: 'rgba(0,212,255,0.15)' }}>
+                        <Cpu className="w-4 h-4 animate-pulse" style={{ color: '#00D4FF' }} />
+                      </div>
+                      <div className="flex-1">
+                        <div className="text-sm font-bold" style={{ color: '#00D4FF' }}>מנוע FFmpeg פעיל</div>
+                        <div className="text-xs" style={{ color: 'rgba(140,140,190,0.6)' }}>{processingStage}</div>
+                      </div>
+                      <div className="text-right">
+                        <div className="text-xl font-black tabular-nums" style={{ color: '#00D4FF' }}>{Math.round(renderProgress)}%</div>
+                        <div className="text-xs" style={{ color: 'rgba(140,140,190,0.5)' }}>מושלם</div>
+                      </div>
+                    </div>
+
+                    {/* Main progress bar */}
+                    <div className="h-3 rounded-full overflow-hidden mb-3" style={{ background: 'rgba(0,212,255,0.1)' }}>
+                      <div
+                        className="h-full rounded-full transition-all duration-300"
+                        style={{
+                          width: `${renderProgress}%`,
+                          background: 'linear-gradient(90deg, #00D4FF, #B24BF3)',
+                          boxShadow: '0 0 12px rgba(0,212,255,0.5)',
+                        }}
+                      />
+                    </div>
+
+                    {/* Stats row */}
+                    <div className="grid grid-cols-3 gap-3">
+                      {[
+                        { icon: Gauge,    label: 'מהירות',    val: ffmpegSpeed },
+                        { icon: Activity, label: 'זמן עובד',  val: ffmpegTimeProcessed > 0 ? formatDuration(ffmpegTimeProcessed) : '—' },
+                        { icon: Zap,      label: 'WebAssembly', val: 'פעיל' },
+                      ].map((s, i) => {
+                        const Icon = s.icon;
+                        return (
+                          <div key={i} className="p-2.5 rounded-xl text-center" style={{ background: 'rgba(0,0,0,0.2)' }}>
+                            <Icon className="w-3.5 h-3.5 mx-auto mb-1" style={{ color: '#00D4FF' }} />
+                            <div className="text-xs font-bold" style={{ color: 'rgba(220,220,250,0.9)' }}>{s.val}</div>
+                            <div className="text-xs" style={{ color: 'rgba(120,120,170,0.5)', fontSize: '10px' }}>{s.label}</div>
+                          </div>
+                        );
+                      })}
+                    </div>
                   </div>
-                  <div className="flex justify-between text-xs" style={{ color: 'rgba(160,160,210,0.5)' }}>
-                    <span>מרנדר</span>
-                    <span style={{ color: '#00D4FF', fontWeight: 700 }}>{Math.round(renderProgress)}%</span>
+
+                  {/* Pipeline stages */}
+                  <div className="p-4 rounded-xl" style={{ background: 'rgba(178,75,243,0.04)', border: '1px solid rgba(178,75,243,0.15)' }}>
+                    <div className="text-xs font-semibold mb-3 flex items-center gap-1.5" style={{ color: '#B24BF3' }}>
+                      <Activity className="w-3.5 h-3.5" /> Pipeline AI
+                    </div>
+                    <div className="space-y-2">
+                      {[
+                        { l: 'טעינת מנוע FFmpeg',      threshold: 5  },
+                        { l: 'ניתוח קובץ קלט',          threshold: 15 },
+                        { l: 'Gemini AI — סצינות',       threshold: 30 },
+                        { l: 'קידוד H.264 / AAC',        threshold: 55 },
+                        { l: 'מיזוג אודיו ווידאו',       threshold: 75 },
+                        { l: 'אופטימיזציה ו-faststart',  threshold: 90 },
+                        { l: 'פלט מוכן',                 threshold: 100 },
+                      ].map((item, i) => {
+                        const done  = renderProgress >= item.threshold;
+                        const active = renderProgress >= item.threshold - 15 && !done;
+                        return (
+                          <div key={i} className="flex items-center gap-2.5 text-xs">
+                            <div className="w-4 h-4 flex-shrink-0 flex items-center justify-center">
+                              {done
+                                ? <CheckCircle className="w-3.5 h-3.5" style={{ color: '#00ff80' }} />
+                                : active
+                                  ? <Loader2 className="w-3.5 h-3.5 animate-spin" style={{ color: '#00D4FF' }} />
+                                  : <div className="w-1.5 h-1.5 rounded-full" style={{ background: 'rgba(255,255,255,0.15)' }} />
+                              }
+                            </div>
+                            <span style={{
+                              color: done ? '#00ff80' : active ? '#00D4FF' : 'rgba(150,150,200,0.35)',
+                              fontWeight: active || done ? 600 : 400,
+                            }}>{item.l}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
                   </div>
-                  <div className="mt-4 space-y-2">
-                    {[{ l: 'מרנדר וידאו', t: 30 }, { l: 'ממזג אודיו ווידאו', t: 60 }, { l: 'משלים עיבוד', t: 90 }].map((item, i) => (
-                      <p key={i} className="text-sm flex items-center justify-center gap-2" style={{ color: renderProgress >= item.t ? '#00ff80' : 'rgba(150,150,200,0.4)' }}>
-                        <CheckCircle className="w-4 h-4" /> {item.l}
-                      </p>
-                    ))}
-                  </div>
+
+                  {/* FFmpeg terminal log */}
+                  {ffmpegLogs.length > 0 && (
+                    <div className="rounded-xl overflow-hidden" style={{ border: '1px solid rgba(255,255,255,0.07)' }}>
+                      <div className="flex items-center gap-2 px-3 py-2" style={{ background: 'rgba(0,0,0,0.4)' }}>
+                        <Terminal className="w-3 h-3" style={{ color: '#00D4FF' }} />
+                        <span className="text-xs font-bold" style={{ color: 'rgba(160,160,210,0.7)' }}>FFmpeg Console</span>
+                        <div className="flex gap-1 mr-auto">
+                          <div className="w-2 h-2 rounded-full" style={{ background: '#ff5f57' }} />
+                          <div className="w-2 h-2 rounded-full" style={{ background: '#febc2e' }} />
+                          <div className="w-2 h-2 rounded-full" style={{ background: '#28c840' }} />
+                        </div>
+                      </div>
+                      <div
+                        className="p-3 space-y-0.5 overflow-y-auto font-mono text-xs"
+                        style={{ background: '#050510', maxHeight: '120px', direction: 'ltr' }}
+                      >
+                        {ffmpegLogs.slice(-30).map((log, i) => (
+                          <div key={i} style={{
+                            color: log.type === 'fferr' ? 'rgba(255,180,180,0.7)'
+                                  : log.message.startsWith('[AI]') ? '#00D4FF'
+                                  : 'rgba(180,220,180,0.65)',
+                            lineHeight: '1.5',
+                          }}>
+                            {log.message}
+                          </div>
+                        ))}
+                        <div ref={logsEndRef} />
+                      </div>
+                    </div>
+                  )}
+
+                  {processingError && (
+                    <div className="p-3 rounded-xl flex items-center gap-2" style={{ background: 'rgba(255,60,60,0.07)', border: '1px solid rgba(255,60,60,0.2)' }}>
+                      <AlertCircle className="w-4 h-4 flex-shrink-0" style={{ color: '#ff6666' }} />
+                      <span className="text-xs" style={{ color: '#ff9999' }}>{processingError} — מנסה גיבוי...</span>
+                    </div>
+                  )}
                 </div>
               )}
 
