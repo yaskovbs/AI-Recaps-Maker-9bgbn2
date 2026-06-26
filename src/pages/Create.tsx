@@ -114,6 +114,11 @@ export default function Create() {
   const [txtInfo, setTxtInfo] = useState<TxtFileInfo | null>(null);
   const [analyzingTxt, setAnalyzingTxt] = useState(false);
 
+  // Hidden file input refs — prevents garbage collection issue
+  const txtInputRef   = useRef<HTMLInputElement>(null);
+  const audioInputRef = useRef<HTMLInputElement>(null);
+  const videoInputRef = useRef<HTMLInputElement>(null);
+
   const [draft, setDraft] = useState<Draft>({
     inputMode: 'text', scriptText: '', txtAssetId: '', mp3AssetId: '',
     videoAssetId: '', youtubeUrl: '', movieTitle: '', description: '',
@@ -360,126 +365,112 @@ export default function Create() {
     return `${(bytes / 1024).toFixed(0)} KB`;
   };
 
-  const handleFileUpload = async (type: 'txt' | 'mp3' | 'video') => {
+  // ── Central file handler — called from hidden <input> onChange ──
+  const processSelectedFile = async (file: File, type: 'txt' | 'mp3' | 'video') => {
     if (!user) { alert('יש להתחבר כדי להעלות קבצים'); return; }
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = type === 'txt' ? '.txt' : type === 'mp3' ? 'audio/mpeg,audio/wav,audio/aac,audio/mp4,audio/x-m4a,.mp3,.wav,.aac,.m4a,.ogg,.flac' : 'video/mp4,video/avi,video/quicktime,video/x-matroska,video/webm,video/*';
-    input.onchange = async (e) => {
-      const file = (e.target as HTMLInputElement).files?.[0];
-      if (!file) return;
 
-      // Keep local video file reference for FFmpeg processing
-      if (type === 'video') setLocalVideoFile(file);
+    // Keep local video file reference for FFmpeg processing
+    if (type === 'video') setLocalVideoFile(file);
 
-      // Validate file size
-      const maxSize = type === 'video' ? MAX_VIDEO_SIZE : type === 'mp3' ? MAX_AUDIO_SIZE : MAX_TXT_SIZE;
-      if (file.size > maxSize) {
-        alert(`הקובץ גדול מדי. הגודל המקסימלי הוא ${formatBytes(maxSize)}. גודל הקובץ שלך: ${formatBytes(file.size)}`);
-        return;
-      }
+    // Validate file size
+    const maxSize = type === 'video' ? MAX_VIDEO_SIZE : type === 'mp3' ? MAX_AUDIO_SIZE : MAX_TXT_SIZE;
+    if (file.size > maxSize) {
+      alert(`הקובץ גדול מדי. הגודל המקסימלי הוא ${formatBytes(maxSize)}. גודל הקובץ שלך: ${formatBytes(file.size)}`);
+      return;
+    }
 
-      // Analyze TXT before upload
-      if (type === 'txt') {
-        setAnalyzingTxt(true);
-        setTxtInfo(null);
-        const text = await file.text();
-        setTxtInfo(analyzeTxtFile(file, text));
-        setAnalyzingTxt(false);
-      }
+    // Analyze TXT before upload
+    if (type === 'txt') {
+      setAnalyzingTxt(true);
+      setTxtInfo(null);
+      const text = await file.text();
+      setTxtInfo(analyzeTxtFile(file, text));
+      setAnalyzingTxt(false);
+    }
 
-      // Analyze audio before upload
-      if (type === 'mp3') {
-        setAnalyzingAudio(true);
-        setAudioInfo(null);
-        const info = await analyzeAudioFile(file);
-        setAudioInfo(info);
-        setAnalyzingAudio(false);
-      }
+    // Analyze audio before upload
+    if (type === 'mp3') {
+      setAnalyzingAudio(true);
+      setAudioInfo(null);
+      const info = await analyzeAudioFile(file);
+      setAudioInfo(info);
+      setAnalyzingAudio(false);
+    }
 
-      setUploading(true);
-      setUploadProgress(0);
-      setUploadFileName(file.name);
-      setUploadFileSize(file.size);
+    setUploading(true);
+    setUploadProgress(0);
+    setUploadFileName(file.name);
+    setUploadFileSize(file.size);
 
-      try {
-        const fileExt = file.name.split('.').pop();
-        const fileName = `${user.id}/${type}-${Date.now()}.${fileExt}`;
+    try {
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${user.id}/${type}-${Date.now()}.${fileExt}`;
 
-        // ── Small files (TXT / audio) → Supabase JS client ──
-        // ── Large files (video up to 2.2 GB) → XHR with progress ──
-        const isLarge = type === 'video';
-
-        if (!isLarge) {
-          // Use Supabase JS client — reliable for TXT/audio
-          setUploadProgress(10);
-          const mimeType =
-            type === 'txt' ? 'text/plain' :
-            file.type || 'audio/mpeg';
-
-          const { error: uploadError } = await supabase.storage
-            .from('recap-assets')
-            .upload(fileName, file, {
-              cacheControl: '3600',
-              upsert: true,
-              contentType: mimeType,
-            });
-
-          if (uploadError) throw new Error(uploadError.message);
-          setUploadProgress(100);
-        } else {
-          // XHR upload with real progress for large video files
-          const { data: { session } } = await supabase.auth.getSession();
-          const accessToken = session?.access_token || import.meta.env.VITE_SUPABASE_ANON_KEY || '';
-          const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
-
-          await new Promise<void>((resolve, reject) => {
-            const uploadUrl = `${supabaseUrl}/storage/v1/object/recap-assets/${fileName}`;
-            const xhr = new XMLHttpRequest();
-            xhr.upload.addEventListener('progress', (e) => {
-              if (e.lengthComputable) setUploadProgress(Math.round((e.loaded / e.total) * 100));
-            });
-            xhr.addEventListener('load', () => {
-              if (xhr.status >= 200 && xhr.status < 300) {
-                resolve();
-              } else {
-                let errMsg = `שגיאת שרת (${xhr.status})`;
-                try { const b = JSON.parse(xhr.responseText); errMsg = b.message || b.error || errMsg; } catch {}
-                reject(new Error(errMsg));
-              }
-            });
-            xhr.addEventListener('error', () => reject(new Error('חיבור נכשל. בדוק את החיבור לאינטרנט ונסה שוב.')));
-            xhr.addEventListener('abort', () => reject(new Error('ההעלאה בוטלה.')));
-            xhr.open('POST', uploadUrl);
-            xhr.setRequestHeader('Authorization', `Bearer ${accessToken}`);
-            xhr.setRequestHeader('x-upsert', 'true');
-            xhr.setRequestHeader('Content-Type', file.type || 'application/octet-stream');
-            xhr.send(file);
-          });
-        }
-
-        const { data: { publicUrl } } = supabase.storage.from('recap-assets').getPublicUrl(fileName);
-
-        if (type === 'txt') {
-          let text = '';
-          try { text = await file.text(); } catch {}
-          if (!txtInfo && text) setTxtInfo(analyzeTxtFile(file, text));
-          setDraft(prev => ({ ...prev, txtAssetId: publicUrl, scriptText: text }));
-        } else if (type === 'mp3') {
-          setDraft(prev => ({ ...prev, mp3AssetId: publicUrl }));
-        } else {
-          setDraft(prev => ({ ...prev, videoAssetId: publicUrl }));
-        }
+      if (type !== 'video') {
+        // Supabase JS client — reliable for TXT/audio
+        setUploadProgress(10);
+        const mimeType = type === 'txt' ? 'text/plain' : (file.type || 'audio/mpeg');
+        const { error: uploadError } = await supabase.storage
+          .from('recap-assets')
+          .upload(fileName, file, { cacheControl: '3600', upsert: true, contentType: mimeType });
+        if (uploadError) throw new Error(uploadError.message);
         setUploadProgress(100);
-      } catch (err: any) {
-        console.error('Upload error:', err);
-        alert(`שגיאת העלאה: ${err.message || 'נסה שוב'}`);
-        setUploadProgress(0);
-      } finally {
-        setUploading(false);
+      } else {
+        // XHR for large video files with real progress
+        const { data: { session } } = await supabase.auth.getSession();
+        const accessToken = session?.access_token || import.meta.env.VITE_SUPABASE_ANON_KEY || '';
+        const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
+        await new Promise<void>((resolve, reject) => {
+          const uploadUrl = `${supabaseUrl}/storage/v1/object/recap-assets/${fileName}`;
+          const xhr = new XMLHttpRequest();
+          xhr.upload.addEventListener('progress', (e) => {
+            if (e.lengthComputable) setUploadProgress(Math.round((e.loaded / e.total) * 100));
+          });
+          xhr.addEventListener('load', () => {
+            if (xhr.status >= 200 && xhr.status < 300) { resolve(); }
+            else {
+              let errMsg = `שגיאת שרת (${xhr.status})`;
+              try { const b = JSON.parse(xhr.responseText); errMsg = b.message || b.error || errMsg; } catch {}
+              reject(new Error(errMsg));
+            }
+          });
+          xhr.addEventListener('error', () => reject(new Error('חיבור נכשל. בדוק את החיבור לאינטרנט ונסה שוב.')));
+          xhr.addEventListener('abort', () => reject(new Error('ההעלאה בוטלה.')));
+          xhr.open('POST', uploadUrl);
+          xhr.setRequestHeader('Authorization', `Bearer ${accessToken}`);
+          xhr.setRequestHeader('x-upsert', 'true');
+          xhr.setRequestHeader('Content-Type', file.type || 'application/octet-stream');
+          xhr.send(file);
+        });
       }
-    };
-    input.click();
+
+      const { data: { publicUrl } } = supabase.storage.from('recap-assets').getPublicUrl(fileName);
+
+      if (type === 'txt') {
+        let text = '';
+        try { text = await file.text(); } catch {}
+        if (!txtInfo && text) setTxtInfo(analyzeTxtFile(file, text));
+        setDraft(prev => ({ ...prev, txtAssetId: publicUrl, scriptText: text }));
+      } else if (type === 'mp3') {
+        setDraft(prev => ({ ...prev, mp3AssetId: publicUrl }));
+      } else {
+        setDraft(prev => ({ ...prev, videoAssetId: publicUrl }));
+      }
+      setUploadProgress(100);
+    } catch (err: any) {
+      console.error('Upload error:', err);
+      alert(`שגיאת העלאה: ${err.message || 'נסה שוב'}`);
+      setUploadProgress(0);
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleFileUpload = (type: 'txt' | 'mp3' | 'video') => {
+    if (!user) { alert('יש להתחבר כדי להעלות קבצים'); return; }
+    if (type === 'txt')   txtInputRef.current?.click();
+    if (type === 'mp3')   audioInputRef.current?.click();
+    if (type === 'video') videoInputRef.current?.click();
   };
 
   // Scroll logs to bottom on new entries
@@ -600,6 +591,45 @@ export default function Create() {
     }, 90);
   };
 
+  // ── Hidden file inputs (persistent in DOM, no GC issues) ──
+  const hiddenInputs = (
+    <>
+      <input
+        ref={txtInputRef}
+        type="file"
+        accept=".txt,text/plain"
+        className="hidden"
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          e.target.value = '';
+          if (file) processSelectedFile(file, 'txt');
+        }}
+      />
+      <input
+        ref={audioInputRef}
+        type="file"
+        accept="audio/mpeg,audio/wav,audio/aac,audio/mp4,audio/x-m4a,audio/ogg,audio/flac,.mp3,.wav,.aac,.m4a,.ogg,.flac"
+        className="hidden"
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          e.target.value = '';
+          if (file) processSelectedFile(file, 'mp3');
+        }}
+      />
+      <input
+        ref={videoInputRef}
+        type="file"
+        accept="video/mp4,video/avi,video/quicktime,video/x-matroska,video/webm,video/*,.mp4,.avi,.mov,.mkv,.webm"
+        className="hidden"
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          e.target.value = '';
+          if (file) processSelectedFile(file, 'video');
+        }}
+      />
+    </>
+  );
+
   const stepLabels = [
     { icon: FileText, label: 'תסריט + אודיו' },
     { icon: Cpu, label: 'ניתוח AI' },
@@ -610,6 +640,7 @@ export default function Create() {
 
   return (
     <div className="min-h-screen py-8" style={{ background: '#0a0a14' }}>
+      {hiddenInputs}
       <div className="container mx-auto px-4 max-w-3xl">
         {/* Header */}
         <div className="mb-8">
