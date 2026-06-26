@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useLanguage } from '@/lib/LanguageContext';
 import { useAuth } from '@/lib/AuthContext';
 import { useWallet } from '@/hooks/useWallet';
@@ -10,7 +10,8 @@ import {
   ChevronRight, ChevronLeft, Upload, FileText, Music, Video,
   Sparkles, AlertCircle, CheckCircle, Share2, MessageCircle,
   Facebook, Twitter, Loader2, Cpu, Eye, Key, Brain,
-  Globe, BookOpen, Info, Zap, Terminal, Activity, Gauge
+  Globe, BookOpen, Info, Zap, Terminal, Activity, Gauge,
+  Play, Pause, Volume2
 } from 'lucide-react';
 
 type InputMode = 'text' | 'txt' | 'mp3';
@@ -50,6 +51,8 @@ interface AudioFileInfo {
   sampleRate: number | null;
   channels: number | null;
   wpm: number | null;       // estimated words per minute
+  waveformData?: Float32Array | null; // for Canvas waveform
+  objectUrl?: string; // for audio playback
 }
 
 interface Draft {
@@ -114,10 +117,18 @@ export default function Create() {
   const [txtInfo, setTxtInfo] = useState<TxtFileInfo | null>(null);
   const [analyzingTxt, setAnalyzingTxt] = useState(false);
 
-  // Hidden file input refs — prevents garbage collection issue
-  const txtInputRef   = useRef<HTMLInputElement>(null);
-  const audioInputRef = useRef<HTMLInputElement>(null);
-  const videoInputRef = useRef<HTMLInputElement>(null);
+  // Mini audio player state
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [audioCurrentTime, setAudioCurrentTime] = useState(0);
+  const [audioDuration, setAudioDuration] = useState(0);
+  const audioElemRef = useRef<HTMLAudioElement | null>(null);
+  const waveformCanvasRef = useRef<HTMLCanvasElement>(null);
+  const animFrameRef = useRef<number>(0);
+
+  // IDs for label-based file inputs (most reliable cross-browser approach)
+  const TXT_INPUT_ID   = 'file-input-txt';
+  const AUDIO_INPUT_ID = 'file-input-audio';
+  const VIDEO_INPUT_ID = 'file-input-video';
 
   const [draft, setDraft] = useState<Draft>({
     inputMode: 'text', scriptText: '', txtAssetId: '', mp3AssetId: '',
@@ -290,6 +301,136 @@ export default function Create() {
   };
 
   // Analyze audio file metadata client-side before upload
+  // ── Waveform canvas drawing ──
+  const drawWaveform = useCallback((canvas: HTMLCanvasElement, data: Float32Array, progress = 0) => {
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    const W = canvas.width;
+    const H = canvas.height;
+    ctx.clearRect(0, 0, W, H);
+
+    const step = Math.ceil(data.length / W);
+    const mid  = H / 2;
+    const progressX = progress * W;
+
+    for (let x = 0; x < W; x++) {
+      let min = 1, max = -1;
+      for (let j = 0; j < step; j++) {
+        const idx = x * step + j;
+        if (idx < data.length) {
+          const v = data[idx];
+          if (v < min) min = v;
+          if (v > max) max = v;
+        }
+      }
+      const yHigh = mid - (max * mid * 0.85);
+      const yLow  = mid - (min * mid * 0.85);
+      const played = x <= progressX;
+      // Gradient colour based on playback position
+      const gradient = ctx.createLinearGradient(0, yHigh, 0, yLow);
+      if (played) {
+        gradient.addColorStop(0, '#00D4FF');
+        gradient.addColorStop(1, '#B24BF3');
+      } else {
+        gradient.addColorStop(0, 'rgba(0,212,255,0.3)');
+        gradient.addColorStop(1, 'rgba(178,75,243,0.3)');
+      }
+      ctx.fillStyle = gradient;
+      ctx.fillRect(x, yHigh, 1, Math.max(1, yLow - yHigh));
+    }
+  }, []);
+
+  // Animate waveform progress during playback
+  const animateWaveform = useCallback(() => {
+    const el = audioElemRef.current;
+    const canvas = waveformCanvasRef.current;
+    const info = audioInfo; // closure ref
+    if (!el || !canvas || !info?.waveformData) return;
+    const progress = el.duration > 0 ? el.currentTime / el.duration : 0;
+    drawWaveform(canvas, info.waveformData, progress);
+    setAudioCurrentTime(el.currentTime);
+    if (!el.paused) {
+      animFrameRef.current = requestAnimationFrame(animateWaveform);
+    }
+  }, [audioInfo, drawWaveform]);
+
+  // Draw waveform once when audioInfo is set
+  useEffect(() => {
+    const canvas = waveformCanvasRef.current;
+    if (canvas && audioInfo?.waveformData) {
+      canvas.width  = canvas.offsetWidth  || 400;
+      canvas.height = canvas.offsetHeight || 72;
+      drawWaveform(canvas, audioInfo.waveformData, 0);
+    }
+  }, [audioInfo, drawWaveform]);
+
+  // Cleanup audio on unmount
+  useEffect(() => {
+    return () => {
+      cancelAnimationFrame(animFrameRef.current);
+      if (audioElemRef.current) {
+        audioElemRef.current.pause();
+        audioElemRef.current = null;
+      }
+    };
+  }, []);
+
+  const handlePlayPause = () => {
+    const el = audioElemRef.current;
+    if (!el) return;
+    if (el.paused) {
+      el.play();
+      setIsPlaying(true);
+      animFrameRef.current = requestAnimationFrame(animateWaveform);
+    } else {
+      el.pause();
+      setIsPlaying(false);
+      cancelAnimationFrame(animFrameRef.current);
+    }
+  };
+
+  const handleWaveformClick = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    const el = audioElemRef.current;
+    const canvas = waveformCanvasRef.current;
+    if (!el || !canvas || !audioInfo?.waveformData) return;
+    const rect = canvas.getBoundingClientRect();
+    const ratio = (e.clientX - rect.left) / rect.width;
+    el.currentTime = ratio * (el.duration || 0);
+    setAudioCurrentTime(el.currentTime);
+    drawWaveform(canvas, audioInfo.waveformData, ratio);
+  };
+
+  // ── Decode waveform data from ArrayBuffer ──
+  const decodeWaveform = (buffer: ArrayBuffer): Promise<Float32Array | null> => {
+    return new Promise((resolve) => {
+      try {
+        const actx = new (window.AudioContext || (window as any).webkitAudioContext)();
+        actx.decodeAudioData(
+          buffer,
+          (decoded) => {
+            const raw = decoded.getChannelData(0);
+            // Downsample to 2000 points max for performance
+            const POINTS = 2000;
+            if (raw.length <= POINTS) { resolve(raw); return; }
+            const step = Math.floor(raw.length / POINTS);
+            const out = new Float32Array(POINTS);
+            for (let i = 0; i < POINTS; i++) {
+              let max = 0;
+              for (let j = 0; j < step; j++) {
+                const v = Math.abs(raw[i * step + j] || 0);
+                if (v > max) max = v;
+              }
+              out[i] = max;
+            }
+            resolve(out);
+            actx.close();
+          },
+          () => { actx.close(); resolve(null); }
+        );
+      } catch { resolve(null); }
+    });
+  };
+
   const analyzeAudioFile = (file: File): Promise<AudioFileInfo> => {
     return new Promise((resolve) => {
       const ext = file.name.split('.').pop()?.toLowerCase() || '';
@@ -309,14 +450,24 @@ export default function Create() {
         }
       };
 
-      const finish = (duration: number | null) => {
+      const finish = async (duration: number | null) => {
         const bitrate = duration && duration > 0
           ? Math.round((file.size * 8) / duration / 1000)
           : null;
         const wpm = duration && duration > 0
-          ? Math.round((duration / 60) * 130) // avg 130 wpm narration rate
+          ? Math.round((duration / 60) * 130)
           : null;
-        resolve({ name: file.name, size: file.size, format, duration, bitrate, sampleRate, channels, wpm });
+        // Decode waveform (read up to 10MB for waveform; skip for very large files)
+        let waveformData: Float32Array | null = null;
+        if (file.size < 15 * 1024 * 1024) {
+          try {
+            const buf = await file.arrayBuffer();
+            waveformData = await decodeWaveform(buf);
+          } catch { /* ignore */ }
+        }
+        // Create object URL for playback
+        const objectUrl = URL.createObjectURL(file);
+        resolve({ name: file.name, size: file.size, format, duration, bitrate, sampleRate, channels, wpm, waveformData, objectUrl });
       };
 
       // Try Web Audio API for duration
@@ -337,15 +488,14 @@ export default function Create() {
             finish(dur);
           };
           reader.onerror = () => finish(dur);
-          reader.readAsArrayBuffer(file.slice(0, 44)); // WAV header is 44 bytes
+          reader.readAsArrayBuffer(file.slice(0, 44));
         } else {
           finish(dur);
         }
       };
 
       audio.onerror = () => { cleanup(); finish(null); };
-      // Timeout fallback
-      setTimeout(() => { cleanup(); finish(null); }, 4000);
+      setTimeout(() => { cleanup(); finish(null); }, 5000);
       audio.src = url;
     });
   };
@@ -392,8 +542,21 @@ export default function Create() {
     if (type === 'mp3') {
       setAnalyzingAudio(true);
       setAudioInfo(null);
+      setIsPlaying(false);
+      cancelAnimationFrame(animFrameRef.current);
+      // Clean up previous audio element
+      if (audioElemRef.current) { audioElemRef.current.pause(); audioElemRef.current = null; }
       const info = await analyzeAudioFile(file);
       setAudioInfo(info);
+      setAudioCurrentTime(0);
+      setAudioDuration(info.duration || 0);
+      // Set up audio element for playback
+      if (info.objectUrl) {
+        const el = new Audio(info.objectUrl);
+        el.onended = () => { setIsPlaying(false); cancelAnimationFrame(animFrameRef.current); };
+        el.onloadedmetadata = () => setAudioDuration(el.duration);
+        audioElemRef.current = el;
+      }
       setAnalyzingAudio(false);
     }
 
@@ -466,12 +629,8 @@ export default function Create() {
     }
   };
 
-  const handleFileUpload = (type: 'txt' | 'mp3' | 'video') => {
-    if (!user) { alert('יש להתחבר כדי להעלות קבצים'); return; }
-    if (type === 'txt')   txtInputRef.current?.click();
-    if (type === 'mp3')   audioInputRef.current?.click();
-    if (type === 'video') videoInputRef.current?.click();
-  };
+  // No longer needed — using label-based triggers
+  const _handleFileUpload_unused = null;
 
   // Scroll logs to bottom on new entries
   useEffect(() => {
@@ -591,14 +750,15 @@ export default function Create() {
     }, 90);
   };
 
-  // ── Hidden file inputs (persistent in DOM, no GC issues) ──
+  // ── Hidden file inputs using stable IDs (label-based — most reliable cross-browser) ──
   const hiddenInputs = (
     <>
       <input
-        ref={txtInputRef}
+        id={TXT_INPUT_ID}
         type="file"
         accept=".txt,text/plain"
-        className="hidden"
+        style={{ position: 'absolute', width: 1, height: 1, opacity: 0, overflow: 'hidden', pointerEvents: 'none' }}
+        tabIndex={-1}
         onChange={(e) => {
           const file = e.target.files?.[0];
           e.target.value = '';
@@ -606,10 +766,11 @@ export default function Create() {
         }}
       />
       <input
-        ref={audioInputRef}
+        id={AUDIO_INPUT_ID}
         type="file"
         accept="audio/mpeg,audio/wav,audio/aac,audio/mp4,audio/x-m4a,audio/ogg,audio/flac,.mp3,.wav,.aac,.m4a,.ogg,.flac"
-        className="hidden"
+        style={{ position: 'absolute', width: 1, height: 1, opacity: 0, overflow: 'hidden', pointerEvents: 'none' }}
+        tabIndex={-1}
         onChange={(e) => {
           const file = e.target.files?.[0];
           e.target.value = '';
@@ -617,10 +778,11 @@ export default function Create() {
         }}
       />
       <input
-        ref={videoInputRef}
+        id={VIDEO_INPUT_ID}
         type="file"
         accept="video/mp4,video/avi,video/quicktime,video/x-matroska,video/webm,video/*,.mp4,.avi,.mov,.mkv,.webm"
-        className="hidden"
+        style={{ position: 'absolute', width: 1, height: 1, opacity: 0, overflow: 'hidden', pointerEvents: 'none' }}
+        tabIndex={-1}
         onChange={(e) => {
           const file = e.target.files?.[0];
           e.target.value = '';
@@ -740,15 +902,15 @@ export default function Create() {
                     <span className="text-xs px-2.5 py-1 rounded-lg" style={{ color: 'rgba(140,140,190,0.5)', border: '1px solid rgba(255,255,255,0.06)' }}>עד 10 MB</span>
                   </div>
 
-                  <button
-                    onClick={() => handleFileUpload('txt')}
-                    disabled={uploading || analyzingTxt}
-                    className="btn-neon-cyan w-full flex items-center justify-center gap-2 disabled:opacity-50"
+                  <label
+                    htmlFor={!uploading && !analyzingTxt ? TXT_INPUT_ID : undefined}
+                    className={`btn-neon-cyan w-full flex items-center justify-center gap-2 cursor-pointer select-none ${uploading || analyzingTxt ? 'opacity-50 pointer-events-none' : ''}`}
+                    style={{ display: 'flex' }}
                   >
                     {analyzingTxt ? <><Loader2 className="w-4 h-4 animate-spin" />מנתח קובץ...</> :
                      uploading    ? <><Loader2 className="w-4 h-4 animate-spin" />מעלה {uploadProgress}%</> :
                      <><Upload className="w-4 h-4" />{t.create.step1.uploadTxt}</>}
-                  </button>
+                  </label>
 
                   {/* Upload progress */}
                   {uploading && uploadFileSize > 0 && (
@@ -903,15 +1065,15 @@ export default function Create() {
                     <span className="text-xs px-2.5 py-1 rounded-lg" style={{ color: 'rgba(140,140,190,0.5)', border: '1px solid rgba(255,255,255,0.06)' }}>עד 200 MB</span>
                   </div>
 
-                  <button
-                    onClick={() => handleFileUpload('mp3')}
-                    disabled={uploading || analyzingAudio}
-                    className="btn-neon-purple w-full flex items-center justify-center gap-2 disabled:opacity-50"
+                  <label
+                    htmlFor={!uploading && !analyzingAudio ? AUDIO_INPUT_ID : undefined}
+                    className={`btn-neon-purple w-full flex items-center justify-center gap-2 cursor-pointer select-none ${uploading || analyzingAudio ? 'opacity-50 pointer-events-none' : ''}`}
+                    style={{ display: 'flex' }}
                   >
                     {analyzingAudio ? <><Loader2 className="w-4 h-4 animate-spin" />מנתח קובץ...</> :
                      uploading ? <><Loader2 className="w-4 h-4 animate-spin" />מעלה {uploadProgress}%</> :
                      <><Music className="w-4 h-4" />{t.create.step1.uploadMp3}</>}
-                  </button>
+                  </label>
 
                   {/* Upload progress bar */}
                   {uploading && uploadFileSize > 0 && (
@@ -975,7 +1137,111 @@ export default function Create() {
                     </div>
                   )}
 
-                  {draft.mp3AssetId && !uploading && (
+                  {/* ── Mini Audio Player ── */}
+                  {audioInfo && !analyzingAudio && (
+                    <div className="rounded-2xl overflow-hidden" style={{ background: 'rgba(178,75,243,0.07)', border: '1px solid rgba(178,75,243,0.25)' }}>
+                      {/* Waveform canvas */}
+                      <div className="relative" style={{ height: 72, cursor: 'pointer' }} onClick={handleWaveformClick}>
+                        <canvas
+                          ref={waveformCanvasRef}
+                          width={400}
+                          height={72}
+                          style={{ width: '100%', height: '100%', display: 'block' }}
+                        />
+                        {!audioInfo.waveformData && (
+                          <div className="absolute inset-0 flex items-center justify-center">
+                            <div className="flex gap-0.5 items-center">
+                              {Array.from({ length: 28 }).map((_, i) => (
+                                <div
+                                  key={i}
+                                  className={`rounded-full ${isPlaying ? 'animate-pulse' : ''}`}
+                                  style={{
+                                    width: 3,
+                                    height: `${10 + Math.sin(i * 0.7) * 14 + Math.random() * 10}px`,
+                                    background: i / 28 <= (audioDuration > 0 ? audioCurrentTime / audioDuration : 0)
+                                      ? 'linear-gradient(180deg,#00D4FF,#B24BF3)'
+                                      : 'rgba(178,75,243,0.3)',
+                                    transition: 'height 0.2s',
+                                  }}
+                                />
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                        {/* Playhead line */}
+                        {audioDuration > 0 && (
+                          <div
+                            className="absolute top-0 bottom-0 w-0.5 rounded-full pointer-events-none"
+                            style={{
+                              left: `${(audioCurrentTime / audioDuration) * 100}%`,
+                              background: '#fff',
+                              opacity: 0.7,
+                              boxShadow: '0 0 6px #00D4FF',
+                              transition: 'left 0.1s linear',
+                            }}
+                          />
+                        )}
+                      </div>
+
+                      {/* Controls row */}
+                      <div className="flex items-center gap-3 px-4 py-3">
+                        {/* Play/Pause */}
+                        <button
+                          type="button"
+                          onClick={handlePlayPause}
+                          className="w-9 h-9 rounded-full flex-shrink-0 flex items-center justify-center transition-all hover:scale-110"
+                          style={{ background: 'linear-gradient(135deg,#B24BF3,#00D4FF)', boxShadow: isPlaying ? '0 0 14px rgba(178,75,243,0.5)' : 'none' }}
+                        >
+                          {isPlaying
+                            ? <Pause  className="w-4 h-4 text-white" />
+                            : <Play   className="w-4 h-4 text-white" style={{ marginLeft: 2 }} />}
+                        </button>
+
+                        {/* Progress bar (seekable) */}
+                        <div className="flex-1 flex flex-col gap-1">
+                          <input
+                            type="range"
+                            min={0}
+                            max={audioDuration || 0}
+                            step={0.1}
+                            value={audioCurrentTime}
+                            onChange={(e) => {
+                              const t = parseFloat(e.target.value);
+                              if (audioElemRef.current) audioElemRef.current.currentTime = t;
+                              setAudioCurrentTime(t);
+                              const canvas = waveformCanvasRef.current;
+                              if (canvas && audioInfo.waveformData && audioDuration > 0)
+                                drawWaveform(canvas, audioInfo.waveformData, t / audioDuration);
+                            }}
+                            style={{
+                              width: '100%',
+                              accentColor: '#B24BF3',
+                              height: 4,
+                              cursor: 'pointer',
+                            }}
+                          />
+                          <div className="flex justify-between text-xs tabular-nums" style={{ color: 'rgba(160,160,210,0.55)', fontSize: 10 }}>
+                            <span>{formatDuration(audioCurrentTime)}</span>
+                            <span>{audioDuration > 0 ? formatDuration(audioDuration) : '—'}</span>
+                          </div>
+                        </div>
+
+                        {/* Volume icon */}
+                        <Volume2 className="w-4 h-4 flex-shrink-0" style={{ color: 'rgba(178,75,243,0.6)' }} />
+                      </div>
+
+                      {/* File name */}
+                      <div className="px-4 pb-3 flex items-center gap-2">
+                        <Music className="w-3 h-3" style={{ color: '#B24BF3' }} />
+                        <span className="text-xs truncate" style={{ color: 'rgba(160,160,210,0.6)', maxWidth: '80%' }}>{audioInfo.name}</span>
+                        {draft.mp3AssetId && !uploading && (
+                          <CheckCircle className="w-3.5 h-3.5 mr-auto flex-shrink-0" style={{ color: '#00ff80' }} />
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {draft.mp3AssetId && !uploading && !audioInfo && (
                     <p className="text-sm flex items-center gap-2" style={{ color: '#00ff80' }}>
                       <CheckCircle className="w-4 h-4" /> קובץ הועלה בהצלחה
                     </p>
@@ -1030,14 +1296,14 @@ export default function Create() {
                 <div>
                   <label className="block text-sm font-semibold mb-2" style={{ color: 'rgba(200,200,240,0.8)' }}>{t.create.step3.uploadVideo}</label>
                   <p className="text-xs mb-3" style={{ color: 'rgba(120,120,170,0.6)' }}>MP4, AVI, MOV, MKV, WebM — עד 2.2 GB</p>
-                  <button
-                    onClick={() => handleFileUpload('video')}
-                    disabled={uploading}
-                    className="btn-neon-cyan w-full py-4 flex items-center justify-center gap-2 disabled:opacity-50"
+                  <label
+                    htmlFor={!uploading ? VIDEO_INPUT_ID : undefined}
+                    className={`btn-neon-cyan w-full py-4 flex items-center justify-center gap-2 cursor-pointer select-none ${uploading ? 'opacity-50 pointer-events-none' : ''}`}
+                    style={{ display: 'flex' }}
                   >
                     {uploading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Upload className="w-5 h-5" />}
                     {uploading ? `מעלה... ${uploadProgress}%` : t.create.step3.uploadVideo}
-                  </button>
+                  </label>
 
                   {/* Upload Progress */}
                   {uploading && uploadFileSize > 0 && (
