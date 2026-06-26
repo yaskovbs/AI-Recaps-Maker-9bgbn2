@@ -13,14 +13,25 @@ import {
 
 type InputMode = 'text' | 'txt' | 'mp3';
 
+interface LangScore {
+  code: string;
+  name: string;
+  flag: string;
+  score: number;   // raw character/word count
+  percent: number; // 0–100
+}
+
 interface TxtFileInfo {
   name: string;
   size: number;
   wordCount: number;
   lineCount: number;
   charCount: number;
-  language: string;
-  languageConfidence: 'high' | 'medium' | 'low';
+  primaryLanguage: string;
+  primaryFlag: string;
+  confidence: 'high' | 'medium' | 'low';
+  confidencePct: number;
+  langBreakdown: LangScore[];
   structure: 'script' | 'prose' | 'list' | 'mixed';
   narrationMinutes: number;
   narrationSeconds: number;
@@ -119,19 +130,98 @@ export default function Create() {
   const MAX_AUDIO_SIZE = 200 * 1024 * 1024; // 200 MB
   const MAX_TXT_SIZE = 10 * 1024 * 1024; // 10 MB
 
-  // ── TXT: language detection ──
-  const detectLanguage = (text: string): { lang: string; confidence: 'high' | 'medium' | 'low' } => {
-    const heChars  = (text.match(/[\u0590-\u05FF]/g) || []).length;
-    const arChars  = (text.match(/[\u0600-\u06FF]/g) || []).length;
-    const latChars = (text.match(/[a-zA-Z]/g) || []).length;
-    const total    = heChars + arChars + latChars || 1;
-    const heR = heChars / total, arR = arChars / total, laR = latChars / total;
-    if (heR > 0.5)  return { lang: 'עברית',          confidence: heR > 0.75 ? 'high' : 'medium' };
-    if (arR > 0.5)  return { lang: 'ערבית',          confidence: arR > 0.75 ? 'high' : 'medium' };
-    if (laR > 0.5)  return { lang: 'אנגלית',         confidence: laR > 0.75 ? 'high' : 'medium' };
-    if (heR > 0.25) return { lang: 'עברית (מעורב)',  confidence: 'medium' };
-    if (arR > 0.25) return { lang: 'ערבית (מעורב)',  confidence: 'medium' };
-    return { lang: 'לא ידוע', confidence: 'low' };
+  // ── TXT: multi-language detection ──
+  const detectLanguages = (text: string): { primary: LangScore; breakdown: LangScore[]; confidence: 'high' | 'medium' | 'low'; confidencePct: number } => {
+    // Script-based char counts
+    const he  = (text.match(/[\u0590-\u05FF]/g) || []).length;
+    const ar  = (text.match(/[\u0600-\u06FF]/g) || []).length;
+    const ru  = (text.match(/[\u0400-\u04FF]/g) || []).length;
+    const ja  = (text.match(/[\u3040-\u30FF]/g) || []).length;          // hiragana + katakana
+    const zh  = (text.match(/[\u4E00-\u9FFF\u3400-\u4DBF]/g) || []).length; // CJK ideographs
+    const ko  = (text.match(/[\uAC00-\uD7AF]/g) || []).length;
+    const th  = (text.match(/[\u0E00-\u0E7F]/g) || []).length;
+    const lat = (text.match(/[a-zA-ZÀ-ÖØ-öø-ÿ]/g) || []).length;
+
+    // For Latin script: use common-word heuristics on lowercase sample
+    const lower = text.toLowerCase().slice(0, 5000);
+    const words = lower.match(/\b[a-z]{2,}\b/g) || [];
+    const wordSet = new Set(words);
+
+    const matches = (list: string[]) => list.filter(w => wordSet.has(w)).length;
+
+    const enWords = ['the','and','is','in','it','of','to','a','that','this','was','for','on','are','with','he','she','they','we','you','have','had','but','not','be','been','by','from','or','an','all','at','do','if','one','can','which','as','so','what','when','there','about','up','out','then','she','into','were','more','would','could','their','said'];
+    const frWords = ['le','la','les','de','du','un','une','et','en','est','que','qui','dans','il','elle','pour','pas','sur','avec','ne','se','son','sa','au','ce','une','des','mais','par','plus','comme','tout','ont','été','nous','vous','ou','je','tu','ils','elles','même','aussi','bien','peut','leur','leurs','cette','être'];
+    const esWords = ['el','la','los','las','de','del','un','una','y','en','que','es','se','no','le','lo','con','por','para','una','su','sus','al','más','pero','como','este','esta','esto','ya','todos','todo','hay','ser','está','han','tiene','fue','una','había'];
+    const deWords = ['der','die','das','und','in','ist','von','mit','ein','eine','einem','einen','einer','des','dem','den','auf','für','an','zu','nicht','sich','auch','er','sie','es','wir','als','bei','nach','über','oder','so','kann','haben','hat','war','aber','werden','sind','beim'];
+    const ptWords = ['o','a','os','as','de','da','do','das','dos','em','para','que','com','se','por','um','uma','no','na','nos','nas','mas','mais','ele','ela','eles','elas','não','também','este','esta','isso','foi','há','como','ao','às','ser','ter','vez'];
+    const itWords = ['il','la','lo','le','di','da','in','che','è','non','con','per','una','un','si','ma','come','nel','nella','dei','anche','sono','era','più','sua','suo','stati','stato','dopo','prima','qui','quando','fino','tra','tutto','tutti','molto','però','già','ancora','poi','solo','fatto'];
+    const nlWords = ['de','het','een','van','in','is','dat','op','te','en','zijn','niet','met','voor','er','maar','als','dit','bij','ook','ze','hij','haar','we','zo','nog','hoe','aan','door','over','naar','uit','meer','om','dan','hebben','heeft','was','had','worden'];
+    const plWords = ['w','z','na','do','że','nie','to','jest','się','i','a','o','jak','tak','co','ale','czy','po','za','od','przez','jego','jej','ich','tego','tej','są','był','była','było','pan','pani','już','może','tylko','więc','tam','tu','ma','go'];
+    const svWords = ['och','i','är','att','en','det','som','på','av','för','med','till','den','de','om','men','ett','var','sig','kan','hade','vi','han','hon','jag','du','vi','de','men','inte','har','eller','bli','vad','sina','deras'];
+
+    const latLangScores: Record<string, number> = {
+      en: matches(enWords),
+      fr: matches(frWords),
+      es: matches(esWords),
+      de: matches(deWords),
+      pt: matches(ptWords),
+      it: matches(itWords),
+      nl: matches(nlWords),
+      pl: matches(plWords),
+      sv: matches(svWords),
+    };
+
+    const latLangMeta: Record<string, { name: string; flag: string }> = {
+      en: { name: 'אנגלית', flag: '🇬🇧' },
+      fr: { name: 'צרפתית', flag: '🇫🇷' },
+      es: { name: 'ספרדית', flag: '🇪🇸' },
+      de: { name: 'גרמנית', flag: '🇩🇪' },
+      pt: { name: 'פורטוגזית', flag: '🇧🇷' },
+      it: { name: 'איטלקית', flag: '🇮🇹' },
+      nl: { name: 'הולנדית', flag: '🇳🇱' },
+      pl: { name: 'פולנית', flag: '🇵🇱' },
+      sv: { name: 'שוודית', flag: '🇸🇪' },
+    };
+
+    // Build all candidates
+    const rawScores: { code: string; name: string; flag: string; raw: number }[] = [
+      { code: 'he', name: 'עברית',   flag: '🇮🇱', raw: he  * 3 },
+      { code: 'ar', name: 'ערבית',   flag: '🇸🇦', raw: ar  * 3 },
+      { code: 'ru', name: 'רוסית',   flag: '🇷🇺', raw: ru  * 3 },
+      { code: 'ja', name: 'יפנית',   flag: '🇯🇵', raw: ja  * 3 },
+      { code: 'zh', name: 'סינית',   flag: '🇨🇳', raw: (zh - ja) > 0 ? (zh - ja) * 3 : 0 }, // CJK minus kana
+      { code: 'ko', name: 'קוריאנית', flag: '🇰🇷', raw: ko * 3 },
+      { code: 'th', name: 'תאית',    flag: '🇹🇭', raw: th  * 3 },
+    ];
+
+    // Add Latin-sub-language scores only if Latin chars dominate
+    if (lat > 0) {
+      const bestLatCode = Object.entries(latLangScores).sort((a,b) => b[1]-a[1])[0];
+      // Distribute latin chars among sub-langs based on word-match ratio
+      const totalLatWords = Object.values(latLangScores).reduce((s,v) => s+v, 0) || 1;
+      for (const [code, score] of Object.entries(latLangScores)) {
+        const share = score / totalLatWords;
+        rawScores.push({
+          code,
+          name: latLangMeta[code].name,
+          flag: latLangMeta[code].flag,
+          raw: Math.round(lat * share),
+        });
+      }
+    }
+
+    // Normalise to percent
+    const total = rawScores.reduce((s, l) => s + l.raw, 0) || 1;
+    const scored: LangScore[] = rawScores
+      .map(l => ({ ...l, score: l.raw, percent: Math.round((l.raw / total) * 100) }))
+      .filter(l => l.percent > 0)
+      .sort((a, b) => b.percent - a.percent);
+
+    const top = scored[0] || { code: 'un', name: 'לא ידוע', flag: '🌐', score: 0, percent: 0 };
+    const confidence: 'high' | 'medium' | 'low' =
+      top.percent >= 70 ? 'high' : top.percent >= 45 ? 'medium' : 'low';
+
+    return { primary: top, breakdown: scored.slice(0, 7), confidence, confidencePct: top.percent };
   };
 
   // ── TXT: structure detection ──
@@ -160,15 +250,18 @@ export default function Create() {
     const wordCount  = words.length;
     const totalSecs  = Math.round((wordCount / 130) * 60);
     const paragraphs = text.split(/\n{2,}/).filter(p => p.trim().length > 0);
-    const { lang, confidence } = detectLanguage(text);
+    const { primary, breakdown, confidence, confidencePct } = detectLanguages(text);
     return {
       name: file.name,
       size: file.size,
       wordCount,
       lineCount: lines.length,
       charCount: text.length,
-      language: lang,
-      languageConfidence: confidence,
+      primaryLanguage: primary.name,
+      primaryFlag: primary.flag,
+      confidence,
+      confidencePct,
+      langBreakdown: breakdown,
       structure: detectStructure(lines),
       narrationMinutes: Math.floor(totalSecs / 60),
       narrationSeconds: totalSecs % 60,
@@ -296,53 +389,64 @@ export default function Create() {
         const fileExt = file.name.split('.').pop();
         const fileName = `${user.id}/${type}-${Date.now()}.${fileExt}`;
 
-        // Get fresh session token for auth
-        const { data: { session } } = await supabase.auth.getSession();
-        const accessToken = session?.access_token || import.meta.env.VITE_SUPABASE_ANON_KEY || '';
-        const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
+        // ── Small files (TXT / audio) → Supabase JS client ──
+        // ── Large files (video up to 2.2 GB) → XHR with progress ──
+        const isLarge = type === 'video';
 
-        // Direct REST upload via XHR — works for all file types and sizes
-        const uploadWithProgress = (): Promise<void> => {
-          return new Promise((resolve, reject) => {
-            const uploadUrl = `${supabaseUrl}/storage/v1/object/recap-assets/${fileName}`;
+        if (!isLarge) {
+          // Use Supabase JS client — reliable for TXT/audio
+          setUploadProgress(10);
+          const mimeType =
+            type === 'txt' ? 'text/plain' :
+            file.type || 'audio/mpeg';
 
-            const xhr = new XMLHttpRequest();
-            xhr.upload.addEventListener('progress', (e) => {
-              if (e.lengthComputable) {
-                setUploadProgress(Math.round((e.loaded / e.total) * 100));
-              }
+          const { error: uploadError } = await supabase.storage
+            .from('recap-assets')
+            .upload(fileName, file, {
+              cacheControl: '3600',
+              upsert: true,
+              contentType: mimeType,
             });
 
+          if (uploadError) throw new Error(uploadError.message);
+          setUploadProgress(100);
+        } else {
+          // XHR upload with real progress for large video files
+          const { data: { session } } = await supabase.auth.getSession();
+          const accessToken = session?.access_token || import.meta.env.VITE_SUPABASE_ANON_KEY || '';
+          const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
+
+          await new Promise<void>((resolve, reject) => {
+            const uploadUrl = `${supabaseUrl}/storage/v1/object/recap-assets/${fileName}`;
+            const xhr = new XMLHttpRequest();
+            xhr.upload.addEventListener('progress', (e) => {
+              if (e.lengthComputable) setUploadProgress(Math.round((e.loaded / e.total) * 100));
+            });
             xhr.addEventListener('load', () => {
               if (xhr.status >= 200 && xhr.status < 300) {
                 resolve();
               } else {
                 let errMsg = `שגיאת שרת (${xhr.status})`;
-                try {
-                  const body = JSON.parse(xhr.responseText);
-                  errMsg = body.message || body.error || errMsg;
-                } catch {}
+                try { const b = JSON.parse(xhr.responseText); errMsg = b.message || b.error || errMsg; } catch {}
                 reject(new Error(errMsg));
               }
             });
-
             xhr.addEventListener('error', () => reject(new Error('חיבור נכשל. בדוק את החיבור לאינטרנט ונסה שוב.')));
             xhr.addEventListener('abort', () => reject(new Error('ההעלאה בוטלה.')));
-
             xhr.open('POST', uploadUrl);
             xhr.setRequestHeader('Authorization', `Bearer ${accessToken}`);
             xhr.setRequestHeader('x-upsert', 'true');
             xhr.setRequestHeader('Content-Type', file.type || 'application/octet-stream');
             xhr.send(file);
           });
-        };
+        }
 
-        await uploadWithProgress();
         const { data: { publicUrl } } = supabase.storage.from('recap-assets').getPublicUrl(fileName);
 
         if (type === 'txt') {
-          const text = await file.text();
-          if (!txtInfo) setTxtInfo(analyzeTxtFile(file, text)); // fallback if missed
+          let text = '';
+          try { text = await file.text(); } catch {}
+          if (!txtInfo && text) setTxtInfo(analyzeTxtFile(file, text));
           setDraft(prev => ({ ...prev, txtAssetId: publicUrl, scriptText: text }));
         } else if (type === 'mp3') {
           setDraft(prev => ({ ...prev, mp3AssetId: publicUrl }));
@@ -525,9 +629,9 @@ export default function Create() {
 
                   {/* TXT Analysis Results */}
                   {txtInfo && (
-                    <div className="p-4 rounded-xl space-y-3" style={{ background: 'rgba(0,212,255,0.05)', border: '1px solid rgba(0,212,255,0.2)' }}>
-                      {/* Header */}
-                      <div className="flex items-center gap-2">
+                    <div className="p-4 rounded-xl space-y-4" style={{ background: 'rgba(0,212,255,0.05)', border: '1px solid rgba(0,212,255,0.2)' }}>
+                      {/* Header row */}
+                      <div className="flex items-center gap-2 flex-wrap">
                         <div className="w-6 h-6 rounded-lg flex items-center justify-center" style={{ background: 'rgba(0,212,255,0.2)' }}>
                           <FileText className="w-3.5 h-3.5" style={{ color: '#00D4FF' }} />
                         </div>
@@ -551,6 +655,10 @@ export default function Create() {
                            txtInfo.structure === 'list'   ? 'רשימה' :
                            txtInfo.structure === 'mixed'  ? 'מעורב' : 'פרוזה'}
                         </span>
+                        {/* Primary language pill */}
+                        <span className="text-xs px-2 py-0.5 rounded-full font-semibold" style={{ background: 'rgba(0,212,255,0.1)', border: '1px solid rgba(0,212,255,0.25)', color: '#00D4FF' }}>
+                          {txtInfo.primaryFlag} {txtInfo.primaryLanguage}
+                        </span>
                       </div>
 
                       {/* Stats grid */}
@@ -572,25 +680,57 @@ export default function Create() {
                         ))}
                       </div>
 
-                      {/* Language row */}
-                      <div className="flex items-center justify-between pt-1">
-                        <span className="text-xs" style={{ color: 'rgba(140,140,190,0.55)' }}>שפה זוהתה:</span>
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs font-semibold" style={{ color: 'rgba(220,220,250,0.85)' }}>{txtInfo.language}</span>
-                          <span className="text-xs px-1.5 py-0.5 rounded" style={{
-                            background: txtInfo.languageConfidence === 'high'   ? 'rgba(0,255,128,0.1)'   :
-                                        txtInfo.languageConfidence === 'medium' ? 'rgba(255,200,0,0.1)'   :
-                                                                                  'rgba(255,100,100,0.1)',
-                            color:      txtInfo.languageConfidence === 'high'   ? '#00ff80' :
-                                        txtInfo.languageConfidence === 'medium' ? '#ffcc00' : '#ff8888',
-                          }}>
-                            {txtInfo.languageConfidence === 'high' ? 'בטוח' : txtInfo.languageConfidence === 'medium' ? 'סביר' : 'לא ברור'}
-                          </span>
+                      {/* ── Language Detection Section ── */}
+                      <div className="rounded-xl p-3 space-y-2" style={{ background: 'rgba(0,0,0,0.2)', border: '1px solid rgba(0,212,255,0.1)' }}>
+                        {/* Primary language + confidence */}
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="text-xs font-semibold" style={{ color: '#00D4FF' }}>זיהוי שפות</span>
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-xs font-bold" style={{ color: 'rgba(220,220,250,0.9)' }}>
+                              {txtInfo.primaryFlag} {txtInfo.primaryLanguage} ({txtInfo.confidencePct}%)
+                            </span>
+                            <span className="text-xs px-1.5 py-0.5 rounded" style={{
+                              background: txtInfo.confidence === 'high'   ? 'rgba(0,255,128,0.12)' :
+                                          txtInfo.confidence === 'medium' ? 'rgba(255,200,0,0.1)'  :
+                                                                            'rgba(255,100,100,0.1)',
+                              color:      txtInfo.confidence === 'high'   ? '#00ff80' :
+                                          txtInfo.confidence === 'medium' ? '#ffcc00' : '#ff8888',
+                            }}>
+                              {txtInfo.confidence === 'high' ? 'בטוח' : txtInfo.confidence === 'medium' ? 'סביר' : 'לא ברור'}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Language breakdown bars */}
+                        <div className="space-y-1.5">
+                          {txtInfo.langBreakdown.map((lang, i) => (
+                            <div key={lang.code}>
+                              <div className="flex items-center justify-between text-xs mb-0.5">
+                                <span style={{ color: i === 0 ? 'rgba(220,220,250,0.9)' : 'rgba(160,160,200,0.6)' }}>
+                                  {lang.flag} {lang.name}
+                                </span>
+                                <span className="font-semibold tabular-nums" style={{ color: i === 0 ? '#00D4FF' : 'rgba(140,140,190,0.7)' }}>
+                                  {lang.percent}%
+                                </span>
+                              </div>
+                              <div className="h-1 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.06)' }}>
+                                <div
+                                  className="h-full rounded-full transition-all"
+                                  style={{
+                                    width: `${lang.percent}%`,
+                                    background: i === 0
+                                      ? 'linear-gradient(90deg, #00D4FF, #B24BF3)'
+                                      : 'rgba(255,255,255,0.2)',
+                                  }}
+                                />
+                              </div>
+                            </div>
+                          ))}
                         </div>
                       </div>
 
                       {/* Narration time bar */}
-                      <div className="pt-1">
+                      <div>
                         <div className="flex justify-between text-xs mb-1" style={{ color: 'rgba(140,140,190,0.5)' }}>
                           <span>זמן קריינות משוער (130 מ/ד)</span>
                           <span style={{ color: '#00D4FF', fontWeight: 700 }}>
