@@ -13,6 +13,17 @@ import {
 
 type InputMode = 'text' | 'txt' | 'mp3';
 
+interface AudioFileInfo {
+  name: string;
+  size: number;
+  format: string;
+  duration: number | null;  // seconds
+  bitrate: number | null;   // kbps
+  sampleRate: number | null;
+  channels: number | null;
+  wpm: number | null;       // estimated words per minute
+}
+
 interface Draft {
   inputMode: InputMode;
   scriptText: string;
@@ -58,6 +69,8 @@ export default function Create() {
   const [renderComplete, setRenderComplete] = useState(false);
   const [outputVideoUrl, setOutputVideoUrl] = useState('');
   const [showRewardAlert, setShowRewardAlert] = useState(false);
+  const [audioInfo, setAudioInfo] = useState<AudioFileInfo | null>(null);
+  const [analyzingAudio, setAnalyzingAudio] = useState(false);
 
   const [draft, setDraft] = useState<Draft>({
     inputMode: 'text', scriptText: '', txtAssetId: '', mp3AssetId: '',
@@ -89,6 +102,76 @@ export default function Create() {
   const MAX_AUDIO_SIZE = 200 * 1024 * 1024; // 200 MB
   const MAX_TXT_SIZE = 10 * 1024 * 1024; // 10 MB
 
+  // Analyze audio file metadata client-side before upload
+  const analyzeAudioFile = (file: File): Promise<AudioFileInfo> => {
+    return new Promise((resolve) => {
+      const ext = file.name.split('.').pop()?.toLowerCase() || '';
+      const formatMap: Record<string, string> = { mp3: 'MP3', wav: 'WAV', aac: 'AAC', m4a: 'M4A (AAC)', ogg: 'OGG', flac: 'FLAC' };
+      const format = formatMap[ext] || ext.toUpperCase();
+
+      // Parse WAV header for sample rate / channels
+      let sampleRate: number | null = null;
+      let channels: number | null = null;
+
+      const parseWavHeader = (buffer: ArrayBuffer) => {
+        const view = new DataView(buffer);
+        // WAV header: channels @ 22, sampleRate @ 24
+        if (view.getUint32(0, false) === 0x52494646) { // 'RIFF'
+          channels = view.getUint16(22, true);
+          sampleRate = view.getUint32(24, true);
+        }
+      };
+
+      const finish = (duration: number | null) => {
+        const bitrate = duration && duration > 0
+          ? Math.round((file.size * 8) / duration / 1000)
+          : null;
+        const wpm = duration && duration > 0
+          ? Math.round((duration / 60) * 130) // avg 130 wpm narration rate
+          : null;
+        resolve({ name: file.name, size: file.size, format, duration, bitrate, sampleRate, channels, wpm });
+      };
+
+      // Try Web Audio API for duration
+      const url = URL.createObjectURL(file);
+      const audio = new Audio();
+      audio.preload = 'metadata';
+
+      const cleanup = () => URL.revokeObjectURL(url);
+
+      audio.onloadedmetadata = () => {
+        const dur = isFinite(audio.duration) && audio.duration > 0 ? audio.duration : null;
+        cleanup();
+        // For WAV, also parse header
+        if (ext === 'wav') {
+          const reader = new FileReader();
+          reader.onload = (e) => {
+            if (e.target?.result) parseWavHeader(e.target.result as ArrayBuffer);
+            finish(dur);
+          };
+          reader.onerror = () => finish(dur);
+          reader.readAsArrayBuffer(file.slice(0, 44)); // WAV header is 44 bytes
+        } else {
+          finish(dur);
+        }
+      };
+
+      audio.onerror = () => { cleanup(); finish(null); };
+      // Timeout fallback
+      setTimeout(() => { cleanup(); finish(null); }, 4000);
+      audio.src = url;
+    });
+  };
+
+  const formatDuration = (secs: number) => {
+    const h = Math.floor(secs / 3600);
+    const m = Math.floor((secs % 3600) / 60);
+    const s = Math.floor(secs % 60);
+    return h > 0
+      ? `${h}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`
+      : `${m}:${String(s).padStart(2,'0')}`;
+  };
+
   const formatBytes = (bytes: number) => {
     if (bytes >= 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)} GB`;
     if (bytes >= 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
@@ -99,7 +182,7 @@ export default function Create() {
     if (!user) { alert('יש להתחבר כדי להעלות קבצים'); return; }
     const input = document.createElement('input');
     input.type = 'file';
-    input.accept = type === 'txt' ? '.txt' : type === 'mp3' ? '.mp3,.wav,.aac,.m4a' : 'video/mp4,video/avi,video/quicktime,video/x-matroska,video/webm,video/*';
+    input.accept = type === 'txt' ? '.txt' : type === 'mp3' ? 'audio/mpeg,audio/wav,audio/aac,audio/mp4,audio/x-m4a,.mp3,.wav,.aac,.m4a,.ogg,.flac' : 'video/mp4,video/avi,video/quicktime,video/x-matroska,video/webm,video/*';
     input.onchange = async (e) => {
       const file = (e.target as HTMLInputElement).files?.[0];
       if (!file) return;
@@ -111,6 +194,15 @@ export default function Create() {
         return;
       }
 
+      // Analyze audio before upload
+      if (type === 'mp3') {
+        setAnalyzingAudio(true);
+        setAudioInfo(null);
+        const info = await analyzeAudioFile(file);
+        setAudioInfo(info);
+        setAnalyzingAudio(false);
+      }
+
       setUploading(true);
       setUploadProgress(0);
       setUploadFileName(file.name);
@@ -120,15 +212,15 @@ export default function Create() {
         const fileExt = file.name.split('.').pop();
         const fileName = `${user.id}/${type}-${Date.now()}.${fileExt}`;
 
-        // Use XMLHttpRequest for real progress tracking on large files
-        const uploadWithProgress = (): Promise<void> => {
-          return new Promise(async (resolve, reject) => {
-            // Get upload URL from Supabase
-            const { data: signedData, error: signedError } = await supabase.storage
-              .from('recap-assets')
-              .createSignedUploadUrl(fileName);
+        // Get fresh session token for auth
+        const { data: { session } } = await supabase.auth.getSession();
+        const accessToken = session?.access_token || import.meta.env.VITE_SUPABASE_ANON_KEY || '';
+        const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
 
-            if (signedError) { reject(signedError); return; }
+        // Direct REST upload via XHR — works for all file types and sizes
+        const uploadWithProgress = (): Promise<void> => {
+          return new Promise((resolve, reject) => {
+            const uploadUrl = `${supabaseUrl}/storage/v1/object/recap-assets/${fileName}`;
 
             const xhr = new XMLHttpRequest();
             xhr.upload.addEventListener('progress', (e) => {
@@ -138,15 +230,24 @@ export default function Create() {
             });
 
             xhr.addEventListener('load', () => {
-              if (xhr.status >= 200 && xhr.status < 300) { resolve(); }
-              else { reject(new Error(`שגיאת העלאה: ${xhr.statusText} (${xhr.status})`)); }
+              if (xhr.status >= 200 && xhr.status < 300) {
+                resolve();
+              } else {
+                let errMsg = `שגיאת שרת (${xhr.status})`;
+                try {
+                  const body = JSON.parse(xhr.responseText);
+                  errMsg = body.message || body.error || errMsg;
+                } catch {}
+                reject(new Error(errMsg));
+              }
             });
 
             xhr.addEventListener('error', () => reject(new Error('חיבור נכשל. בדוק את החיבור לאינטרנט ונסה שוב.')));
             xhr.addEventListener('abort', () => reject(new Error('ההעלאה בוטלה.')));
 
-            xhr.open('PUT', signedData.signedUrl);
-            xhr.setRequestHeader('x-upsert', 'false');
+            xhr.open('POST', uploadUrl);
+            xhr.setRequestHeader('Authorization', `Bearer ${accessToken}`);
+            xhr.setRequestHeader('x-upsert', 'true');
             xhr.setRequestHeader('Content-Type', file.type || 'application/octet-stream');
             xhr.send(file);
           });
@@ -317,12 +418,94 @@ export default function Create() {
               )}
 
               {draft.inputMode === 'mp3' && (
-                <div>
-                  <button onClick={() => handleFileUpload('mp3')} disabled={uploading} className="btn-neon-purple w-full flex items-center justify-center gap-2 disabled:opacity-50">
-                    {uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Music className="w-4 h-4" />}
-                    {t.create.step1.uploadMp3}
+                <div className="space-y-4">
+                  {/* Format badges */}
+                  <div className="flex flex-wrap gap-2">
+                    {['MP3', 'WAV', 'AAC', 'M4A'].map(fmt => (
+                      <span key={fmt} className="text-xs px-2.5 py-1 rounded-lg font-semibold" style={{ background: 'rgba(178,75,243,0.12)', border: '1px solid rgba(178,75,243,0.25)', color: '#B24BF3' }}>
+                        {fmt}
+                      </span>
+                    ))}
+                    <span className="text-xs px-2.5 py-1 rounded-lg" style={{ color: 'rgba(140,140,190,0.5)', border: '1px solid rgba(255,255,255,0.06)' }}>עד 200 MB</span>
+                  </div>
+
+                  <button
+                    onClick={() => handleFileUpload('mp3')}
+                    disabled={uploading || analyzingAudio}
+                    className="btn-neon-purple w-full flex items-center justify-center gap-2 disabled:opacity-50"
+                  >
+                    {analyzingAudio ? <><Loader2 className="w-4 h-4 animate-spin" />מנתח קובץ...</> :
+                     uploading ? <><Loader2 className="w-4 h-4 animate-spin" />מעלה {uploadProgress}%</> :
+                     <><Music className="w-4 h-4" />{t.create.step1.uploadMp3}</>}
                   </button>
-                  {draft.mp3AssetId && <p className="text-sm mt-3 flex items-center gap-2" style={{ color: '#00ff80' }}><CheckCircle className="w-4 h-4" /> קובץ הועלה בהצלחה</p>}
+
+                  {/* Upload progress bar */}
+                  {uploading && uploadFileSize > 0 && (
+                    <div className="p-3 rounded-xl" style={{ background: 'rgba(178,75,243,0.05)', border: '1px solid rgba(178,75,243,0.15)' }}>
+                      <div className="flex justify-between text-xs mb-2" style={{ color: 'rgba(160,160,210,0.7)' }}>
+                        <span className="truncate max-w-[200px]">{uploadFileName}</span>
+                        <span style={{ color: '#B24BF3', fontWeight: 700 }}>{uploadProgress}%</span>
+                      </div>
+                      <div className="h-1.5 rounded-full overflow-hidden" style={{ background: 'rgba(178,75,243,0.15)' }}>
+                        <div className="h-full rounded-full transition-all" style={{ width: `${uploadProgress}%`, background: 'linear-gradient(90deg, #B24BF3, #00D4FF)' }} />
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Audio Analysis Results */}
+                  {audioInfo && (
+                    <div className="p-4 rounded-xl space-y-3" style={{ background: 'rgba(178,75,243,0.06)', border: '1px solid rgba(178,75,243,0.2)' }}>
+                      <div className="flex items-center gap-2 mb-1">
+                        <div className="w-6 h-6 rounded-lg flex items-center justify-center" style={{ background: 'rgba(178,75,243,0.2)' }}>
+                          <Music className="w-3.5 h-3.5" style={{ color: '#B24BF3' }} />
+                        </div>
+                        <span className="text-sm font-semibold" style={{ color: '#B24BF3' }}>ניתוח קובץ אודיו</span>
+                        <span className="text-xs px-2 py-0.5 rounded-full font-bold" style={{ background: 'rgba(178,75,243,0.15)', color: '#B24BF3' }}>{audioInfo.format}</span>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-2">
+                        {[
+                          { label: 'שם קובץ', val: audioInfo.name.length > 22 ? audioInfo.name.slice(0,20) + '…' : audioInfo.name },
+                          { label: 'גודל', val: formatBytes(audioInfo.size) },
+                          { label: 'אורך', val: audioInfo.duration ? formatDuration(audioInfo.duration) : '—' },
+                          { label: 'ביטרייט', val: audioInfo.bitrate ? `${audioInfo.bitrate} kbps` : '—' },
+                          ...(audioInfo.sampleRate ? [{ label: 'דגימה', val: `${(audioInfo.sampleRate/1000).toFixed(1)} kHz` }] : []),
+                          ...(audioInfo.channels ? [{ label: 'ערוצים', val: audioInfo.channels === 1 ? 'מונו' : audioInfo.channels === 2 ? 'סטריאו' : `${audioInfo.channels}ch` }] : []),
+                          ...(audioInfo.wpm ? [{ label: 'קצב קריינות', val: `~${audioInfo.wpm} מ/ד` }] : []),
+                          ...(audioInfo.duration ? [{ label: 'זמן קריינות', val: formatDuration(audioInfo.duration) }] : []),
+                        ].map((item, i) => (
+                          <div key={i} className="flex justify-between items-center text-xs">
+                            <span style={{ color: 'rgba(140,140,190,0.55)' }}>{item.label}:</span>
+                            <span className="font-semibold" style={{ color: 'rgba(220,220,250,0.85)' }}>{item.val}</span>
+                          </div>
+                        ))}
+                      </div>
+
+                      {/* Quality indicator */}
+                      {audioInfo.bitrate && (
+                        <div className="pt-1">
+                          <div className="flex justify-between text-xs mb-1" style={{ color: 'rgba(140,140,190,0.5)' }}>
+                            <span>איכות אודיו</span>
+                            <span style={{ color: audioInfo.bitrate >= 192 ? '#00ff80' : audioInfo.bitrate >= 128 ? '#ffcc00' : '#ff8888' }}>
+                              {audioInfo.bitrate >= 192 ? 'גבוהה ✓' : audioInfo.bitrate >= 128 ? 'בינונית' : 'נמוכה'}
+                            </span>
+                          </div>
+                          <div className="h-1 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.08)' }}>
+                            <div className="h-full rounded-full" style={{
+                              width: `${Math.min(100, (audioInfo.bitrate / 320) * 100)}%`,
+                              background: audioInfo.bitrate >= 192 ? 'linear-gradient(90deg,#00ff80,#00D4FF)' : audioInfo.bitrate >= 128 ? 'linear-gradient(90deg,#ffcc00,#ff8800)' : '#ff4444'
+                            }} />
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {draft.mp3AssetId && !uploading && (
+                    <p className="text-sm flex items-center gap-2" style={{ color: '#00ff80' }}>
+                      <CheckCircle className="w-4 h-4" /> קובץ הועלה בהצלחה
+                    </p>
+                  )}
                 </div>
               )}
             </div>
