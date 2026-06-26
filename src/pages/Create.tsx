@@ -13,6 +13,21 @@ import {
 
 type InputMode = 'text' | 'txt' | 'mp3';
 
+interface TxtFileInfo {
+  name: string;
+  size: number;
+  wordCount: number;
+  lineCount: number;
+  charCount: number;
+  language: string;
+  languageConfidence: 'high' | 'medium' | 'low';
+  structure: 'script' | 'prose' | 'list' | 'mixed';
+  narrationMinutes: number;
+  narrationSeconds: number;
+  avgWordsPerLine: number;
+  paragraphCount: number;
+}
+
 interface AudioFileInfo {
   name: string;
   size: number;
@@ -71,6 +86,8 @@ export default function Create() {
   const [showRewardAlert, setShowRewardAlert] = useState(false);
   const [audioInfo, setAudioInfo] = useState<AudioFileInfo | null>(null);
   const [analyzingAudio, setAnalyzingAudio] = useState(false);
+  const [txtInfo, setTxtInfo] = useState<TxtFileInfo | null>(null);
+  const [analyzingTxt, setAnalyzingTxt] = useState(false);
 
   const [draft, setDraft] = useState<Draft>({
     inputMode: 'text', scriptText: '', txtAssetId: '', mp3AssetId: '',
@@ -101,6 +118,64 @@ export default function Create() {
   const MAX_VIDEO_SIZE = 2.2 * 1024 * 1024 * 1024; // 2.2 GB
   const MAX_AUDIO_SIZE = 200 * 1024 * 1024; // 200 MB
   const MAX_TXT_SIZE = 10 * 1024 * 1024; // 10 MB
+
+  // ── TXT: language detection ──
+  const detectLanguage = (text: string): { lang: string; confidence: 'high' | 'medium' | 'low' } => {
+    const heChars  = (text.match(/[\u0590-\u05FF]/g) || []).length;
+    const arChars  = (text.match(/[\u0600-\u06FF]/g) || []).length;
+    const latChars = (text.match(/[a-zA-Z]/g) || []).length;
+    const total    = heChars + arChars + latChars || 1;
+    const heR = heChars / total, arR = arChars / total, laR = latChars / total;
+    if (heR > 0.5)  return { lang: 'עברית',          confidence: heR > 0.75 ? 'high' : 'medium' };
+    if (arR > 0.5)  return { lang: 'ערבית',          confidence: arR > 0.75 ? 'high' : 'medium' };
+    if (laR > 0.5)  return { lang: 'אנגלית',         confidence: laR > 0.75 ? 'high' : 'medium' };
+    if (heR > 0.25) return { lang: 'עברית (מעורב)',  confidence: 'medium' };
+    if (arR > 0.25) return { lang: 'ערבית (מעורב)',  confidence: 'medium' };
+    return { lang: 'לא ידוע', confidence: 'low' };
+  };
+
+  // ── TXT: structure detection ──
+  const detectStructure = (lines: string[]): 'script' | 'prose' | 'list' | 'mixed' => {
+    const nonEmpty   = lines.filter(l => l.trim().length > 0);
+    if (!nonEmpty.length) return 'prose';
+    const scriptLines = nonEmpty.filter(l =>
+      /^[A-Z]{2,}[:\s]/.test(l.trim()) || /^[\u05D0-\u05EA]{2,}:/.test(l.trim())
+    ).length;
+    const listLines = nonEmpty.filter(l =>
+      /^[\-\*\u2022\u25CF\d+\.\u05D0-\u05EA\.]/.test(l.trim())
+    ).length;
+    const sR = scriptLines / nonEmpty.length;
+    const lR = listLines   / nonEmpty.length;
+    if (sR > 0.25) return 'script';
+    if (lR > 0.35) return 'list';
+    if (sR > 0.1 || lR > 0.15) return 'mixed';
+    return 'prose';
+  };
+
+  // ── TXT: full analysis ──
+  const analyzeTxtFile = (file: File, text: string): TxtFileInfo => {
+    const lines      = text.split('\n');
+    const nonEmpty   = lines.filter(l => l.trim().length > 0);
+    const words      = text.trim().split(/\s+/).filter(w => w.length > 0);
+    const wordCount  = words.length;
+    const totalSecs  = Math.round((wordCount / 130) * 60);
+    const paragraphs = text.split(/\n{2,}/).filter(p => p.trim().length > 0);
+    const { lang, confidence } = detectLanguage(text);
+    return {
+      name: file.name,
+      size: file.size,
+      wordCount,
+      lineCount: lines.length,
+      charCount: text.length,
+      language: lang,
+      languageConfidence: confidence,
+      structure: detectStructure(lines),
+      narrationMinutes: Math.floor(totalSecs / 60),
+      narrationSeconds: totalSecs % 60,
+      avgWordsPerLine: nonEmpty.length > 0 ? Math.round(wordCount / nonEmpty.length) : 0,
+      paragraphCount: paragraphs.length,
+    };
+  };
 
   // Analyze audio file metadata client-side before upload
   const analyzeAudioFile = (file: File): Promise<AudioFileInfo> => {
@@ -194,6 +269,15 @@ export default function Create() {
         return;
       }
 
+      // Analyze TXT before upload
+      if (type === 'txt') {
+        setAnalyzingTxt(true);
+        setTxtInfo(null);
+        const text = await file.text();
+        setTxtInfo(analyzeTxtFile(file, text));
+        setAnalyzingTxt(false);
+      }
+
       // Analyze audio before upload
       if (type === 'mp3') {
         setAnalyzingAudio(true);
@@ -258,6 +342,7 @@ export default function Create() {
 
         if (type === 'txt') {
           const text = await file.text();
+          if (!txtInfo) setTxtInfo(analyzeTxtFile(file, text)); // fallback if missed
           setDraft(prev => ({ ...prev, txtAssetId: publicUrl, scriptText: text }));
         } else if (type === 'mp3') {
           setDraft(prev => ({ ...prev, mp3AssetId: publicUrl }));
@@ -408,12 +493,125 @@ export default function Create() {
               )}
 
               {draft.inputMode === 'txt' && (
-                <div>
-                  <button onClick={() => handleFileUpload('txt')} disabled={uploading} className="btn-neon-cyan w-full flex items-center justify-center gap-2 disabled:opacity-50">
-                    {uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
-                    {t.create.step1.uploadTxt}
+                <div className="space-y-4">
+                  {/* Format badge */}
+                  <div className="flex flex-wrap gap-2">
+                    <span className="text-xs px-2.5 py-1 rounded-lg font-semibold" style={{ background: 'rgba(0,212,255,0.12)', border: '1px solid rgba(0,212,255,0.25)', color: '#00D4FF' }}>TXT</span>
+                    <span className="text-xs px-2.5 py-1 rounded-lg" style={{ color: 'rgba(140,140,190,0.5)', border: '1px solid rgba(255,255,255,0.06)' }}>עד 10 MB</span>
+                  </div>
+
+                  <button
+                    onClick={() => handleFileUpload('txt')}
+                    disabled={uploading || analyzingTxt}
+                    className="btn-neon-cyan w-full flex items-center justify-center gap-2 disabled:opacity-50"
+                  >
+                    {analyzingTxt ? <><Loader2 className="w-4 h-4 animate-spin" />מנתח קובץ...</> :
+                     uploading    ? <><Loader2 className="w-4 h-4 animate-spin" />מעלה {uploadProgress}%</> :
+                     <><Upload className="w-4 h-4" />{t.create.step1.uploadTxt}</>}
                   </button>
-                  {draft.txtAssetId && <p className="text-sm mt-3 flex items-center gap-2" style={{ color: '#00ff80' }}><CheckCircle className="w-4 h-4" /> קובץ הועלה בהצלחה</p>}
+
+                  {/* Upload progress */}
+                  {uploading && uploadFileSize > 0 && (
+                    <div className="p-3 rounded-xl" style={{ background: 'rgba(0,212,255,0.05)', border: '1px solid rgba(0,212,255,0.15)' }}>
+                      <div className="flex justify-between text-xs mb-2" style={{ color: 'rgba(160,160,210,0.7)' }}>
+                        <span className="truncate max-w-[200px]">{uploadFileName}</span>
+                        <span style={{ color: '#00D4FF', fontWeight: 700 }}>{uploadProgress}%</span>
+                      </div>
+                      <div className="h-1.5 rounded-full overflow-hidden" style={{ background: 'rgba(0,212,255,0.15)' }}>
+                        <div className="h-full rounded-full transition-all" style={{ width: `${uploadProgress}%`, background: 'linear-gradient(90deg, #00D4FF, #B24BF3)' }} />
+                      </div>
+                    </div>
+                  )}
+
+                  {/* TXT Analysis Results */}
+                  {txtInfo && (
+                    <div className="p-4 rounded-xl space-y-3" style={{ background: 'rgba(0,212,255,0.05)', border: '1px solid rgba(0,212,255,0.2)' }}>
+                      {/* Header */}
+                      <div className="flex items-center gap-2">
+                        <div className="w-6 h-6 rounded-lg flex items-center justify-center" style={{ background: 'rgba(0,212,255,0.2)' }}>
+                          <FileText className="w-3.5 h-3.5" style={{ color: '#00D4FF' }} />
+                        </div>
+                        <span className="text-sm font-semibold" style={{ color: '#00D4FF' }}>ניתוח קובץ תסריט</span>
+                        {/* Structure badge */}
+                        <span className="text-xs px-2 py-0.5 rounded-full font-bold" style={{
+                          background: txtInfo.structure === 'script' ? 'rgba(178,75,243,0.15)' :
+                                      txtInfo.structure === 'list'   ? 'rgba(255,200,0,0.12)'   :
+                                      txtInfo.structure === 'mixed'  ? 'rgba(255,120,0,0.12)'   :
+                                                                       'rgba(0,212,255,0.12)',
+                          color:      txtInfo.structure === 'script' ? '#B24BF3' :
+                                      txtInfo.structure === 'list'   ? '#ffcc00' :
+                                      txtInfo.structure === 'mixed'  ? '#ff8800' : '#00D4FF',
+                          border: `1px solid ${
+                                      txtInfo.structure === 'script' ? 'rgba(178,75,243,0.3)'  :
+                                      txtInfo.structure === 'list'   ? 'rgba(255,200,0,0.25)'  :
+                                      txtInfo.structure === 'mixed'  ? 'rgba(255,120,0,0.25)'  :
+                                                                       'rgba(0,212,255,0.25)'  }`,
+                        }}>
+                          {txtInfo.structure === 'script' ? 'תסריט' :
+                           txtInfo.structure === 'list'   ? 'רשימה' :
+                           txtInfo.structure === 'mixed'  ? 'מעורב' : 'פרוזה'}
+                        </span>
+                      </div>
+
+                      {/* Stats grid */}
+                      <div className="grid grid-cols-2 gap-2">
+                        {[
+                          { label: 'שם קובץ',    val: txtInfo.name.length > 22 ? txtInfo.name.slice(0, 20) + '…' : txtInfo.name },
+                          { label: 'גודל',        val: formatBytes(txtInfo.size) },
+                          { label: 'מילים',       val: txtInfo.wordCount.toLocaleString('he-IL') },
+                          { label: 'שורות',       val: txtInfo.lineCount.toLocaleString('he-IL') },
+                          { label: 'תווים',       val: txtInfo.charCount.toLocaleString('he-IL') },
+                          { label: 'פסקאות',      val: txtInfo.paragraphCount.toLocaleString('he-IL') },
+                          { label: 'מילים/שורה',  val: `~${txtInfo.avgWordsPerLine}` },
+                          { label: 'זמן קריינות', val: `${txtInfo.narrationMinutes}:${String(txtInfo.narrationSeconds).padStart(2,'0')} דק'` },
+                        ].map((item, i) => (
+                          <div key={i} className="flex justify-between items-center text-xs">
+                            <span style={{ color: 'rgba(140,140,190,0.55)' }}>{item.label}:</span>
+                            <span className="font-semibold" style={{ color: 'rgba(220,220,250,0.85)' }}>{item.val}</span>
+                          </div>
+                        ))}
+                      </div>
+
+                      {/* Language row */}
+                      <div className="flex items-center justify-between pt-1">
+                        <span className="text-xs" style={{ color: 'rgba(140,140,190,0.55)' }}>שפה זוהתה:</span>
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-semibold" style={{ color: 'rgba(220,220,250,0.85)' }}>{txtInfo.language}</span>
+                          <span className="text-xs px-1.5 py-0.5 rounded" style={{
+                            background: txtInfo.languageConfidence === 'high'   ? 'rgba(0,255,128,0.1)'   :
+                                        txtInfo.languageConfidence === 'medium' ? 'rgba(255,200,0,0.1)'   :
+                                                                                  'rgba(255,100,100,0.1)',
+                            color:      txtInfo.languageConfidence === 'high'   ? '#00ff80' :
+                                        txtInfo.languageConfidence === 'medium' ? '#ffcc00' : '#ff8888',
+                          }}>
+                            {txtInfo.languageConfidence === 'high' ? 'בטוח' : txtInfo.languageConfidence === 'medium' ? 'סביר' : 'לא ברור'}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Narration time bar */}
+                      <div className="pt-1">
+                        <div className="flex justify-between text-xs mb-1" style={{ color: 'rgba(140,140,190,0.5)' }}>
+                          <span>זמן קריינות משוער (130 מ/ד)</span>
+                          <span style={{ color: '#00D4FF', fontWeight: 700 }}>
+                            {txtInfo.narrationMinutes}:{String(txtInfo.narrationSeconds).padStart(2,'0')}
+                          </span>
+                        </div>
+                        <div className="h-1 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.08)' }}>
+                          <div className="h-full rounded-full" style={{
+                            width: `${Math.min(100, (txtInfo.narrationMinutes / 120) * 100)}%`,
+                            background: 'linear-gradient(90deg, #00D4FF, #B24BF3)',
+                          }} />
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {draft.txtAssetId && !uploading && (
+                    <p className="text-sm flex items-center gap-2" style={{ color: '#00ff80' }}>
+                      <CheckCircle className="w-4 h-4" /> קובץ הועלה בהצלחה
+                    </p>
+                  )}
                 </div>
               )}
 
