@@ -607,43 +607,37 @@ export default function Create() {
       const fileExt = file.name.split('.').pop();
       const fileName = `${user.id}/${type}-${Date.now()}.${fileExt}`;
 
-      if (type !== 'video') {
-        // Supabase JS client — reliable for TXT/audio
-        setUploadProgress(10);
-        const mimeType = type === 'txt' ? 'text/plain' : (file.type || 'audio/mpeg');
-        const { error: uploadError } = await supabase.storage
-          .from('recap-assets')
-          .upload(fileName, file, { cacheControl: '3600', upsert: true, contentType: mimeType });
-        if (uploadError) throw new Error(uploadError.message);
-        setUploadProgress(100);
-      } else {
-        // XHR for large video files with real progress
-        const { data: { session } } = await supabase.auth.getSession();
-        const accessToken = session?.access_token || import.meta.env.VITE_SUPABASE_ANON_KEY || '';
-        const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
-        await new Promise<void>((resolve, reject) => {
-          const uploadUrl = `${supabaseUrl}/storage/v1/object/recap-assets/${fileName}`;
-          const xhr = new XMLHttpRequest();
-          xhr.upload.addEventListener('progress', (e) => {
-            if (e.lengthComputable) setUploadProgress(Math.round((e.loaded / e.total) * 100));
-          });
-          xhr.addEventListener('load', () => {
-            if (xhr.status >= 200 && xhr.status < 300) { resolve(); }
-            else {
-              let errMsg = `שגיאת שרת (${xhr.status})`;
-              try { const b = JSON.parse(xhr.responseText); errMsg = b.message || b.error || errMsg; } catch {}
-              reject(new Error(errMsg));
-            }
-          });
-          xhr.addEventListener('error', () => reject(new Error('חיבור נכשל. בדוק את החיבור לאינטרנט ונסה שוב.')));
-          xhr.addEventListener('abort', () => reject(new Error('ההעלאה בוטלה.')));
-          xhr.open('POST', uploadUrl);
-          xhr.setRequestHeader('Authorization', `Bearer ${accessToken}`);
-          xhr.setRequestHeader('x-upsert', 'true');
-          xhr.setRequestHeader('Content-Type', file.type || 'application/octet-stream');
-          xhr.send(file);
+      // XHR for all file types — real progress tracking + better reliability
+      const { data: { session } } = await supabase.auth.getSession();
+      const accessToken = session?.access_token || import.meta.env.VITE_SUPABASE_ANON_KEY || '';
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
+      const mimeType = type === 'txt'
+        ? 'text/plain'
+        : type === 'mp3'
+          ? (file.type || 'audio/mpeg')
+          : (file.type || 'application/octet-stream');
+      await new Promise<void>((resolve, reject) => {
+        const uploadUrl = `${supabaseUrl}/storage/v1/object/recap-assets/${fileName}`;
+        const xhr = new XMLHttpRequest();
+        xhr.upload.addEventListener('progress', (e) => {
+          if (e.lengthComputable) setUploadProgress(Math.round((e.loaded / e.total) * 100));
         });
-      }
+        xhr.addEventListener('load', () => {
+          if (xhr.status >= 200 && xhr.status < 300) { resolve(); }
+          else {
+            let errMsg = `שגיאת שרת (${xhr.status})`;
+            try { const b = JSON.parse(xhr.responseText); errMsg = b.message || b.error || errMsg; } catch {}
+            reject(new Error(errMsg));
+          }
+        });
+        xhr.addEventListener('error', () => reject(new Error('חיבור נכשל. בדוק את החיבור לאינטרנט ונסה שוב.')));
+        xhr.addEventListener('abort', () => reject(new Error('ההעלאה בוטלה.')));
+        xhr.open('POST', uploadUrl);
+        xhr.setRequestHeader('Authorization', `Bearer ${accessToken}`);
+        xhr.setRequestHeader('x-upsert', 'true');
+        xhr.setRequestHeader('Content-Type', mimeType);
+        xhr.send(file);
+      });
 
       const { data: { publicUrl } } = supabase.storage.from('recap-assets').getPublicUrl(fileName);
 
