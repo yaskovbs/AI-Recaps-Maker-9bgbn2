@@ -20,8 +20,8 @@ interface LangScore {
   code: string;
   name: string;
   flag: string;
-  score: number;   // raw character/word count
-  percent: number; // 0–100
+  score: number;
+  percent: number;
 }
 
 interface TxtFileInfo {
@@ -46,13 +46,13 @@ interface AudioFileInfo {
   name: string;
   size: number;
   format: string;
-  duration: number | null;  // seconds
-  bitrate: number | null;   // kbps
+  duration: number | null;
+  bitrate: number | null;
   sampleRate: number | null;
   channels: number | null;
-  wpm: number | null;       // estimated words per minute
-  waveformData?: Float32Array | null; // for Canvas waveform
-  objectUrl?: string; // for audio playback
+  wpm: number | null;
+  waveformData?: Float32Array | null;
+  objectUrl?: string;
 }
 
 interface Draft {
@@ -200,27 +200,24 @@ export default function Create() {
     }
   }, [currentStep]);
 
-  const MAX_VIDEO_SIZE = 2.2 * 1024 * 1024 * 1024; // 2.2 GB
-  const MAX_AUDIO_SIZE = 200 * 1024 * 1024; // 200 MB
-  const MAX_TXT_SIZE = 10 * 1024 * 1024; // 10 MB
+  const MAX_VIDEO_SIZE = 2.2 * 1024 * 1024 * 1024;
+  const MAX_AUDIO_SIZE = 200 * 1024 * 1024;
+  const MAX_TXT_SIZE = 10 * 1024 * 1024;
 
   // ── TXT: multi-language detection ──
   const detectLanguages = (text: string): { primary: LangScore; breakdown: LangScore[]; confidence: 'high' | 'medium' | 'low'; confidencePct: number } => {
-    // Script-based char counts
     const he  = (text.match(/[\u0590-\u05FF]/g) || []).length;
     const ar  = (text.match(/[\u0600-\u06FF]/g) || []).length;
     const ru  = (text.match(/[\u0400-\u04FF]/g) || []).length;
-    const ja  = (text.match(/[\u3040-\u30FF]/g) || []).length;          // hiragana + katakana
-    const zh  = (text.match(/[\u4E00-\u9FFF\u3400-\u4DBF]/g) || []).length; // CJK ideographs
+    const ja  = (text.match(/[\u3040-\u30FF]/g) || []).length;
+    const zh  = (text.match(/[\u4E00-\u9FFF\u3400-\u4DBF]/g) || []).length;
     const ko  = (text.match(/[\uAC00-\uD7AF]/g) || []).length;
     const th  = (text.match(/[\u0E00-\u0E7F]/g) || []).length;
     const lat = (text.match(/[a-zA-ZÀ-ÖØ-öø-ÿ]/g) || []).length;
 
-    // For Latin script: use common-word heuristics on lowercase sample
     const lower = text.toLowerCase().slice(0, 5000);
     const words = lower.match(/\b[a-z]{2,}\b/g) || [];
     const wordSet = new Set(words);
-
     const matches = (list: string[]) => list.filter(w => wordSet.has(w)).length;
 
     const enWords = ['the','and','is','in','it','of','to','a','that','this','was','for','on','are','with','he','she','they','we','you','have','had','but','not','be','been','by','from','or','an','all','at','do','if','one','can','which','as','so','what','when','there','about','up','out','then','she','into','were','more','would','could','their','said'];
@@ -234,57 +231,35 @@ export default function Create() {
     const svWords = ['och','i','är','att','en','det','som','på','av','för','med','till','den','de','om','men','ett','var','sig','kan','hade','vi','han','hon','jag','du','vi','de','men','inte','har','eller','bli','vad','sina','deras'];
 
     const latLangScores: Record<string, number> = {
-      en: matches(enWords),
-      fr: matches(frWords),
-      es: matches(esWords),
-      de: matches(deWords),
-      pt: matches(ptWords),
-      it: matches(itWords),
-      nl: matches(nlWords),
-      pl: matches(plWords),
-      sv: matches(svWords),
+      en: matches(enWords), fr: matches(frWords), es: matches(esWords),
+      de: matches(deWords), pt: matches(ptWords), it: matches(itWords),
+      nl: matches(nlWords), pl: matches(plWords), sv: matches(svWords),
     };
-
     const latLangMeta: Record<string, { name: string; flag: string }> = {
-      en: { name: 'אנגלית', flag: '🇬🇧' },
-      fr: { name: 'צרפתית', flag: '🇫🇷' },
-      es: { name: 'ספרדית', flag: '🇪🇸' },
-      de: { name: 'גרמנית', flag: '🇩🇪' },
-      pt: { name: 'פורטוגזית', flag: '🇧🇷' },
-      it: { name: 'איטלקית', flag: '🇮🇹' },
-      nl: { name: 'הולנדית', flag: '🇳🇱' },
-      pl: { name: 'פולנית', flag: '🇵🇱' },
+      en: { name: 'אנגלית', flag: '🇬🇧' }, fr: { name: 'צרפתית', flag: '🇫🇷' },
+      es: { name: 'ספרדית', flag: '🇪🇸' }, de: { name: 'גרמנית', flag: '🇩🇪' },
+      pt: { name: 'פורטוגזית', flag: '🇧🇷' }, it: { name: 'איטלקית', flag: '🇮🇹' },
+      nl: { name: 'הולנדית', flag: '🇳🇱' }, pl: { name: 'פולנית', flag: '🇵🇱' },
       sv: { name: 'שוודית', flag: '🇸🇪' },
     };
 
-    // Build all candidates
     const rawScores: { code: string; name: string; flag: string; raw: number }[] = [
-      { code: 'he', name: 'עברית',   flag: '🇮🇱', raw: he  * 3 },
-      { code: 'ar', name: 'ערבית',   flag: '🇸🇦', raw: ar  * 3 },
-      { code: 'ru', name: 'רוסית',   flag: '🇷🇺', raw: ru  * 3 },
-      { code: 'ja', name: 'יפנית',   flag: '🇯🇵', raw: ja  * 3 },
-      { code: 'zh', name: 'סינית',   flag: '🇨🇳', raw: (zh - ja) > 0 ? (zh - ja) * 3 : 0 }, // CJK minus kana
+      { code: 'he', name: 'עברית',    flag: '🇮🇱', raw: he * 3 },
+      { code: 'ar', name: 'ערבית',    flag: '🇸🇦', raw: ar * 3 },
+      { code: 'ru', name: 'רוסית',    flag: '🇷🇺', raw: ru * 3 },
+      { code: 'ja', name: 'יפנית',    flag: '🇯🇵', raw: ja * 3 },
+      { code: 'zh', name: 'סינית',    flag: '🇨🇳', raw: (zh - ja) > 0 ? (zh - ja) * 3 : 0 },
       { code: 'ko', name: 'קוריאנית', flag: '🇰🇷', raw: ko * 3 },
-      { code: 'th', name: 'תאית',    flag: '🇹🇭', raw: th  * 3 },
+      { code: 'th', name: 'תאית',     flag: '🇹🇭', raw: th * 3 },
     ];
 
-    // Add Latin-sub-language scores only if Latin chars dominate
     if (lat > 0) {
-      const bestLatCode = Object.entries(latLangScores).sort((a,b) => b[1]-a[1])[0];
-      // Distribute latin chars among sub-langs based on word-match ratio
       const totalLatWords = Object.values(latLangScores).reduce((s,v) => s+v, 0) || 1;
       for (const [code, score] of Object.entries(latLangScores)) {
-        const share = score / totalLatWords;
-        rawScores.push({
-          code,
-          name: latLangMeta[code].name,
-          flag: latLangMeta[code].flag,
-          raw: Math.round(lat * share),
-        });
+        rawScores.push({ code, name: latLangMeta[code].name, flag: latLangMeta[code].flag, raw: Math.round(lat * score / totalLatWords) });
       }
     }
 
-    // Normalise to percent
     const total = rawScores.reduce((s, l) => s + l.raw, 0) || 1;
     const scored: LangScore[] = rawScores
       .map(l => ({ ...l, score: l.raw, percent: Math.round((l.raw / total) * 100) }))
@@ -292,22 +267,15 @@ export default function Create() {
       .sort((a, b) => b.percent - a.percent);
 
     const top = scored[0] || { code: 'un', name: 'לא ידוע', flag: '🌐', score: 0, percent: 0 };
-    const confidence: 'high' | 'medium' | 'low' =
-      top.percent >= 70 ? 'high' : top.percent >= 45 ? 'medium' : 'low';
-
+    const confidence: 'high' | 'medium' | 'low' = top.percent >= 70 ? 'high' : top.percent >= 45 ? 'medium' : 'low';
     return { primary: top, breakdown: scored.slice(0, 7), confidence, confidencePct: top.percent };
   };
 
-  // ── TXT: structure detection ──
   const detectStructure = (lines: string[]): 'script' | 'prose' | 'list' | 'mixed' => {
-    const nonEmpty   = lines.filter(l => l.trim().length > 0);
+    const nonEmpty = lines.filter(l => l.trim().length > 0);
     if (!nonEmpty.length) return 'prose';
-    const scriptLines = nonEmpty.filter(l =>
-      /^[A-Z]{2,}[:\s]/.test(l.trim()) || /^[\u05D0-\u05EA]{2,}:/.test(l.trim())
-    ).length;
-    const listLines = nonEmpty.filter(l =>
-      /^[\-\*\u2022\u25CF\d+\.\u05D0-\u05EA\.]/.test(l.trim())
-    ).length;
+    const scriptLines = nonEmpty.filter(l => /^[A-Z]{2,}[:\s]/.test(l.trim()) || /^[\u05D0-\u05EA]{2,}:/.test(l.trim())).length;
+    const listLines   = nonEmpty.filter(l => /^[\-\*\u2022\u25CF\d+\.\u05D0-\u05EA\.]/.test(l.trim())).length;
     const sR = scriptLines / nonEmpty.length;
     const lR = listLines   / nonEmpty.length;
     if (sR > 0.25) return 'script';
@@ -316,7 +284,6 @@ export default function Create() {
     return 'prose';
   };
 
-  // ── TXT: full analysis ──
   const analyzeTxtFile = (file: File, text: string): TxtFileInfo => {
     const lines      = text.split('\n');
     const nonEmpty   = lines.filter(l => l.trim().length > 0);
@@ -326,16 +293,10 @@ export default function Create() {
     const paragraphs = text.split(/\n{2,}/).filter(p => p.trim().length > 0);
     const { primary, breakdown, confidence, confidencePct } = detectLanguages(text);
     return {
-      name: file.name,
-      size: file.size,
-      wordCount,
-      lineCount: lines.length,
-      charCount: text.length,
-      primaryLanguage: primary.name,
-      primaryFlag: primary.flag,
-      confidence,
-      confidencePct,
-      langBreakdown: breakdown,
+      name: file.name, size: file.size, wordCount,
+      lineCount: lines.length, charCount: text.length,
+      primaryLanguage: primary.name, primaryFlag: primary.flag,
+      confidence, confidencePct, langBreakdown: breakdown,
       structure: detectStructure(lines),
       narrationMinutes: Math.floor(totalSecs / 60),
       narrationSeconds: totalSecs % 60,
@@ -344,61 +305,43 @@ export default function Create() {
     };
   };
 
-  // Analyze audio file metadata client-side before upload
   // ── Waveform canvas drawing ──
   const drawWaveform = useCallback((canvas: HTMLCanvasElement, data: Float32Array, progress = 0) => {
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
-    const W = canvas.width;
-    const H = canvas.height;
+    const W = canvas.width, H = canvas.height;
     ctx.clearRect(0, 0, W, H);
-
     const step = Math.ceil(data.length / W);
     const mid  = H / 2;
     const progressX = progress * W;
-
     for (let x = 0; x < W; x++) {
       let min = 1, max = -1;
       for (let j = 0; j < step; j++) {
         const idx = x * step + j;
-        if (idx < data.length) {
-          const v = data[idx];
-          if (v < min) min = v;
-          if (v > max) max = v;
-        }
+        if (idx < data.length) { const v = data[idx]; if (v < min) min = v; if (v > max) max = v; }
       }
       const yHigh = mid - (max * mid * 0.85);
       const yLow  = mid - (min * mid * 0.85);
       const played = x <= progressX;
-      // Gradient colour based on playback position
       const gradient = ctx.createLinearGradient(0, yHigh, 0, yLow);
-      if (played) {
-        gradient.addColorStop(0, '#00D4FF');
-        gradient.addColorStop(1, '#B24BF3');
-      } else {
-        gradient.addColorStop(0, 'rgba(0,212,255,0.3)');
-        gradient.addColorStop(1, 'rgba(178,75,243,0.3)');
-      }
+      if (played) { gradient.addColorStop(0, '#00D4FF'); gradient.addColorStop(1, '#B24BF3'); }
+      else { gradient.addColorStop(0, 'rgba(0,212,255,0.3)'); gradient.addColorStop(1, 'rgba(178,75,243,0.3)'); }
       ctx.fillStyle = gradient;
       ctx.fillRect(x, yHigh, 1, Math.max(1, yLow - yHigh));
     }
   }, []);
 
-  // Animate waveform progress during playback
   const animateWaveform = useCallback(() => {
     const el = audioElemRef.current;
     const canvas = waveformCanvasRef.current;
-    const info = audioInfo; // closure ref
+    const info = audioInfo;
     if (!el || !canvas || !info?.waveformData) return;
     const progress = el.duration > 0 ? el.currentTime / el.duration : 0;
     drawWaveform(canvas, info.waveformData, progress);
     setAudioCurrentTime(el.currentTime);
-    if (!el.paused) {
-      animFrameRef.current = requestAnimationFrame(animateWaveform);
-    }
+    if (!el.paused) { animFrameRef.current = requestAnimationFrame(animateWaveform); }
   }, [audioInfo, drawWaveform]);
 
-  // Draw waveform once when audioInfo is set
   useEffect(() => {
     const canvas = waveformCanvasRef.current;
     if (canvas && audioInfo?.waveformData) {
@@ -408,29 +351,18 @@ export default function Create() {
     }
   }, [audioInfo, drawWaveform]);
 
-  // Cleanup audio on unmount
   useEffect(() => {
     return () => {
       cancelAnimationFrame(animFrameRef.current);
-      if (audioElemRef.current) {
-        audioElemRef.current.pause();
-        audioElemRef.current = null;
-      }
+      if (audioElemRef.current) { audioElemRef.current.pause(); audioElemRef.current = null; }
     };
   }, []);
 
   const handlePlayPause = () => {
     const el = audioElemRef.current;
     if (!el) return;
-    if (el.paused) {
-      el.play();
-      setIsPlaying(true);
-      animFrameRef.current = requestAnimationFrame(animateWaveform);
-    } else {
-      el.pause();
-      setIsPlaying(false);
-      cancelAnimationFrame(animFrameRef.current);
-    }
+    if (el.paused) { el.play(); setIsPlaying(true); animFrameRef.current = requestAnimationFrame(animateWaveform); }
+    else { el.pause(); setIsPlaying(false); cancelAnimationFrame(animFrameRef.current); }
   };
 
   const handleWaveformClick = (e: React.MouseEvent<HTMLCanvasElement>) => {
@@ -444,33 +376,24 @@ export default function Create() {
     drawWaveform(canvas, audioInfo.waveformData, ratio);
   };
 
-  // ── Decode waveform data from ArrayBuffer ──
   const decodeWaveform = (buffer: ArrayBuffer): Promise<Float32Array | null> => {
     return new Promise((resolve) => {
       try {
         const actx = new (window.AudioContext || (window as any).webkitAudioContext)();
-        actx.decodeAudioData(
-          buffer,
-          (decoded) => {
-            const raw = decoded.getChannelData(0);
-            // Downsample to 2000 points max for performance
-            const POINTS = 2000;
-            if (raw.length <= POINTS) { resolve(raw); return; }
-            const step = Math.floor(raw.length / POINTS);
-            const out = new Float32Array(POINTS);
-            for (let i = 0; i < POINTS; i++) {
-              let max = 0;
-              for (let j = 0; j < step; j++) {
-                const v = Math.abs(raw[i * step + j] || 0);
-                if (v > max) max = v;
-              }
-              out[i] = max;
-            }
-            resolve(out);
-            actx.close();
-          },
-          () => { actx.close(); resolve(null); }
-        );
+        actx.decodeAudioData(buffer, (decoded) => {
+          const raw = decoded.getChannelData(0);
+          const POINTS = 2000;
+          if (raw.length <= POINTS) { resolve(raw); return; }
+          const step = Math.floor(raw.length / POINTS);
+          const out = new Float32Array(POINTS);
+          for (let i = 0; i < POINTS; i++) {
+            let max = 0;
+            for (let j = 0; j < step; j++) { const v = Math.abs(raw[i * step + j] || 0); if (v > max) max = v; }
+            out[i] = max;
+          }
+          resolve(out);
+          actx.close();
+        }, () => { actx.close(); resolve(null); });
       } catch { resolve(null); }
     });
   };
@@ -480,64 +403,39 @@ export default function Create() {
       const ext = file.name.split('.').pop()?.toLowerCase() || '';
       const formatMap: Record<string, string> = { mp3: 'MP3', wav: 'WAV', aac: 'AAC', m4a: 'M4A (AAC)', ogg: 'OGG', flac: 'FLAC' };
       const format = formatMap[ext] || ext.toUpperCase();
-
-      // Parse WAV header for sample rate / channels
       let sampleRate: number | null = null;
       let channels: number | null = null;
 
       const parseWavHeader = (buffer: ArrayBuffer) => {
         const view = new DataView(buffer);
-        // WAV header: channels @ 22, sampleRate @ 24
-        if (view.getUint32(0, false) === 0x52494646) { // 'RIFF'
-          channels = view.getUint16(22, true);
-          sampleRate = view.getUint32(24, true);
-        }
+        if (view.getUint32(0, false) === 0x52494646) { channels = view.getUint16(22, true); sampleRate = view.getUint32(24, true); }
       };
 
       const finish = async (duration: number | null) => {
-        const bitrate = duration && duration > 0
-          ? Math.round((file.size * 8) / duration / 1000)
-          : null;
-        const wpm = duration && duration > 0
-          ? Math.round((duration / 60) * 130)
-          : null;
-        // Decode waveform (read up to 10MB for waveform; skip for very large files)
+        const bitrate = duration && duration > 0 ? Math.round((file.size * 8) / duration / 1000) : null;
+        const wpm = duration && duration > 0 ? Math.round((duration / 60) * 130) : null;
         let waveformData: Float32Array | null = null;
         if (file.size < 15 * 1024 * 1024) {
-          try {
-            const buf = await file.arrayBuffer();
-            waveformData = await decodeWaveform(buf);
-          } catch { /* ignore */ }
+          try { const buf = await file.arrayBuffer(); waveformData = await decodeWaveform(buf); } catch {}
         }
-        // Create object URL for playback
         const objectUrl = URL.createObjectURL(file);
         resolve({ name: file.name, size: file.size, format, duration, bitrate, sampleRate, channels, wpm, waveformData, objectUrl });
       };
 
-      // Try Web Audio API for duration
       const url = URL.createObjectURL(file);
       const audio = new Audio();
       audio.preload = 'metadata';
-
       const cleanup = () => URL.revokeObjectURL(url);
-
       audio.onloadedmetadata = () => {
         const dur = isFinite(audio.duration) && audio.duration > 0 ? audio.duration : null;
         cleanup();
-        // For WAV, also parse header
         if (ext === 'wav') {
           const reader = new FileReader();
-          reader.onload = (e) => {
-            if (e.target?.result) parseWavHeader(e.target.result as ArrayBuffer);
-            finish(dur);
-          };
+          reader.onload = (e) => { if (e.target?.result) parseWavHeader(e.target.result as ArrayBuffer); finish(dur); };
           reader.onerror = () => finish(dur);
           reader.readAsArrayBuffer(file.slice(0, 44));
-        } else {
-          finish(dur);
-        }
+        } else { finish(dur); }
       };
-
       audio.onerror = () => { cleanup(); finish(null); };
       setTimeout(() => { cleanup(); finish(null); }, 5000);
       audio.src = url;
@@ -545,12 +443,8 @@ export default function Create() {
   };
 
   const formatDuration = (secs: number) => {
-    const h = Math.floor(secs / 3600);
-    const m = Math.floor((secs % 3600) / 60);
-    const s = Math.floor(secs % 60);
-    return h > 0
-      ? `${h}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`
-      : `${m}:${String(s).padStart(2,'0')}`;
+    const h = Math.floor(secs / 3600), m = Math.floor((secs % 3600) / 60), s = Math.floor(secs % 60);
+    return h > 0 ? `${h}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}` : `${m}:${String(s).padStart(2,'0')}`;
   };
 
   const formatBytes = (bytes: number) => {
@@ -559,21 +453,55 @@ export default function Create() {
     return `${(bytes / 1024).toFixed(0)} KB`;
   };
 
-  // ── Central file handler — called from hidden <input> onChange ──
+  // ── Upload using Supabase JS client (avoids COEP/CORS issues with XHR) ──
+  // Simulates progress while upload runs in background
+  const uploadWithProgress = async (
+    file: File,
+    fileName: string,
+    mimeType: string,
+    onProgress: (pct: number) => void
+  ): Promise<void> => {
+    // Start simulated progress (0 → 90%) while real upload runs
+    let simulatedPct = 0;
+    const totalMs = Math.max(3000, (file.size / (500 * 1024)) * 1000); // ~500 KB/s estimate
+    const intervalMs = 200;
+    const stepPct = (90 / (totalMs / intervalMs));
+
+    const timer = setInterval(() => {
+      simulatedPct = Math.min(90, simulatedPct + stepPct + Math.random() * stepPct * 0.5);
+      onProgress(Math.round(simulatedPct));
+    }, intervalMs);
+
+    try {
+      const { error } = await supabase.storage
+        .from('recap-assets')
+        .upload(fileName, file, {
+          cacheControl: '3600',
+          upsert: true,
+          contentType: mimeType,
+        });
+
+      clearInterval(timer);
+      if (error) throw new Error(error.message);
+      onProgress(100);
+    } catch (err) {
+      clearInterval(timer);
+      throw err;
+    }
+  };
+
+  // ── Central file handler ──
   const processSelectedFile = async (file: File, type: 'txt' | 'mp3' | 'video') => {
     if (!user) { alert('יש להתחבר כדי להעלות קבצים'); return; }
 
-    // Keep local video file reference for FFmpeg processing
     if (type === 'video') setLocalVideoFile(file);
 
-    // Validate file size
     const maxSize = type === 'video' ? MAX_VIDEO_SIZE : type === 'mp3' ? MAX_AUDIO_SIZE : MAX_TXT_SIZE;
     if (file.size > maxSize) {
       alert(`הקובץ גדול מדי. הגודל המקסימלי הוא ${formatBytes(maxSize)}. גודל הקובץ שלך: ${formatBytes(file.size)}`);
       return;
     }
 
-    // Analyze TXT before upload
     if (type === 'txt') {
       setAnalyzingTxt(true);
       setTxtInfo(null);
@@ -582,19 +510,16 @@ export default function Create() {
       setAnalyzingTxt(false);
     }
 
-    // Analyze audio before upload
     if (type === 'mp3') {
       setAnalyzingAudio(true);
       setAudioInfo(null);
       setIsPlaying(false);
       cancelAnimationFrame(animFrameRef.current);
-      // Clean up previous audio element
       if (audioElemRef.current) { audioElemRef.current.pause(); audioElemRef.current = null; }
       const info = await analyzeAudioFile(file);
       setAudioInfo(info);
       setAudioCurrentTime(0);
       setAudioDuration(info.duration || 0);
-      // Set up audio element for playback
       if (info.objectUrl) {
         const el = new Audio(info.objectUrl);
         el.onended = () => { setIsPlaying(false); cancelAnimationFrame(animFrameRef.current); };
@@ -612,38 +537,13 @@ export default function Create() {
     try {
       const fileExt = file.name.split('.').pop();
       const fileName = `${user.id}/${type}-${Date.now()}.${fileExt}`;
-
-      // XHR for all file types — real progress tracking + better reliability
-      const { data: { session } } = await supabase.auth.getSession();
-      const accessToken = session?.access_token || import.meta.env.VITE_SUPABASE_ANON_KEY || '';
-      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
       const mimeType = type === 'txt'
         ? 'text/plain'
         : type === 'mp3'
           ? (file.type || 'audio/mpeg')
-          : (file.type || 'application/octet-stream');
-      await new Promise<void>((resolve, reject) => {
-        const uploadUrl = `${supabaseUrl}/storage/v1/object/recap-assets/${fileName}`;
-        const xhr = new XMLHttpRequest();
-        xhr.upload.addEventListener('progress', (e) => {
-          if (e.lengthComputable) setUploadProgress(Math.round((e.loaded / e.total) * 100));
-        });
-        xhr.addEventListener('load', () => {
-          if (xhr.status >= 200 && xhr.status < 300) { resolve(); }
-          else {
-            let errMsg = `שגיאת שרת (${xhr.status})`;
-            try { const b = JSON.parse(xhr.responseText); errMsg = b.message || b.error || errMsg; } catch {}
-            reject(new Error(errMsg));
-          }
-        });
-        xhr.addEventListener('error', () => reject(new Error('חיבור נכשל. בדוק את החיבור לאינטרנט ונסה שוב.')));
-        xhr.addEventListener('abort', () => reject(new Error('ההעלאה בוטלה.')));
-        xhr.open('POST', uploadUrl);
-        xhr.setRequestHeader('Authorization', `Bearer ${accessToken}`);
-        xhr.setRequestHeader('x-upsert', 'true');
-        xhr.setRequestHeader('Content-Type', mimeType);
-        xhr.send(file);
-      });
+          : (file.type || 'video/mp4');
+
+      await uploadWithProgress(file, fileName, mimeType, (pct) => setUploadProgress(pct));
 
       const { data: { publicUrl } } = supabase.storage.from('recap-assets').getPublicUrl(fileName);
 
@@ -657,7 +557,6 @@ export default function Create() {
       } else {
         setDraft(prev => ({ ...prev, videoAssetId: publicUrl }));
       }
-      setUploadProgress(100);
     } catch (err: any) {
       console.error('Upload error:', err);
       alert(`שגיאת העלאה: ${err.message || 'נסה שוב'}`);
@@ -667,21 +566,12 @@ export default function Create() {
     }
   };
 
-  // No longer needed — using label-based triggers
-  const _handleFileUpload_unused = null;
+  useEffect(() => { logsEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [ffmpegLogs]);
 
-  // Scroll logs to bottom on new entries
-  useEffect(() => {
-    logsEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [ffmpegLogs]);
-
-  // Pre-load FFmpeg when user reaches step 4
   useEffect(() => {
     if (currentStep === 4 && !isFFmpegLoaded() && !ffmpegLoading) {
       setFfmpegLoading(true);
-      loadFFmpeg((log) => {
-        setFfmpegLogs(prev => [...prev.slice(-80), log]);
-      })
+      loadFFmpeg((log) => { setFfmpegLogs(prev => [...prev.slice(-80), log]); })
         .then(() => { setFfmpegLoaded(true); setFfmpegLoading(false); })
         .catch(() => setFfmpegLoading(false));
     } else if (isFFmpegLoaded()) {
@@ -715,7 +605,6 @@ export default function Create() {
     setProcessingError(null);
     setProcessingStage('טוען מנוע FFmpeg...');
 
-    // If we have a local video file and FFmpeg — use real processing
     if (localVideoFile && (isFFmpegLoaded() || ffmpegLoaded)) {
       try {
         setProcessingStage('מנוע FFmpeg פעיל — מעבד וידאו...');
@@ -723,14 +612,9 @@ export default function Create() {
           format: 'mp4',
           durationSeconds: targetDuration > 0 ? targetDuration : undefined,
           quality: 23,
-          onProgress: (p: FFmpegProgress) => {
-            setRenderProgress(Math.round(p.ratio * 100));
-            setFfmpegSpeed(p.speed);
-            setFfmpegTimeProcessed(p.time);
-          },
+          onProgress: (p: FFmpegProgress) => { setRenderProgress(Math.round(p.ratio * 100)); setFfmpegSpeed(p.speed); setFfmpegTimeProcessed(p.time); },
           onLog: (log: FFmpegLogLine) => {
             setFfmpegLogs(prev => [...prev.slice(-80), log]);
-            // Update stage label from key ffmpeg messages
             if (log.message.includes('Opening')) setProcessingStage('פותח קובץ קלט...');
             else if (log.message.includes('Stream mapping')) setProcessingStage('ממפה זרמים...');
             else if (log.message.includes('encoder')) setProcessingStage('מקודד וידאו (H.264)...');
@@ -746,87 +630,37 @@ export default function Create() {
       } catch (err: any) {
         console.error('FFmpeg processing error:', err);
         setProcessingError(err.message || 'שגיאה בעיבוד הוידאו');
-        // Fallback to simulated progress
         runSimulatedProgress(job.id);
       }
     } else {
-      // No local file or FFmpeg not ready — simulate progress
       runSimulatedProgress(job.id);
     }
   };
 
   const runSimulatedProgress = (jobId: string) => {
-    const stages = [
-      'ניתוח תסריט ואודיו...',
-      'זיהוי סצינות מרכזיות...',
-      'יצירת תסריט סיכום...',
-      'מרנדר פריימים...',
-      'ממזג אודיו ווידאו...',
-      'אופטימיזציה ופלט...',
-    ];
+    const stages = ['ניתוח תסריט ואודיו...','זיהוי סצינות מרכזיות...','יצירת תסריט סיכום...','מרנדר פריימים...','ממזג אודיו ווידאו...','אופטימיזציה ופלט...'];
     let stageIdx = 0;
     setProcessingStage(stages[0]);
     const timer = setInterval(() => {
       setRenderProgress(prev => {
         const next = prev + 1.5;
         const idx = Math.floor((next / 100) * stages.length);
-        if (idx < stages.length && idx !== stageIdx) {
-          stageIdx = idx;
-          setProcessingStage(stages[idx]);
-          setFfmpegLogs(p => [...p, { type: 'info', message: `[AI] ${stages[idx]}` }]);
-        }
-        if (next >= 100) {
-          clearInterval(timer);
-          setIsRendering(false);
-          setRenderComplete(true);
-          setOutputVideoUrl(`https://example.com/recaps/${jobId}.mp4`);
-          setProcessingStage('עיבוד הושלם!');
-          return 100;
-        }
+        if (idx < stages.length && idx !== stageIdx) { stageIdx = idx; setProcessingStage(stages[idx]); setFfmpegLogs(p => [...p, { type: 'info', message: `[AI] ${stages[idx]}` }]); }
+        if (next >= 100) { clearInterval(timer); setIsRendering(false); setRenderComplete(true); setOutputVideoUrl(`https://example.com/recaps/${jobId}.mp4`); setProcessingStage('עיבוד הושלם!'); return 100; }
         return next;
       });
     }, 90);
   };
 
-  // ── Hidden file inputs (visually hidden but label-accessible) ──
+  // ── Hidden file inputs ──
   const hiddenInputs = (
     <>
-      <input
-        id={TXT_INPUT_ID}
-        type="file"
-        accept=".txt,text/plain"
-        className="file-input-hidden"
-        tabIndex={-1}
-        onChange={(e) => {
-          const file = e.target.files?.[0];
-          e.target.value = '';
-          if (file) processSelectedFile(file, 'txt');
-        }}
-      />
-      <input
-        id={AUDIO_INPUT_ID}
-        type="file"
-        accept="audio/mpeg,audio/wav,audio/aac,audio/mp4,audio/x-m4a,audio/ogg,audio/flac,.mp3,.wav,.aac,.m4a,.ogg,.flac"
-        className="file-input-hidden"
-        tabIndex={-1}
-        onChange={(e) => {
-          const file = e.target.files?.[0];
-          e.target.value = '';
-          if (file) processSelectedFile(file, 'mp3');
-        }}
-      />
-      <input
-        id={VIDEO_INPUT_ID}
-        type="file"
-        accept="video/mp4,video/avi,video/quicktime,video/x-matroska,video/webm,video/*,.mp4,.avi,.mov,.mkv,.webm"
-        className="file-input-hidden"
-        tabIndex={-1}
-        onChange={(e) => {
-          const file = e.target.files?.[0];
-          e.target.value = '';
-          if (file) processSelectedFile(file, 'video');
-        }}
-      />
+      <input id={TXT_INPUT_ID} type="file" accept=".txt,text/plain" className="file-input-hidden" tabIndex={-1}
+        onChange={(e) => { const file = e.target.files?.[0]; e.target.value = ''; if (file) processSelectedFile(file, 'txt'); }} />
+      <input id={AUDIO_INPUT_ID} type="file" accept="audio/mpeg,audio/wav,audio/aac,audio/mp4,audio/x-m4a,audio/ogg,audio/flac,.mp3,.wav,.aac,.m4a,.ogg,.flac" className="file-input-hidden" tabIndex={-1}
+        onChange={(e) => { const file = e.target.files?.[0]; e.target.value = ''; if (file) processSelectedFile(file, 'mp3'); }} />
+      <input id={VIDEO_INPUT_ID} type="file" accept="video/mp4,video/avi,video/quicktime,video/x-matroska,video/webm,video/*,.mp4,.avi,.mov,.mkv,.webm" className="file-input-hidden" tabIndex={-1}
+        onChange={(e) => { const file = e.target.files?.[0]; e.target.value = ''; if (file) processSelectedFile(file, 'video'); }} />
     </>
   );
 
@@ -845,12 +679,8 @@ export default function Create() {
         {/* Header */}
         <div className="mb-8">
           <div className="neon-badge neon-badge-cyan mb-3 inline-flex">Wizard</div>
-          <h1 className="text-4xl font-bold mb-2" style={{ color: '#f0f0ff', fontFamily: 'Syne, sans-serif' }}>
-            {t.create.title}
-          </h1>
-          <p className="text-sm" style={{ color: 'rgba(160,160,210,0.6)' }}>
-            {totalSteps} שלבים ליצירת סיכום AI מושלם
-          </p>
+          <h1 className="text-4xl font-bold mb-2" style={{ color: '#f0f0ff', fontFamily: 'Syne, sans-serif' }}>{t.create.title}</h1>
+          <p className="text-sm" style={{ color: 'rgba(160,160,210,0.6)' }}>{totalSteps} שלבים ליצירת סיכום AI מושלם</p>
         </div>
 
         {/* Step Indicator */}
@@ -864,11 +694,7 @@ export default function Create() {
               return (
                 <React.Fragment key={i}>
                   <div className="flex flex-col items-center">
-                    <div
-                      className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold text-sm transition-all ${
-                        isActive ? 'wizard-step-active scale-110' : isDone ? 'wizard-step-done' : 'wizard-step-idle'
-                      }`}
-                    >
+                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold text-sm transition-all ${isActive ? 'wizard-step-active scale-110' : isDone ? 'wizard-step-done' : 'wizard-step-idle'}`}>
                       {isDone ? <CheckCircle className="w-4 h-4" /> : <Icon className="w-4 h-4" />}
                     </div>
                     <span className="text-xs mt-1.5 hidden sm:block text-center max-w-[70px]" style={{ color: isActive ? '#00D4FF' : isDone ? 'rgba(0,212,255,0.5)' : 'rgba(150,150,200,0.35)', fontSize: '10px' }}>
@@ -887,12 +713,9 @@ export default function Create() {
         {/* ── Quick Settings Panel (Steps 1 & 3) ── */}
         {(currentStep === 1 || currentStep === 3) && (
           <div className="mb-5">
-            <button
-              type="button"
-              onClick={() => setShowQuickSettings(v => !v)}
+            <button type="button" onClick={() => setShowQuickSettings(v => !v)}
               className="w-full flex items-center justify-between px-5 py-3 rounded-xl transition-all"
-              style={{ background: 'rgba(0,212,255,0.05)', border: '1px solid rgba(0,212,255,0.18)' }}
-            >
+              style={{ background: 'rgba(0,212,255,0.05)', border: '1px solid rgba(0,212,255,0.18)' }}>
               <div className="flex items-center gap-2 flex-wrap">
                 <Gauge className="w-4 h-4" style={{ color: '#00D4FF' }} />
                 <span className="text-sm font-semibold" style={{ color: '#00D4FF' }}>הגדרות מהירות לפני העלאה</span>
@@ -906,7 +729,6 @@ export default function Create() {
 
             {showQuickSettings && (
               <div className="mt-2 p-5 rounded-xl space-y-5" style={{ background: 'linear-gradient(135deg, rgba(0,212,255,0.04), rgba(178,75,243,0.04))', border: '1px solid rgba(0,212,255,0.15)' }}>
-
                 {/* ── Duration ── */}
                 <div>
                   <label className="block text-sm font-semibold mb-3" style={{ color: 'rgba(200,200,240,0.85)' }}>⏱ אורך הסיכום הרצוי</label>
@@ -992,7 +814,7 @@ export default function Create() {
                     })}
                   </div>
 
-                  {/* ── Gap between clips ── */}
+                  {/* Gap */}
                   <div className="p-4 rounded-xl" style={{ background: 'rgba(255,200,0,0.04)', border: '1px solid rgba(255,200,0,0.18)' }}>
                     <div className="flex items-center justify-between mb-3">
                       <div>
@@ -1023,16 +845,15 @@ export default function Create() {
                   </div>
                 </div>
 
-                {/* ── Live Calc Summary ── */}
                 {totalSeconds > 0 && intervalSeconds > 0 && (
                   <div className="p-3 rounded-xl flex flex-wrap gap-x-6 gap-y-2" style={{ background: 'rgba(0,0,0,0.25)', border: '1px solid rgba(255,255,255,0.06)' }}>
                     {[
                       { label: 'אורך סיכום', val: `${String(draft.targetDurationHours).padStart(2,'0')}:${String(draft.targetDurationMinutes).padStart(2,'0')}:${String(draft.targetDurationSeconds).padStart(2,'0')}`, color: '#00D4FF' },
-                      { label: 'קטע',        val: `${intervalSeconds}ש׳`,    color: '#B24BF3' },
-                      { label: 'הפסקה',      val: `${gapSeconds}ש׳`,         color: '#ffcc00' },
-                      { label: '~קטעים',     val: `${estimatedClips}`,        color: '#00ff80' },
-                      { label: 'זמן קטעים',  val: `${totalUsedSeconds}ש׳`,   color: '#00D4FF' },
-                      { label: 'זמן הפסקות', val: `${totalGapSeconds}ש׳`,    color: '#ffcc00' },
+                      { label: 'קטע',        val: `${intervalSeconds}ש׳`,  color: '#B24BF3' },
+                      { label: 'הפסקה',      val: `${gapSeconds}ש׳`,       color: '#ffcc00' },
+                      { label: '~קטעים',     val: `${estimatedClips}`,      color: '#00ff80' },
+                      { label: 'זמן קטעים',  val: `${totalUsedSeconds}ש׳`, color: '#00D4FF' },
+                      { label: 'זמן הפסקות', val: `${totalGapSeconds}ש׳`,  color: '#ffcc00' },
                     ].map((item, i) => (
                       <div key={i} className="text-center">
                         <div className="text-sm font-black tabular-nums" style={{ color: item.color }}>{item.val}</div>
@@ -1049,30 +870,22 @@ export default function Create() {
         {/* Step Content */}
         <div className="ai-card p-7 mb-5">
 
-          {/* ── STEP 1: Script + Audio ── */}
+          {/* ── STEP 1 ── */}
           {currentStep === 1 && (
             <div className="animate-slide-up">
               <h2 className="text-2xl font-bold mb-2" style={{ color: '#f0f0ff', fontFamily: 'Syne, sans-serif' }}>{t.create.step1.title}</h2>
               <p className="text-sm mb-7" style={{ color: 'rgba(160,160,210,0.6)' }}>{t.create.step1.description}</p>
 
-              {/* Input Mode */}
               <div className="mb-6">
                 <label className="block text-sm font-semibold mb-3" style={{ color: 'rgba(200,200,240,0.8)' }}>{t.create.step1.inputMode}</label>
                 <div className="grid grid-cols-3 gap-3">
                   {(['text', 'txt', 'mp3'] as InputMode[]).map((mode) => (
-                    <button
-                      key={mode}
-                      onClick={() => setDraft({ ...draft, inputMode: mode })}
+                    <button key={mode} onClick={() => setDraft({ ...draft, inputMode: mode })}
                       className="p-4 rounded-xl transition-all text-center"
-                      style={{
-                        background: draft.inputMode === mode ? 'rgba(0,212,255,0.1)' : 'rgba(255,255,255,0.03)',
-                        border: `1px solid ${draft.inputMode === mode ? 'rgba(0,212,255,0.4)' : 'rgba(255,255,255,0.08)'}`,
-                        boxShadow: draft.inputMode === mode ? '0 0 15px rgba(0,212,255,0.1)' : 'none',
-                      }}
-                    >
+                      style={{ background: draft.inputMode === mode ? 'rgba(0,212,255,0.1)' : 'rgba(255,255,255,0.03)', border: `1px solid ${draft.inputMode === mode ? 'rgba(0,212,255,0.4)' : 'rgba(255,255,255,0.08)'}`, boxShadow: draft.inputMode === mode ? '0 0 15px rgba(0,212,255,0.1)' : 'none' }}>
                       {mode === 'text' && <FileText className="w-5 h-5 mx-auto mb-2" style={{ color: draft.inputMode === mode ? '#00D4FF' : 'rgba(160,160,210,0.5)' }} />}
-                      {mode === 'txt' && <Upload className="w-5 h-5 mx-auto mb-2" style={{ color: draft.inputMode === mode ? '#00D4FF' : 'rgba(160,160,210,0.5)' }} />}
-                      {mode === 'mp3' && <Music className="w-5 h-5 mx-auto mb-2" style={{ color: draft.inputMode === mode ? '#00D4FF' : 'rgba(160,160,210,0.5)' }} />}
+                      {mode === 'txt'  && <Upload   className="w-5 h-5 mx-auto mb-2" style={{ color: draft.inputMode === mode ? '#00D4FF' : 'rgba(160,160,210,0.5)' }} />}
+                      {mode === 'mp3'  && <Music    className="w-5 h-5 mx-auto mb-2" style={{ color: draft.inputMode === mode ? '#00D4FF' : 'rgba(160,160,210,0.5)' }} />}
                       <span className="text-sm font-medium" style={{ color: draft.inputMode === mode ? '#00D4FF' : 'rgba(160,160,210,0.6)' }}>
                         {mode === 'text' ? t.create.step1.text : mode === 'txt' ? t.create.step1.txtFile : t.create.step1.mp3File}
                       </span>
@@ -1084,53 +897,35 @@ export default function Create() {
               {draft.inputMode === 'text' && (
                 <div>
                   <label className="block text-sm font-semibold mb-2" style={{ color: 'rgba(200,200,240,0.8)' }}>תסריט</label>
-                  <textarea
-                    value={draft.scriptText}
-                    onChange={(e) => setDraft({ ...draft, scriptText: e.target.value })}
-                    placeholder={t.create.step1.scriptPlaceholder}
-                    rows={7}
-                    className="ai-input resize-none"
-                  />
+                  <textarea value={draft.scriptText} onChange={(e) => setDraft({ ...draft, scriptText: e.target.value })}
+                    placeholder={t.create.step1.scriptPlaceholder} rows={7} className="ai-input resize-none" />
                 </div>
               )}
 
               {draft.inputMode === 'txt' && (
                 <div className="space-y-4">
-                  {/* Drop Zone */}
-                  <div
-                    className={`drop-zone p-6 text-center ${dragOverTxt ? 'drag-over-cyan' : ''}`}
-                    style={{
-                      border: `2px dashed ${dragOverTxt ? 'rgba(0,212,255,0.8)' : 'rgba(0,212,255,0.25)'}`,
-                      background: dragOverTxt ? 'rgba(0,212,255,0.07)' : 'rgba(0,212,255,0.03)',
-                    }}
-                    {...makeDragHandlers(setDragOverTxt, ['txt'])}
-                  >
+                  <div className={`drop-zone p-6 text-center ${dragOverTxt ? 'drag-over-cyan' : ''}`}
+                    style={{ border: `2px dashed ${dragOverTxt ? 'rgba(0,212,255,0.8)' : 'rgba(0,212,255,0.25)'}`, background: dragOverTxt ? 'rgba(0,212,255,0.07)' : 'rgba(0,212,255,0.03)' }}
+                    {...makeDragHandlers(setDragOverTxt, ['txt'])}>
                     <div className="flex flex-col items-center gap-3 pointer-events-none">
                       <div className="w-12 h-12 rounded-xl flex items-center justify-center" style={{ background: dragOverTxt ? 'rgba(0,212,255,0.2)' : 'rgba(0,212,255,0.1)' }}>
-                        {dragOverTxt
-                          ? <Upload className="w-6 h-6" style={{ color: '#00D4FF' }} />
-                          : <FileText className="w-6 h-6" style={{ color: '#00D4FF' }} />}
+                        {dragOverTxt ? <Upload className="w-6 h-6" style={{ color: '#00D4FF' }} /> : <FileText className="w-6 h-6" style={{ color: '#00D4FF' }} />}
                       </div>
                       <div>
-                        <p className="text-sm font-semibold" style={{ color: dragOverTxt ? '#00D4FF' : 'rgba(200,200,240,0.7)' }}>
-                          {dragOverTxt ? 'שחרר כאן!' : 'גרור קובץ TXT לכאן'}
-                        </p>
+                        <p className="text-sm font-semibold" style={{ color: dragOverTxt ? '#00D4FF' : 'rgba(200,200,240,0.7)' }}>{dragOverTxt ? 'שחרר כאן!' : 'גרור קובץ TXT לכאן'}</p>
                         <p className="text-xs mt-0.5" style={{ color: 'rgba(140,140,190,0.5)' }}>TXT · עד 10 MB</p>
                       </div>
                     </div>
                   </div>
 
-                  <label
-                    htmlFor={!uploading && !analyzingTxt ? TXT_INPUT_ID : undefined}
+                  <label htmlFor={!uploading && !analyzingTxt ? TXT_INPUT_ID : undefined}
                     className={`btn-neon-cyan w-full flex items-center justify-center gap-2 select-none ${uploading || analyzingTxt ? 'opacity-50 pointer-events-none cursor-not-allowed' : 'cursor-pointer'}`}
-                    style={{ display: 'flex' }}
-                  >
+                    style={{ display: 'flex' }}>
                     {analyzingTxt ? <><Loader2 className="w-4 h-4 animate-spin" />מנתח קובץ...</> :
                      uploading    ? <><Loader2 className="w-4 h-4 animate-spin" />מעלה {uploadProgress}%</> :
                      <><Upload className="w-4 h-4" />{t.create.step1.uploadTxt}</>}
                   </label>
 
-                  {/* Upload progress */}
                   {uploading && uploadFileSize > 0 && (
                     <div className="p-3 rounded-xl" style={{ background: 'rgba(0,212,255,0.05)', border: '1px solid rgba(0,212,255,0.15)' }}>
                       <div className="flex justify-between text-xs mb-2" style={{ color: 'rgba(160,160,210,0.7)' }}>
@@ -1143,41 +938,24 @@ export default function Create() {
                     </div>
                   )}
 
-                  {/* TXT Analysis Results */}
                   {txtInfo && (
                     <div className="p-4 rounded-xl space-y-4" style={{ background: 'rgba(0,212,255,0.05)', border: '1px solid rgba(0,212,255,0.2)' }}>
-                      {/* Header row */}
                       <div className="flex items-center gap-2 flex-wrap">
                         <div className="w-6 h-6 rounded-lg flex items-center justify-center" style={{ background: 'rgba(0,212,255,0.2)' }}>
                           <FileText className="w-3.5 h-3.5" style={{ color: '#00D4FF' }} />
                         </div>
                         <span className="text-sm font-semibold" style={{ color: '#00D4FF' }}>ניתוח קובץ תסריט</span>
-                        {/* Structure badge */}
                         <span className="text-xs px-2 py-0.5 rounded-full font-bold" style={{
-                          background: txtInfo.structure === 'script' ? 'rgba(178,75,243,0.15)' :
-                                      txtInfo.structure === 'list'   ? 'rgba(255,200,0,0.12)'   :
-                                      txtInfo.structure === 'mixed'  ? 'rgba(255,120,0,0.12)'   :
-                                                                       'rgba(0,212,255,0.12)',
-                          color:      txtInfo.structure === 'script' ? '#B24BF3' :
-                                      txtInfo.structure === 'list'   ? '#ffcc00' :
-                                      txtInfo.structure === 'mixed'  ? '#ff8800' : '#00D4FF',
-                          border: `1px solid ${
-                                      txtInfo.structure === 'script' ? 'rgba(178,75,243,0.3)'  :
-                                      txtInfo.structure === 'list'   ? 'rgba(255,200,0,0.25)'  :
-                                      txtInfo.structure === 'mixed'  ? 'rgba(255,120,0,0.25)'  :
-                                                                       'rgba(0,212,255,0.25)'  }`,
+                          background: txtInfo.structure === 'script' ? 'rgba(178,75,243,0.15)' : txtInfo.structure === 'list' ? 'rgba(255,200,0,0.12)' : txtInfo.structure === 'mixed' ? 'rgba(255,120,0,0.12)' : 'rgba(0,212,255,0.12)',
+                          color: txtInfo.structure === 'script' ? '#B24BF3' : txtInfo.structure === 'list' ? '#ffcc00' : txtInfo.structure === 'mixed' ? '#ff8800' : '#00D4FF',
+                          border: `1px solid ${txtInfo.structure === 'script' ? 'rgba(178,75,243,0.3)' : txtInfo.structure === 'list' ? 'rgba(255,200,0,0.25)' : txtInfo.structure === 'mixed' ? 'rgba(255,120,0,0.25)' : 'rgba(0,212,255,0.25)'}`,
                         }}>
-                          {txtInfo.structure === 'script' ? 'תסריט' :
-                           txtInfo.structure === 'list'   ? 'רשימה' :
-                           txtInfo.structure === 'mixed'  ? 'מעורב' : 'פרוזה'}
+                          {txtInfo.structure === 'script' ? 'תסריט' : txtInfo.structure === 'list' ? 'רשימה' : txtInfo.structure === 'mixed' ? 'מעורב' : 'פרוזה'}
                         </span>
-                        {/* Primary language pill */}
                         <span className="text-xs px-2 py-0.5 rounded-full font-semibold" style={{ background: 'rgba(0,212,255,0.1)', border: '1px solid rgba(0,212,255,0.25)', color: '#00D4FF' }}>
                           {txtInfo.primaryFlag} {txtInfo.primaryLanguage}
                         </span>
                       </div>
-
-                      {/* Stats grid */}
                       <div className="grid grid-cols-2 gap-2">
                         {[
                           { label: 'שם קובץ',    val: txtInfo.name.length > 22 ? txtInfo.name.slice(0, 20) + '…' : txtInfo.name },
@@ -1195,119 +973,69 @@ export default function Create() {
                           </div>
                         ))}
                       </div>
-
-                      {/* ── Language Detection Section ── */}
                       <div className="rounded-xl p-3 space-y-2" style={{ background: 'rgba(0,0,0,0.2)', border: '1px solid rgba(0,212,255,0.1)' }}>
-                        {/* Primary language + confidence */}
                         <div className="flex items-center justify-between mb-1">
                           <span className="text-xs font-semibold" style={{ color: '#00D4FF' }}>זיהוי שפות</span>
                           <div className="flex items-center gap-1.5">
-                            <span className="text-xs font-bold" style={{ color: 'rgba(220,220,250,0.9)' }}>
-                              {txtInfo.primaryFlag} {txtInfo.primaryLanguage} ({txtInfo.confidencePct}%)
-                            </span>
-                            <span className="text-xs px-1.5 py-0.5 rounded" style={{
-                              background: txtInfo.confidence === 'high'   ? 'rgba(0,255,128,0.12)' :
-                                          txtInfo.confidence === 'medium' ? 'rgba(255,200,0,0.1)'  :
-                                                                            'rgba(255,100,100,0.1)',
-                              color:      txtInfo.confidence === 'high'   ? '#00ff80' :
-                                          txtInfo.confidence === 'medium' ? '#ffcc00' : '#ff8888',
-                            }}>
+                            <span className="text-xs font-bold" style={{ color: 'rgba(220,220,250,0.9)' }}>{txtInfo.primaryFlag} {txtInfo.primaryLanguage} ({txtInfo.confidencePct}%)</span>
+                            <span className="text-xs px-1.5 py-0.5 rounded" style={{ background: txtInfo.confidence === 'high' ? 'rgba(0,255,128,0.12)' : txtInfo.confidence === 'medium' ? 'rgba(255,200,0,0.1)' : 'rgba(255,100,100,0.1)', color: txtInfo.confidence === 'high' ? '#00ff80' : txtInfo.confidence === 'medium' ? '#ffcc00' : '#ff8888' }}>
                               {txtInfo.confidence === 'high' ? 'בטוח' : txtInfo.confidence === 'medium' ? 'סביר' : 'לא ברור'}
                             </span>
                           </div>
                         </div>
-
-                        {/* Language breakdown bars */}
                         <div className="space-y-1.5">
                           {txtInfo.langBreakdown.map((lang, i) => (
                             <div key={lang.code}>
                               <div className="flex items-center justify-between text-xs mb-0.5">
-                                <span style={{ color: i === 0 ? 'rgba(220,220,250,0.9)' : 'rgba(160,160,200,0.6)' }}>
-                                  {lang.flag} {lang.name}
-                                </span>
-                                <span className="font-semibold tabular-nums" style={{ color: i === 0 ? '#00D4FF' : 'rgba(140,140,190,0.7)' }}>
-                                  {lang.percent}%
-                                </span>
+                                <span style={{ color: i === 0 ? 'rgba(220,220,250,0.9)' : 'rgba(160,160,200,0.6)' }}>{lang.flag} {lang.name}</span>
+                                <span className="font-semibold tabular-nums" style={{ color: i === 0 ? '#00D4FF' : 'rgba(140,140,190,0.7)' }}>{lang.percent}%</span>
                               </div>
                               <div className="h-1 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.06)' }}>
-                                <div
-                                  className="h-full rounded-full transition-all"
-                                  style={{
-                                    width: `${lang.percent}%`,
-                                    background: i === 0
-                                      ? 'linear-gradient(90deg, #00D4FF, #B24BF3)'
-                                      : 'rgba(255,255,255,0.2)',
-                                  }}
-                                />
+                                <div className="h-full rounded-full transition-all" style={{ width: `${lang.percent}%`, background: i === 0 ? 'linear-gradient(90deg, #00D4FF, #B24BF3)' : 'rgba(255,255,255,0.2)' }} />
                               </div>
                             </div>
                           ))}
                         </div>
                       </div>
-
-                      {/* Narration time bar */}
                       <div>
                         <div className="flex justify-between text-xs mb-1" style={{ color: 'rgba(140,140,190,0.5)' }}>
                           <span>זמן קריינות משוער (130 מ/ד)</span>
-                          <span style={{ color: '#00D4FF', fontWeight: 700 }}>
-                            {txtInfo.narrationMinutes}:{String(txtInfo.narrationSeconds).padStart(2,'0')}
-                          </span>
+                          <span style={{ color: '#00D4FF', fontWeight: 700 }}>{txtInfo.narrationMinutes}:{String(txtInfo.narrationSeconds).padStart(2,'0')}</span>
                         </div>
                         <div className="h-1 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.08)' }}>
-                          <div className="h-full rounded-full" style={{
-                            width: `${Math.min(100, (txtInfo.narrationMinutes / 120) * 100)}%`,
-                            background: 'linear-gradient(90deg, #00D4FF, #B24BF3)',
-                          }} />
+                          <div className="h-full rounded-full" style={{ width: `${Math.min(100, (txtInfo.narrationMinutes / 120) * 100)}%`, background: 'linear-gradient(90deg, #00D4FF, #B24BF3)' }} />
                         </div>
                       </div>
                     </div>
                   )}
-
-                  {draft.txtAssetId && !uploading && (
-                    <p className="text-sm flex items-center gap-2" style={{ color: '#00ff80' }}>
-                      <CheckCircle className="w-4 h-4" /> קובץ הועלה בהצלחה
-                    </p>
-                  )}
+                  {draft.txtAssetId && !uploading && <p className="text-sm flex items-center gap-2" style={{ color: '#00ff80' }}><CheckCircle className="w-4 h-4" /> קובץ הועלה בהצלחה</p>}
                 </div>
               )}
 
               {draft.inputMode === 'mp3' && (
                 <div className="space-y-4">
-                  {/* Drop Zone */}
-                  <div
-                    className={`drop-zone p-6 text-center ${dragOverAudio ? 'drag-over-purple' : ''}`}
-                    style={{
-                      border: `2px dashed ${dragOverAudio ? 'rgba(178,75,243,0.8)' : 'rgba(178,75,243,0.25)'}`,
-                      background: dragOverAudio ? 'rgba(178,75,243,0.07)' : 'rgba(178,75,243,0.03)',
-                    }}
-                    {...makeDragHandlers(setDragOverAudio, ['mp3'])}
-                  >
+                  <div className={`drop-zone p-6 text-center ${dragOverAudio ? 'drag-over-purple' : ''}`}
+                    style={{ border: `2px dashed ${dragOverAudio ? 'rgba(178,75,243,0.8)' : 'rgba(178,75,243,0.25)'}`, background: dragOverAudio ? 'rgba(178,75,243,0.07)' : 'rgba(178,75,243,0.03)' }}
+                    {...makeDragHandlers(setDragOverAudio, ['mp3'])}>
                     <div className="flex flex-col items-center gap-3 pointer-events-none">
                       <div className="w-12 h-12 rounded-xl flex items-center justify-center" style={{ background: dragOverAudio ? 'rgba(178,75,243,0.25)' : 'rgba(178,75,243,0.12)' }}>
-                        {dragOverAudio
-                          ? <Upload className="w-6 h-6" style={{ color: '#B24BF3' }} />
-                          : <Music  className="w-6 h-6" style={{ color: '#B24BF3' }} />}
+                        {dragOverAudio ? <Upload className="w-6 h-6" style={{ color: '#B24BF3' }} /> : <Music className="w-6 h-6" style={{ color: '#B24BF3' }} />}
                       </div>
                       <div>
-                        <p className="text-sm font-semibold" style={{ color: dragOverAudio ? '#B24BF3' : 'rgba(200,200,240,0.7)' }}>
-                          {dragOverAudio ? 'שחרר כאן!' : 'גרור קובץ שמע לכאן'}
-                        </p>
+                        <p className="text-sm font-semibold" style={{ color: dragOverAudio ? '#B24BF3' : 'rgba(200,200,240,0.7)' }}>{dragOverAudio ? 'שחרר כאן!' : 'גרור קובץ שמע לכאן'}</p>
                         <p className="text-xs mt-0.5" style={{ color: 'rgba(140,140,190,0.5)' }}>MP3 · WAV · AAC · M4A · עד 200 MB</p>
                       </div>
                     </div>
                   </div>
 
-                  <label
-                    htmlFor={!uploading && !analyzingAudio ? AUDIO_INPUT_ID : undefined}
+                  <label htmlFor={!uploading && !analyzingAudio ? AUDIO_INPUT_ID : undefined}
                     className={`btn-neon-purple w-full flex items-center justify-center gap-2 select-none ${uploading || analyzingAudio ? 'opacity-50 pointer-events-none cursor-not-allowed' : 'cursor-pointer'}`}
-                    style={{ display: 'flex' }}
-                  >
+                    style={{ display: 'flex' }}>
                     {analyzingAudio ? <><Loader2 className="w-4 h-4 animate-spin" />מנתח קובץ...</> :
                      uploading ? <><Loader2 className="w-4 h-4 animate-spin" />מעלה {uploadProgress}%</> :
                      <><Music className="w-4 h-4" />{t.create.step1.uploadMp3}</>}
                   </label>
 
-                  {/* Upload progress bar */}
                   {uploading && uploadFileSize > 0 && (
                     <div className="p-3 rounded-xl" style={{ background: 'rgba(178,75,243,0.05)', border: '1px solid rgba(178,75,243,0.15)' }}>
                       <div className="flex justify-between text-xs mb-2" style={{ color: 'rgba(160,160,210,0.7)' }}>
@@ -1320,7 +1048,6 @@ export default function Create() {
                     </div>
                   )}
 
-                  {/* Audio Analysis Results */}
                   {audioInfo && (
                     <div className="p-4 rounded-xl space-y-3" style={{ background: 'rgba(178,75,243,0.06)', border: '1px solid rgba(178,75,243,0.2)' }}>
                       <div className="flex items-center gap-2 mb-1">
@@ -1330,17 +1057,15 @@ export default function Create() {
                         <span className="text-sm font-semibold" style={{ color: '#B24BF3' }}>ניתוח קובץ אודיו</span>
                         <span className="text-xs px-2 py-0.5 rounded-full font-bold" style={{ background: 'rgba(178,75,243,0.15)', color: '#B24BF3' }}>{audioInfo.format}</span>
                       </div>
-
                       <div className="grid grid-cols-2 gap-2">
                         {[
                           { label: 'שם קובץ', val: audioInfo.name.length > 22 ? audioInfo.name.slice(0,20) + '…' : audioInfo.name },
-                          { label: 'גודל', val: formatBytes(audioInfo.size) },
-                          { label: 'אורך', val: audioInfo.duration ? formatDuration(audioInfo.duration) : '—' },
+                          { label: 'גודל',    val: formatBytes(audioInfo.size) },
+                          { label: 'אורך',    val: audioInfo.duration ? formatDuration(audioInfo.duration) : '—' },
                           { label: 'ביטרייט', val: audioInfo.bitrate ? `${audioInfo.bitrate} kbps` : '—' },
-                          ...(audioInfo.sampleRate ? [{ label: 'דגימה', val: `${(audioInfo.sampleRate/1000).toFixed(1)} kHz` }] : []),
-                          ...(audioInfo.channels ? [{ label: 'ערוצים', val: audioInfo.channels === 1 ? 'מונו' : audioInfo.channels === 2 ? 'סטריאו' : `${audioInfo.channels}ch` }] : []),
-                          ...(audioInfo.wpm ? [{ label: 'קצב קריינות', val: `~${audioInfo.wpm} מ/ד` }] : []),
-                          ...(audioInfo.duration ? [{ label: 'זמן קריינות', val: formatDuration(audioInfo.duration) }] : []),
+                          ...(audioInfo.sampleRate ? [{ label: 'דגימה',  val: `${(audioInfo.sampleRate/1000).toFixed(1)} kHz` }] : []),
+                          ...(audioInfo.channels   ? [{ label: 'ערוצים', val: audioInfo.channels === 1 ? 'מונו' : audioInfo.channels === 2 ? 'סטריאו' : `${audioInfo.channels}ch` }] : []),
+                          ...(audioInfo.wpm        ? [{ label: 'קצב קריינות', val: `~${audioInfo.wpm} מ/ד` }] : []),
                         ].map((item, i) => (
                           <div key={i} className="flex justify-between items-center text-xs">
                             <span style={{ color: 'rgba(140,140,190,0.55)' }}>{item.label}:</span>
@@ -1348,8 +1073,6 @@ export default function Create() {
                           </div>
                         ))}
                       </div>
-
-                      {/* Quality indicator */}
                       {audioInfo.bitrate && (
                         <div className="pt-1">
                           <div className="flex justify-between text-xs mb-1" style={{ color: 'rgba(140,140,190,0.5)' }}>
@@ -1359,156 +1082,85 @@ export default function Create() {
                             </span>
                           </div>
                           <div className="h-1 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.08)' }}>
-                            <div className="h-full rounded-full" style={{
-                              width: `${Math.min(100, (audioInfo.bitrate / 320) * 100)}%`,
-                              background: audioInfo.bitrate >= 192 ? 'linear-gradient(90deg,#00ff80,#00D4FF)' : audioInfo.bitrate >= 128 ? 'linear-gradient(90deg,#ffcc00,#ff8800)' : '#ff4444'
-                            }} />
+                            <div className="h-full rounded-full" style={{ width: `${Math.min(100, (audioInfo.bitrate / 320) * 100)}%`, background: audioInfo.bitrate >= 192 ? 'linear-gradient(90deg,#00ff80,#00D4FF)' : audioInfo.bitrate >= 128 ? 'linear-gradient(90deg,#ffcc00,#ff8800)' : '#ff4444' }} />
                           </div>
                         </div>
                       )}
                     </div>
                   )}
 
-                  {/* ── Mini Audio Player ── */}
+                  {/* Mini Audio Player */}
                   {audioInfo && !analyzingAudio && (
                     <div className="rounded-2xl overflow-hidden" style={{ background: 'rgba(178,75,243,0.07)', border: '1px solid rgba(178,75,243,0.25)' }}>
-                      {/* Waveform canvas */}
                       <div className="relative" style={{ height: 72, cursor: 'pointer' }} onClick={handleWaveformClick}>
-                        <canvas
-                          ref={waveformCanvasRef}
-                          width={400}
-                          height={72}
-                          style={{ width: '100%', height: '100%', display: 'block' }}
-                        />
+                        <canvas ref={waveformCanvasRef} width={400} height={72} style={{ width: '100%', height: '100%', display: 'block' }} />
                         {!audioInfo.waveformData && (
                           <div className="absolute inset-0 flex items-center justify-center">
                             <div className="flex gap-0.5 items-center">
                               {Array.from({ length: 28 }).map((_, i) => (
-                                <div
-                                  key={i}
-                                  className={`rounded-full ${isPlaying ? 'animate-pulse' : ''}`}
-                                  style={{
-                                    width: 3,
-                                    height: `${10 + Math.sin(i * 0.7) * 14 + Math.random() * 10}px`,
-                                    background: i / 28 <= (audioDuration > 0 ? audioCurrentTime / audioDuration : 0)
-                                      ? 'linear-gradient(180deg,#00D4FF,#B24BF3)'
-                                      : 'rgba(178,75,243,0.3)',
-                                    transition: 'height 0.2s',
-                                  }}
-                                />
+                                <div key={i} className={`rounded-full ${isPlaying ? 'animate-pulse' : ''}`}
+                                  style={{ width: 3, height: `${10 + Math.sin(i * 0.7) * 14 + Math.random() * 10}px`, background: i / 28 <= (audioDuration > 0 ? audioCurrentTime / audioDuration : 0) ? 'linear-gradient(180deg,#00D4FF,#B24BF3)' : 'rgba(178,75,243,0.3)', transition: 'height 0.2s' }} />
                               ))}
                             </div>
                           </div>
                         )}
-                        {/* Playhead line */}
                         {audioDuration > 0 && (
-                          <div
-                            className="absolute top-0 bottom-0 w-0.5 rounded-full pointer-events-none"
-                            style={{
-                              left: `${(audioCurrentTime / audioDuration) * 100}%`,
-                              background: '#fff',
-                              opacity: 0.7,
-                              boxShadow: '0 0 6px #00D4FF',
-                              transition: 'left 0.1s linear',
-                            }}
-                          />
+                          <div className="absolute top-0 bottom-0 w-0.5 rounded-full pointer-events-none"
+                            style={{ left: `${(audioCurrentTime / audioDuration) * 100}%`, background: '#fff', opacity: 0.7, boxShadow: '0 0 6px #00D4FF', transition: 'left 0.1s linear' }} />
                         )}
                       </div>
-
-                      {/* Controls row */}
                       <div className="flex items-center gap-3 px-4 py-3">
-                        {/* Play/Pause */}
-                        <button
-                          type="button"
-                          onClick={handlePlayPause}
+                        <button type="button" onClick={handlePlayPause}
                           className="w-9 h-9 rounded-full flex-shrink-0 flex items-center justify-center transition-all hover:scale-110"
-                          style={{ background: 'linear-gradient(135deg,#B24BF3,#00D4FF)', boxShadow: isPlaying ? '0 0 14px rgba(178,75,243,0.5)' : 'none' }}
-                        >
-                          {isPlaying
-                            ? <Pause  className="w-4 h-4 text-white" />
-                            : <Play   className="w-4 h-4 text-white" style={{ marginLeft: 2 }} />}
+                          style={{ background: 'linear-gradient(135deg,#B24BF3,#00D4FF)', boxShadow: isPlaying ? '0 0 14px rgba(178,75,243,0.5)' : 'none' }}>
+                          {isPlaying ? <Pause className="w-4 h-4 text-white" /> : <Play className="w-4 h-4 text-white" style={{ marginLeft: 2 }} />}
                         </button>
-
-                        {/* Progress bar (seekable) */}
                         <div className="flex-1 flex flex-col gap-1">
-                          <input
-                            type="range"
-                            min={0}
-                            max={audioDuration || 0}
-                            step={0.1}
-                            value={audioCurrentTime}
+                          <input type="range" min={0} max={audioDuration || 0} step={0.1} value={audioCurrentTime}
                             onChange={(e) => {
-                              const t = parseFloat(e.target.value);
-                              if (audioElemRef.current) audioElemRef.current.currentTime = t;
-                              setAudioCurrentTime(t);
+                              const tt = parseFloat(e.target.value);
+                              if (audioElemRef.current) audioElemRef.current.currentTime = tt;
+                              setAudioCurrentTime(tt);
                               const canvas = waveformCanvasRef.current;
-                              if (canvas && audioInfo.waveformData && audioDuration > 0)
-                                drawWaveform(canvas, audioInfo.waveformData, t / audioDuration);
+                              if (canvas && audioInfo.waveformData && audioDuration > 0) drawWaveform(canvas, audioInfo.waveformData, tt / audioDuration);
                             }}
-                            style={{
-                              width: '100%',
-                              accentColor: '#B24BF3',
-                              height: 4,
-                              cursor: 'pointer',
-                            }}
-                          />
+                            style={{ width: '100%', accentColor: '#B24BF3', height: 4, cursor: 'pointer' }} />
                           <div className="flex justify-between text-xs tabular-nums" style={{ color: 'rgba(160,160,210,0.55)', fontSize: 10 }}>
                             <span>{formatDuration(audioCurrentTime)}</span>
                             <span>{audioDuration > 0 ? formatDuration(audioDuration) : '—'}</span>
                           </div>
                         </div>
-
-                        {/* Volume icon */}
                         <Volume2 className="w-4 h-4 flex-shrink-0" style={{ color: 'rgba(178,75,243,0.6)' }} />
                       </div>
-
-                      {/* File name */}
                       <div className="px-4 pb-3 flex items-center gap-2">
                         <Music className="w-3 h-3" style={{ color: '#B24BF3' }} />
                         <span className="text-xs truncate" style={{ color: 'rgba(160,160,210,0.6)', maxWidth: '80%' }}>{audioInfo.name}</span>
-                        {draft.mp3AssetId && !uploading && (
-                          <CheckCircle className="w-3.5 h-3.5 mr-auto flex-shrink-0" style={{ color: '#00ff80' }} />
-                        )}
+                        {draft.mp3AssetId && !uploading && <CheckCircle className="w-3.5 h-3.5 mr-auto flex-shrink-0" style={{ color: '#00ff80' }} />}
                       </div>
                     </div>
                   )}
-
-                  {draft.mp3AssetId && !uploading && !audioInfo && (
-                    <p className="text-sm flex items-center gap-2" style={{ color: '#00ff80' }}>
-                      <CheckCircle className="w-4 h-4" /> קובץ הועלה בהצלחה
-                    </p>
-                  )}
+                  {draft.mp3AssetId && !uploading && !audioInfo && <p className="text-sm flex items-center gap-2" style={{ color: '#00ff80' }}><CheckCircle className="w-4 h-4" /> קובץ הועלה בהצלחה</p>}
                 </div>
               )}
             </div>
           )}
 
-          {/* ── STEP 2: AI Analysis (auto-advance) ── */}
+          {/* ── STEP 2 ── */}
           {currentStep === 2 && (
             <div className="animate-slide-up text-center py-4">
               <h2 className="text-2xl font-bold mb-2" style={{ color: '#f0f0ff', fontFamily: 'Syne, sans-serif' }}>ניתוח AI</h2>
               <p className="text-sm mb-10" style={{ color: 'rgba(160,160,210,0.6)' }}>מנתח ומעבד את התוכן שהעלית...</p>
-
               <div className="w-20 h-20 rounded-2xl flex items-center justify-center mx-auto mb-8" style={{ background: 'linear-gradient(135deg, rgba(0,212,255,0.15), rgba(178,75,243,0.15))', border: '1px solid rgba(0,212,255,0.3)', boxShadow: '0 0 30px rgba(0,212,255,0.1)' }}>
                 <Brain className="w-9 h-9 animate-pulse" style={{ color: '#00D4FF' }} />
               </div>
-
               <div className="max-w-sm mx-auto mb-5">
                 <div className="flex justify-between text-xs mb-2" style={{ color: 'rgba(160,160,210,0.6)' }}>
-                  <span>עיבוד AI</span>
-                  <span style={{ color: '#00D4FF', fontWeight: 700 }}>{Math.round(autoProgress)}%</span>
+                  <span>עיבוד AI</span><span style={{ color: '#00D4FF', fontWeight: 700 }}>{Math.round(autoProgress)}%</span>
                 </div>
-                <div className="progress-neon">
-                  <div className="progress-neon-fill" style={{ width: `${autoProgress}%` }} />
-                </div>
+                <div className="progress-neon"><div className="progress-neon-fill" style={{ width: `${autoProgress}%` }} /></div>
               </div>
-
               <div className="space-y-2 max-w-xs mx-auto">
-                {[
-                  { label: 'מחלץ מאפיינים', threshold: 30 },
-                  { label: 'מנתח שפה ומבנה', threshold: 60 },
-                  { label: 'יוצר פרופיל תוכן', threshold: 90 },
-                ].map((item, i) => (
+                {[{ label: 'מחלץ מאפיינים', threshold: 30 }, { label: 'מנתח שפה ומבנה', threshold: 60 }, { label: 'יוצר פרופיל תוכן', threshold: 90 }].map((item, i) => (
                   <div key={i} className="flex items-center gap-3 text-sm" style={{ color: autoProgress >= item.threshold ? '#00ff80' : 'rgba(150,150,200,0.4)' }}>
                     <CheckCircle className={`w-4 h-4 flex-shrink-0 ${autoProgress >= item.threshold ? 'text-[#00ff80]' : 'text-[rgba(150,150,200,0.3)]'}`} />
                     {item.label}
@@ -1518,50 +1170,36 @@ export default function Create() {
             </div>
           )}
 
-          {/* ── STEP 3: Upload Video ── */}
+          {/* ── STEP 3 ── */}
           {currentStep === 3 && (
             <div className="animate-slide-up">
               <h2 className="text-2xl font-bold mb-2" style={{ color: '#f0f0ff', fontFamily: 'Syne, sans-serif' }}>{t.create.step3.title}</h2>
               <p className="text-sm mb-7" style={{ color: 'rgba(160,160,210,0.6)' }}>{t.create.step3.description}</p>
-
               <div className="space-y-5">
                 <div>
                   <label className="block text-sm font-semibold mb-2" style={{ color: 'rgba(200,200,240,0.8)' }}>{t.create.step3.uploadVideo}</label>
                   <p className="text-xs mb-3" style={{ color: 'rgba(120,120,170,0.6)' }}>MP4, AVI, MOV, MKV, WebM — עד 2.2 GB</p>
-                  {/* Drop Zone for Video */}
-                  <div
-                    className={`drop-zone p-8 text-center mb-2 ${dragOverVideo ? 'drag-over-cyan' : ''}`}
-                    style={{
-                      border: `2px dashed ${dragOverVideo ? 'rgba(0,212,255,0.8)' : 'rgba(0,212,255,0.2)'}`,
-                      background: dragOverVideo ? 'rgba(0,212,255,0.07)' : 'rgba(0,212,255,0.02)',
-                    }}
-                    {...makeDragHandlers(setDragOverVideo, ['video'])}
-                  >
+                  <div className={`drop-zone p-8 text-center mb-2 ${dragOverVideo ? 'drag-over-cyan' : ''}`}
+                    style={{ border: `2px dashed ${dragOverVideo ? 'rgba(0,212,255,0.8)' : 'rgba(0,212,255,0.2)'}`, background: dragOverVideo ? 'rgba(0,212,255,0.07)' : 'rgba(0,212,255,0.02)' }}
+                    {...makeDragHandlers(setDragOverVideo, ['video'])}>
                     <div className="flex flex-col items-center gap-3 pointer-events-none">
                       <div className="w-14 h-14 rounded-2xl flex items-center justify-center" style={{ background: dragOverVideo ? 'rgba(0,212,255,0.2)' : 'rgba(0,212,255,0.08)' }}>
-                        {dragOverVideo
-                          ? <Upload className="w-7 h-7" style={{ color: '#00D4FF' }} />
-                          : <Video  className="w-7 h-7" style={{ color: '#00D4FF' }} />}
+                        {dragOverVideo ? <Upload className="w-7 h-7" style={{ color: '#00D4FF' }} /> : <Video className="w-7 h-7" style={{ color: '#00D4FF' }} />}
                       </div>
                       <div>
-                        <p className="text-base font-bold" style={{ color: dragOverVideo ? '#00D4FF' : 'rgba(200,200,240,0.75)' }}>
-                          {dragOverVideo ? 'שחרר כאן!' : 'גרור קובץ וידאו לכאן'}
-                        </p>
+                        <p className="text-base font-bold" style={{ color: dragOverVideo ? '#00D4FF' : 'rgba(200,200,240,0.75)' }}>{dragOverVideo ? 'שחרר כאן!' : 'גרור קובץ וידאו לכאן'}</p>
                         <p className="text-xs mt-1" style={{ color: 'rgba(140,140,190,0.5)' }}>MP4 · AVI · MOV · MKV · WebM · עד 2.2 GB</p>
                       </div>
                     </div>
                   </div>
 
-                  <label
-                    htmlFor={!uploading ? VIDEO_INPUT_ID : undefined}
+                  <label htmlFor={!uploading ? VIDEO_INPUT_ID : undefined}
                     className={`btn-neon-cyan w-full py-4 flex items-center justify-center gap-2 select-none ${uploading ? 'opacity-50 pointer-events-none cursor-not-allowed' : 'cursor-pointer'}`}
-                    style={{ display: 'flex' }}
-                  >
+                    style={{ display: 'flex' }}>
                     {uploading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Upload className="w-5 h-5" />}
                     {uploading ? `מעלה... ${uploadProgress}%` : t.create.step3.uploadVideo}
                   </label>
 
-                  {/* Upload Progress */}
                   {uploading && uploadFileSize > 0 && (
                     <div className="mt-4 p-4 rounded-xl" style={{ background: 'rgba(0,212,255,0.05)', border: '1px solid rgba(0,212,255,0.15)' }}>
                       <div className="flex justify-between text-xs mb-2" style={{ color: 'rgba(160,160,210,0.7)' }}>
@@ -1576,7 +1214,6 @@ export default function Create() {
                       </div>
                     </div>
                   )}
-
                   {draft.videoAssetId && !uploading && (
                     <p className="text-sm mt-3 flex items-center gap-2" style={{ color: '#00ff80' }}><CheckCircle className="w-4 h-4" /> {t.create.step3.uploadComplete}</p>
                   )}
@@ -1591,63 +1228,39 @@ export default function Create() {
 
                 <div>
                   <label className="block text-sm font-semibold mb-2" style={{ color: 'rgba(200,200,240,0.8)' }}>{t.create.step3.youtubeUrl}</label>
-                  <input
-                    type="url"
-                    value={draft.youtubeUrl}
-                    onChange={(e) => setDraft({ ...draft, youtubeUrl: e.target.value })}
-                    placeholder={t.create.step3.urlPlaceholder}
-                    className="ai-input"
-                  />
+                  <input type="url" value={draft.youtubeUrl} onChange={(e) => setDraft({ ...draft, youtubeUrl: e.target.value })}
+                    placeholder={t.create.step3.urlPlaceholder} className="ai-input" />
                 </div>
               </div>
             </div>
           )}
 
-          {/* ── STEP 4: AI Settings ── */}
+          {/* ── STEP 4 ── */}
           {currentStep === 4 && (
             <div className="animate-slide-up">
               <h2 className="text-2xl font-bold mb-2" style={{ color: '#f0f0ff', fontFamily: 'Syne, sans-serif' }}>הגדרות AI</h2>
               <p className="text-sm mb-7" style={{ color: 'rgba(160,160,210,0.6)' }}>הגדר את הסיכום האידאלי שלך</p>
-
               <div className="space-y-5">
                 <div>
                   <label className="block text-sm font-semibold mb-2" style={{ color: 'rgba(200,200,240,0.8)' }}>
                     {t.create.step3?.movieTitle || 'כותרת'} <span style={{ color: '#ff4444' }}>*</span>
                   </label>
-                  <input
-                    type="text"
-                    value={draft.movieTitle}
-                    onChange={(e) => setDraft({ ...draft, movieTitle: e.target.value })}
-                    placeholder={t.create.step3?.movieTitlePlaceholder || 'שם הסרט/סדרה...'}
-                    className="ai-input"
-                  />
+                  <input type="text" value={draft.movieTitle} onChange={(e) => setDraft({ ...draft, movieTitle: e.target.value })}
+                    placeholder={t.create.step3?.movieTitlePlaceholder || 'שם הסרט/סדרה...'} className="ai-input" />
                 </div>
-
                 <div>
                   <label className="block text-sm font-semibold mb-2" style={{ color: 'rgba(200,200,240,0.8)' }}>ז'אנר</label>
-                  <select
-                    value={draft.genre}
-                    onChange={(e) => setDraft({ ...draft, genre: e.target.value })}
-                    className="ai-input"
-                  >
+                  <select value={draft.genre} onChange={(e) => setDraft({ ...draft, genre: e.target.value })} className="ai-input">
                     {Object.entries(GENRES_HE).map(([key, label]) => (
                       <option key={key} value={key} style={{ background: '#0f0f1e' }}>{label}</option>
                     ))}
                   </select>
                 </div>
-
                 <div>
                   <label className="block text-sm font-semibold mb-2" style={{ color: 'rgba(200,200,240,0.8)' }}>תיאור</label>
-                  <textarea
-                    value={draft.description}
-                    onChange={(e) => setDraft({ ...draft, description: e.target.value })}
-                    placeholder="תיאור קצר של הסרט/סדרה (יעזור ל-AI לייצר סיכום מדויק יותר)..."
-                    rows={3}
-                    className="ai-input resize-none"
-                  />
+                  <textarea value={draft.description} onChange={(e) => setDraft({ ...draft, description: e.target.value })}
+                    placeholder="תיאור קצר של הסרט/סדרה..." rows={3} className="ai-input resize-none" />
                 </div>
-
-                {/* Duration */}
                 <div>
                   <label className="block text-sm font-semibold mb-3" style={{ color: 'rgba(200,200,240,0.8)' }}>אורך סיכום יעד</label>
                   <div className="grid grid-cols-3 gap-3">
@@ -1658,19 +1271,13 @@ export default function Create() {
                     ].map(f => (
                       <div key={f.key}>
                         <label className="block text-xs mb-1" style={{ color: 'rgba(150,150,200,0.55)' }}>{f.label}</label>
-                        <input
-                          type="number" min={0} max={f.max}
-                          value={f.val}
+                        <input type="number" min={0} max={f.max} value={f.val}
                           onChange={(e) => setDraft({ ...draft, [f.key]: parseInt(e.target.value) || 0 })}
-                          className="ai-input text-center text-lg font-bold"
-                          style={{ color: '#00D4FF' }}
-                        />
+                          className="ai-input text-center text-lg font-bold" style={{ color: '#00D4FF' }} />
                       </div>
                     ))}
                   </div>
                 </div>
-
-                {/* Cut Interval */}
                 <div>
                   <label className="block text-sm font-semibold mb-3" style={{ color: 'rgba(200,200,240,0.8)' }}>מרווח חיתוך</label>
                   <div className="grid grid-cols-2 gap-3">
@@ -1680,22 +1287,14 @@ export default function Create() {
                     ].map(f => (
                       <div key={f.key}>
                         <label className="block text-xs mb-1" style={{ color: 'rgba(150,150,200,0.55)' }}>{f.label}</label>
-                        <input
-                          type="number" min={0} max={f.max ?? 99}
-                          value={f.val}
+                        <input type="number" min={0} max={f.max ?? 99} value={f.val}
                           onChange={(e) => setDraft({ ...draft, [f.key]: parseInt(e.target.value) || 0 })}
-                          className="ai-input text-center text-lg font-bold"
-                          style={{ color: '#B24BF3' }}
-                        />
+                          className="ai-input text-center text-lg font-bold" style={{ color: '#B24BF3' }} />
                       </div>
                     ))}
                   </div>
-                  <p className="text-xs mt-2" style={{ color: 'rgba(140,140,190,0.5)' }}>
-                    ~{estimatedClips} קליפים יוצרו
-                  </p>
+                  <p className="text-xs mt-2" style={{ color: 'rgba(140,140,190,0.5)' }}>~{estimatedClips} קליפים יוצרו</p>
                 </div>
-
-                {/* Toggle settings */}
                 <div className="space-y-3 pt-2">
                   {[
                     { key: 'webSearchEnabled' as const, icon: Globe, label: 'חיפוש באינטרנט', desc: 'שיפור הסיכום עם מידע נוסף' },
@@ -1713,12 +1312,9 @@ export default function Create() {
                             <div className="text-xs" style={{ color: 'rgba(130,130,180,0.5)' }}>{item.desc}</div>
                           </div>
                         </div>
-                        <button
-                          type="button"
-                          onClick={() => setDraft(prev => ({ ...prev, [item.key]: !prev[item.key] }))}
+                        <button type="button" onClick={() => setDraft(prev => ({ ...prev, [item.key]: !prev[item.key] }))}
                           className="relative flex-shrink-0 w-12 h-6 rounded-full transition-all"
-                          style={{ background: draft[item.key] ? 'linear-gradient(135deg, #00D4FF, #B24BF3)' : 'rgba(255,255,255,0.1)' }}
-                        >
+                          style={{ background: draft[item.key] ? 'linear-gradient(135deg, #00D4FF, #B24BF3)' : 'rgba(255,255,255,0.1)' }}>
                           <div className="absolute top-0.5 h-5 w-5 rounded-full bg-white transition-all shadow-sm" style={{ left: draft[item.key] ? '26px' : '2px' }} />
                         </button>
                       </div>
@@ -1729,72 +1325,48 @@ export default function Create() {
             </div>
           )}
 
-          {/* ── STEP 5: Process + Download ── */}
+          {/* ── STEP 5 ── */}
           {currentStep === 5 && (
             <div className="animate-slide-up">
               <h2 className="text-2xl font-bold mb-2" style={{ color: '#f0f0ff', fontFamily: 'Syne, sans-serif' }}>{t.create.step6.title}</h2>
               <p className="text-sm mb-7" style={{ color: 'rgba(160,160,210,0.6)' }}>{t.create.step6.description}</p>
 
-              {/* ── FFmpeg Engine Status Banner ── */}
               {!isRendering && !renderComplete && (
                 <div className="p-4 rounded-xl mb-5 flex items-center justify-between" style={{
-                  background: ffmpegLoaded
-                    ? 'linear-gradient(135deg, rgba(0,212,255,0.08), rgba(178,75,243,0.06))'
-                    : 'rgba(255,200,0,0.05)',
+                  background: ffmpegLoaded ? 'linear-gradient(135deg, rgba(0,212,255,0.08), rgba(178,75,243,0.06))' : 'rgba(255,200,0,0.05)',
                   border: `1px solid ${ffmpegLoaded ? 'rgba(0,212,255,0.25)' : 'rgba(255,200,0,0.2)'}`,
                 }}>
                   <div className="flex items-center gap-3">
-                    <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{
-                      background: ffmpegLoaded ? 'rgba(0,212,255,0.15)' : 'rgba(255,200,0,0.12)',
-                    }}>
-                      {ffmpegLoading
-                        ? <Loader2 className="w-4 h-4 animate-spin" style={{ color: '#ffcc00' }} />
-                        : <Zap className="w-4 h-4" style={{ color: ffmpegLoaded ? '#00D4FF' : '#ffcc00' }} />
-                      }
+                    <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: ffmpegLoaded ? 'rgba(0,212,255,0.15)' : 'rgba(255,200,0,0.12)' }}>
+                      {ffmpegLoading ? <Loader2 className="w-4 h-4 animate-spin" style={{ color: '#ffcc00' }} /> : <Zap className="w-4 h-4" style={{ color: ffmpegLoaded ? '#00D4FF' : '#ffcc00' }} />}
                     </div>
                     <div>
                       <div className="text-sm font-bold" style={{ color: ffmpegLoaded ? '#00D4FF' : '#ffcc00' }}>
                         {ffmpegLoading ? 'טוען מנוע FFmpeg...' : ffmpegLoaded ? 'מנוע FFmpeg מוכן' : 'מנוע FFmpeg לא נטען'}
                       </div>
-                      <div className="text-xs" style={{ color: 'rgba(140,140,190,0.55)' }}>
-                        עיבוד וידאו מתקדם ישירות בדפדפן
-                      </div>
+                      <div className="text-xs" style={{ color: 'rgba(140,140,190,0.55)' }}>עיבוד וידאו מתקדם ישירות בדפדפן</div>
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
-                    {ffmpegLoaded && (
-                      <span className="text-xs px-2.5 py-1 rounded-full font-bold" style={{
-                        background: 'rgba(0,255,128,0.1)',
-                        border: '1px solid rgba(0,255,128,0.25)',
-                        color: '#00ff80',
-                      }}>● פעיל</span>
-                    )}
-                    <span className="text-xs px-2 py-0.5 rounded" style={{ background: 'rgba(255,255,255,0.05)', color: 'rgba(160,160,210,0.5)' }}>
-                      WebAssembly
-                    </span>
+                    {ffmpegLoaded && <span className="text-xs px-2.5 py-1 rounded-full font-bold" style={{ background: 'rgba(0,255,128,0.1)', border: '1px solid rgba(0,255,128,0.25)', color: '#00ff80' }}>● פעיל</span>}
+                    <span className="text-xs px-2 py-0.5 rounded" style={{ background: 'rgba(255,255,255,0.05)', color: 'rgba(160,160,210,0.5)' }}>WebAssembly</span>
                   </div>
                 </div>
               )}
 
-              {/* ── Technology Badges (when idle) ── */}
               {!isRendering && !renderComplete && (
                 <div className="flex flex-wrap gap-2 mb-5">
                   {[
-                    { icon: Zap,      label: 'עיבוד מהיר',      color: '#00D4FF' },
+                    { icon: Zap,      label: 'עיבוד מהיר',        color: '#00D4FF' },
                     { icon: Cpu,      label: 'FFmpeg WebAssembly', color: '#B24BF3' },
-                    { icon: Brain,    label: 'Google Gemini AI',  color: '#00D4FF' },
-                    { icon: Gauge,    label: 'H.264 / AAC',       color: '#B24BF3' },
+                    { icon: Brain,    label: 'Google Gemini AI',   color: '#00D4FF' },
+                    { icon: Gauge,    label: 'H.264 / AAC',        color: '#B24BF3' },
                     { icon: Activity, label: 'Real-time Pipeline', color: '#00ff80' },
                   ].map((b, i) => {
                     const Icon = b.icon;
                     return (
-                      <div key={i} className="flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-xl" style={{
-                        background: 'rgba(255,255,255,0.03)',
-                        border: '1px solid rgba(255,255,255,0.08)',
-                        color: b.color,
-                      }}>
-                        <Icon className="w-3 h-3" />
-                        {b.label}
+                      <div key={i} className="flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-xl" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)', color: b.color }}>
+                        <Icon className="w-3 h-3" />{b.label}
                       </div>
                     );
                   })}
@@ -1803,9 +1375,7 @@ export default function Create() {
 
               {isRendering && (
                 <div className="space-y-4 mb-6">
-                  {/* Main progress card */}
                   <div className="p-5 rounded-xl" style={{ background: 'rgba(0,212,255,0.05)', border: '1px solid rgba(0,212,255,0.2)' }}>
-                    {/* Header */}
                     <div className="flex items-center gap-3 mb-4">
                       <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: 'rgba(0,212,255,0.15)' }}>
                         <Cpu className="w-4 h-4 animate-pulse" style={{ color: '#00D4FF' }} />
@@ -1819,24 +1389,13 @@ export default function Create() {
                         <div className="text-xs" style={{ color: 'rgba(140,140,190,0.5)' }}>מושלם</div>
                       </div>
                     </div>
-
-                    {/* Main progress bar */}
                     <div className="h-3 rounded-full overflow-hidden mb-3" style={{ background: 'rgba(0,212,255,0.1)' }}>
-                      <div
-                        className="h-full rounded-full transition-all duration-300"
-                        style={{
-                          width: `${renderProgress}%`,
-                          background: 'linear-gradient(90deg, #00D4FF, #B24BF3)',
-                          boxShadow: '0 0 12px rgba(0,212,255,0.5)',
-                        }}
-                      />
+                      <div className="h-full rounded-full transition-all duration-300" style={{ width: `${renderProgress}%`, background: 'linear-gradient(90deg, #00D4FF, #B24BF3)', boxShadow: '0 0 12px rgba(0,212,255,0.5)' }} />
                     </div>
-
-                    {/* Stats row */}
                     <div className="grid grid-cols-3 gap-3">
                       {[
-                        { icon: Gauge,    label: 'מהירות',    val: ffmpegSpeed },
-                        { icon: Activity, label: 'זמן עובד',  val: ffmpegTimeProcessed > 0 ? formatDuration(ffmpegTimeProcessed) : '—' },
+                        { icon: Gauge,    label: 'מהירות',     val: ffmpegSpeed },
+                        { icon: Activity, label: 'זמן עובד',   val: ffmpegTimeProcessed > 0 ? formatDuration(ffmpegTimeProcessed) : '—' },
                         { icon: Zap,      label: 'WebAssembly', val: 'פעיל' },
                       ].map((s, i) => {
                         const Icon = s.icon;
@@ -1851,14 +1410,13 @@ export default function Create() {
                     </div>
                   </div>
 
-                  {/* Pipeline stages */}
                   <div className="p-4 rounded-xl" style={{ background: 'rgba(178,75,243,0.04)', border: '1px solid rgba(178,75,243,0.15)' }}>
                     <div className="text-xs font-semibold mb-3 flex items-center gap-1.5" style={{ color: '#B24BF3' }}>
                       <Activity className="w-3.5 h-3.5" /> Pipeline AI
                     </div>
                     <div className="space-y-2">
                       {[
-                        { l: 'טעינת מנוע FFmpeg',      threshold: 5  },
+                        { l: 'טעינת מנוע FFmpeg',      threshold: 5 },
                         { l: 'ניתוח קובץ קלט',          threshold: 15 },
                         { l: 'Gemini AI — סצינות',       threshold: 30 },
                         { l: 'קידוד H.264 / AAC',        threshold: 55 },
@@ -1866,29 +1424,20 @@ export default function Create() {
                         { l: 'אופטימיזציה ו-faststart',  threshold: 90 },
                         { l: 'פלט מוכן',                 threshold: 100 },
                       ].map((item, i) => {
-                        const done  = renderProgress >= item.threshold;
+                        const done   = renderProgress >= item.threshold;
                         const active = renderProgress >= item.threshold - 15 && !done;
                         return (
                           <div key={i} className="flex items-center gap-2.5 text-xs">
                             <div className="w-4 h-4 flex-shrink-0 flex items-center justify-center">
-                              {done
-                                ? <CheckCircle className="w-3.5 h-3.5" style={{ color: '#00ff80' }} />
-                                : active
-                                  ? <Loader2 className="w-3.5 h-3.5 animate-spin" style={{ color: '#00D4FF' }} />
-                                  : <div className="w-1.5 h-1.5 rounded-full" style={{ background: 'rgba(255,255,255,0.15)' }} />
-                              }
+                              {done ? <CheckCircle className="w-3.5 h-3.5" style={{ color: '#00ff80' }} /> : active ? <Loader2 className="w-3.5 h-3.5 animate-spin" style={{ color: '#00D4FF' }} /> : <div className="w-1.5 h-1.5 rounded-full" style={{ background: 'rgba(255,255,255,0.15)' }} />}
                             </div>
-                            <span style={{
-                              color: done ? '#00ff80' : active ? '#00D4FF' : 'rgba(150,150,200,0.35)',
-                              fontWeight: active || done ? 600 : 400,
-                            }}>{item.l}</span>
+                            <span style={{ color: done ? '#00ff80' : active ? '#00D4FF' : 'rgba(150,150,200,0.35)', fontWeight: active || done ? 600 : 400 }}>{item.l}</span>
                           </div>
                         );
                       })}
                     </div>
                   </div>
 
-                  {/* FFmpeg terminal log */}
                   {ffmpegLogs.length > 0 && (
                     <div className="rounded-xl overflow-hidden" style={{ border: '1px solid rgba(255,255,255,0.07)' }}>
                       <div className="flex items-center gap-2 px-3 py-2" style={{ background: 'rgba(0,0,0,0.4)' }}>
@@ -1900,17 +1449,9 @@ export default function Create() {
                           <div className="w-2 h-2 rounded-full" style={{ background: '#28c840' }} />
                         </div>
                       </div>
-                      <div
-                        className="p-3 space-y-0.5 overflow-y-auto font-mono text-xs"
-                        style={{ background: '#050510', maxHeight: '120px', direction: 'ltr' }}
-                      >
+                      <div className="p-3 space-y-0.5 overflow-y-auto font-mono text-xs" style={{ background: '#050510', maxHeight: '120px', direction: 'ltr' }}>
                         {ffmpegLogs.slice(-30).map((log, i) => (
-                          <div key={i} style={{
-                            color: log.type === 'fferr' ? 'rgba(255,180,180,0.7)'
-                                  : log.message.startsWith('[AI]') ? '#00D4FF'
-                                  : 'rgba(180,220,180,0.65)',
-                            lineHeight: '1.5',
-                          }}>
+                          <div key={i} style={{ color: log.type === 'fferr' ? 'rgba(255,180,180,0.7)' : log.message.startsWith('[AI]') ? '#00D4FF' : 'rgba(180,220,180,0.65)', lineHeight: '1.5' }}>
                             {log.message}
                           </div>
                         ))}
@@ -1939,27 +1480,16 @@ export default function Create() {
                       <p className="text-sm" style={{ color: 'rgba(160,160,210,0.65)' }}>צפה, הורד או שתף את הסיכום</p>
                     </div>
                   </div>
-
                   <div className="p-5 rounded-xl" style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)' }}>
                     <h3 className="text-sm font-semibold mb-3" style={{ color: 'rgba(200,200,240,0.8)' }}>{t.create.step6.preview}</h3>
                     <video controls className="w-full rounded-xl bg-black" style={{ maxHeight: '300px' }}>
                       <source src={outputVideoUrl} type="video/mp4" />
                     </video>
                   </div>
-
-                  <button
-                    onClick={() => {
-                      const link = document.createElement('a');
-                      link.href = outputVideoUrl;
-                      link.download = `${draft.movieTitle || 'recap'}.mp4`;
-                      document.body.appendChild(link); link.click(); document.body.removeChild(link);
-                    }}
-                    className="btn-neon-cyan w-full py-4 text-base flex items-center justify-center gap-2"
-                  >
+                  <button onClick={() => { const link = document.createElement('a'); link.href = outputVideoUrl; link.download = `${draft.movieTitle || 'recap'}.mp4`; document.body.appendChild(link); link.click(); document.body.removeChild(link); }}
+                    className="btn-neon-cyan w-full py-4 text-base flex items-center justify-center gap-2">
                     <Video className="w-5 h-5" /> {t.create.step6.download}
                   </button>
-
-                  {/* Social Share */}
                   <div className="p-5 rounded-xl" style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)' }}>
                     <h3 className="text-sm font-semibold mb-4 flex items-center gap-2" style={{ color: 'rgba(200,200,240,0.8)' }}>
                       <Share2 className="w-4 h-4" style={{ color: '#00D4FF' }} /> {t.create.step6.shareTitle}
@@ -1981,15 +1511,14 @@ export default function Create() {
 
               {!isRendering && !renderComplete && (
                 <div className="space-y-5">
-                  {/* Summary */}
                   <div className="p-5 rounded-xl" style={{ background: 'rgba(0,212,255,0.04)', border: '1px solid rgba(0,212,255,0.12)' }}>
                     <h3 className="text-sm font-semibold mb-4" style={{ color: '#00D4FF' }}>סיכום הגדרות</h3>
                     <div className="space-y-2 text-sm">
                       {[
-                        { label: 'כותרת', val: draft.movieTitle || '—' },
-                        { label: "ז'אנר", val: GENRES_HE[draft.genre] || draft.genre },
-                        { label: 'אורך סיכום', val: `${String(draft.targetDurationHours).padStart(2,'0')}:${String(draft.targetDurationMinutes).padStart(2,'0')}:${String(draft.targetDurationSeconds).padStart(2,'0')}` },
-                        { label: 'מרווח חיתוך', val: `${String(draft.cutEveryMinutes).padStart(2,'0')}:${String(draft.cutEverySeconds).padStart(2,'0')}` },
+                        { label: 'כותרת',          val: draft.movieTitle || '—' },
+                        { label: "ז'אנר",           val: GENRES_HE[draft.genre] || draft.genre },
+                        { label: 'אורך סיכום',      val: `${String(draft.targetDurationHours).padStart(2,'0')}:${String(draft.targetDurationMinutes).padStart(2,'0')}:${String(draft.targetDurationSeconds).padStart(2,'0')}` },
+                        { label: 'מרווח חיתוך',     val: `${String(draft.cutEveryMinutes).padStart(2,'0')}:${String(draft.cutEverySeconds).padStart(2,'0')}` },
                         { label: 'קליפים משוערים', val: `~${estimatedClips}` },
                       ].map((item, i) => (
                         <div key={i} className="flex justify-between">
@@ -1999,13 +1528,10 @@ export default function Create() {
                       ))}
                     </div>
                   </div>
-
-                  {/* Credits check */}
                   <div className="p-5 rounded-xl flex items-center justify-between" style={{ background: wallet.balance < 1 ? 'rgba(255,60,60,0.07)' : 'rgba(255,255,255,0.02)', border: `1px solid ${wallet.balance < 1 ? 'rgba(255,60,60,0.2)' : 'rgba(255,255,255,0.06)'}` }}>
                     <span className="text-sm font-semibold" style={{ color: 'rgba(200,200,240,0.8)' }}>{t.create.step6.credits}</span>
                     <span className="text-2xl font-bold" style={{ color: wallet.balance < 1 ? '#ff4444' : '#00D4FF' }}>{wallet.balance}</span>
                   </div>
-
                   {showRewardAlert && (
                     <div className="p-4 rounded-xl flex items-start gap-3" style={{ background: 'rgba(255,200,0,0.07)', border: '1px solid rgba(255,200,0,0.2)' }}>
                       <AlertCircle className="w-5 h-5 flex-shrink-0 mt-0.5" style={{ color: '#ffcc00' }} />
@@ -2017,12 +1543,8 @@ export default function Create() {
                       </div>
                     </div>
                   )}
-
-                  <button
-                    onClick={handleCreate}
-                    disabled={!user || !draft.movieTitle}
-                    className="btn-neon-cyan w-full py-4 text-base flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
-                  >
+                  <button onClick={handleCreate} disabled={!user || !draft.movieTitle}
+                    className="btn-neon-cyan w-full py-4 text-base flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none">
                     <Sparkles className="w-5 h-5" /> {t.create.step6.createRecap}
                   </button>
                 </div>
@@ -2033,20 +1555,13 @@ export default function Create() {
 
         {/* Navigation */}
         <div className="flex justify-between items-center">
-          <button
-            onClick={() => currentStep > 1 && setCurrentStep(currentStep - 1)}
-            disabled={currentStep === 1 || currentStep === 2}
-            className="btn-ghost flex items-center gap-2 disabled:opacity-30 disabled:cursor-not-allowed"
-          >
+          <button onClick={() => currentStep > 1 && setCurrentStep(currentStep - 1)} disabled={currentStep === 1 || currentStep === 2}
+            className="btn-ghost flex items-center gap-2 disabled:opacity-30 disabled:cursor-not-allowed">
             <ChevronRight className="w-4 h-4" /> {t.common.back}
           </button>
-
           {currentStep < totalSteps && currentStep !== 2 && (
-            <button
-              onClick={() => setCurrentStep(currentStep + 1)}
-              disabled={(currentStep === 4 && !draft.movieTitle) || uploading}
-              className="btn-neon-cyan flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
-            >
+            <button onClick={() => setCurrentStep(currentStep + 1)} disabled={(currentStep === 4 && !draft.movieTitle) || uploading}
+              className="btn-neon-cyan flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none">
               {t.common.continue} <ChevronLeft className="w-4 h-4" />
             </button>
           )}
