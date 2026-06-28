@@ -176,9 +176,15 @@ export default function Create() {
     youtubeLearningEnabled: false, continuousLearningEnabled: true, globalLearningOptIn: false,
   });
 
+  const [gapSeconds, setGapSeconds] = useState(1);
+  const [showQuickSettings, setShowQuickSettings] = useState(true);
+
   const totalSeconds = draft.targetDurationHours * 3600 + draft.targetDurationMinutes * 60 + draft.targetDurationSeconds;
   const intervalSeconds = draft.cutEveryMinutes * 60 + draft.cutEverySeconds;
-  const estimatedClips = intervalSeconds > 0 ? Math.floor(totalSeconds / intervalSeconds) : 0;
+  const cycleLength = intervalSeconds + gapSeconds;
+  const estimatedClips = cycleLength > 0 ? Math.floor(totalSeconds / cycleLength) : 0;
+  const totalUsedSeconds = estimatedClips * intervalSeconds;
+  const totalGapSeconds  = estimatedClips * gapSeconds;
 
   // Step 2 auto-progress
   useEffect(() => {
@@ -877,6 +883,168 @@ export default function Create() {
             })}
           </div>
         </div>
+
+        {/* ── Quick Settings Panel (Steps 1 & 3) ── */}
+        {(currentStep === 1 || currentStep === 3) && (
+          <div className="mb-5">
+            <button
+              type="button"
+              onClick={() => setShowQuickSettings(v => !v)}
+              className="w-full flex items-center justify-between px-5 py-3 rounded-xl transition-all"
+              style={{ background: 'rgba(0,212,255,0.05)', border: '1px solid rgba(0,212,255,0.18)' }}
+            >
+              <div className="flex items-center gap-2 flex-wrap">
+                <Gauge className="w-4 h-4" style={{ color: '#00D4FF' }} />
+                <span className="text-sm font-semibold" style={{ color: '#00D4FF' }}>הגדרות מהירות לפני העלאה</span>
+                <span className="text-xs px-2 py-0.5 rounded-full" style={{ background: 'rgba(0,212,255,0.1)', color: 'rgba(0,212,255,0.7)', border: '1px solid rgba(0,212,255,0.2)' }}>
+                  {String(draft.targetDurationHours).padStart(2,'0')}:{String(draft.targetDurationMinutes).padStart(2,'0')}:{String(draft.targetDurationSeconds).padStart(2,'0')}
+                  &nbsp;·&nbsp;קטע {intervalSeconds}ש׳ · הפסקה {gapSeconds}ש׳
+                </span>
+              </div>
+              <ChevronLeft className="w-4 h-4 transition-transform flex-shrink-0" style={{ color: 'rgba(0,212,255,0.5)', transform: showQuickSettings ? 'rotate(-90deg)' : 'rotate(0deg)' }} />
+            </button>
+
+            {showQuickSettings && (
+              <div className="mt-2 p-5 rounded-xl space-y-5" style={{ background: 'linear-gradient(135deg, rgba(0,212,255,0.04), rgba(178,75,243,0.04))', border: '1px solid rgba(0,212,255,0.15)' }}>
+
+                {/* ── Duration ── */}
+                <div>
+                  <label className="block text-sm font-semibold mb-3" style={{ color: 'rgba(200,200,240,0.85)' }}>⏱ אורך הסיכום הרצוי</label>
+                  <div className="grid grid-cols-3 gap-3 mb-3">
+                    {([
+                      { label: 'שעות',  max: 3,  val: draft.targetDurationHours,   key: 'targetDurationHours'   as const },
+                      { label: 'דקות',  max: 59, val: draft.targetDurationMinutes, key: 'targetDurationMinutes' as const },
+                      { label: 'שניות', max: 59, val: draft.targetDurationSeconds, key: 'targetDurationSeconds' as const },
+                    ]).map(f => (
+                      <div key={f.key}>
+                        <label className="block text-xs mb-1.5 text-center" style={{ color: 'rgba(150,150,200,0.55)' }}>{f.label}</label>
+                        <div className="flex items-center gap-1">
+                          <button type="button" onClick={() => setDraft(prev => ({ ...prev, [f.key]: Math.max(0, prev[f.key] - 1) }))}
+                            className="w-8 h-9 rounded-lg flex items-center justify-center font-bold text-base transition-all hover:scale-110"
+                            style={{ background: 'rgba(0,212,255,0.08)', border: '1px solid rgba(0,212,255,0.18)', color: '#00D4FF' }}>−</button>
+                          <input type="number" min={0} max={f.max} value={f.val}
+                            onChange={e => setDraft(prev => ({ ...prev, [f.key]: Math.min(f.max, Math.max(0, parseInt(e.target.value)||0)) }))}
+                            className="flex-1 h-9 rounded-lg text-center text-base font-bold ai-input px-1" style={{ color: '#00D4FF' }} />
+                          <button type="button" onClick={() => setDraft(prev => ({ ...prev, [f.key]: Math.min(f.max, prev[f.key] + 1) }))}
+                            className="w-8 h-9 rounded-lg flex items-center justify-center font-bold text-base transition-all hover:scale-110"
+                            style={{ background: 'rgba(0,212,255,0.08)', border: '1px solid rgba(0,212,255,0.18)', color: '#00D4FF' }}>+</button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="flex gap-2 flex-wrap">
+                    {[
+                      { label: '1 דק׳', h:0, m:1, s:0 }, { label: '3 דק׳', h:0, m:3, s:0 },
+                      { label: '5 דק׳', h:0, m:5, s:0 }, { label: '10 דק׳', h:0, m:10, s:0 },
+                      { label: '30 דק׳', h:0, m:30, s:0 }, { label: '1 שעה', h:1, m:0, s:0 },
+                    ].map(p => {
+                      const isActive = draft.targetDurationHours===p.h && draft.targetDurationMinutes===p.m && draft.targetDurationSeconds===p.s;
+                      return (
+                        <button key={p.label} type="button"
+                          onClick={() => setDraft(prev => ({ ...prev, targetDurationHours: p.h, targetDurationMinutes: p.m, targetDurationSeconds: p.s }))}
+                          className="text-xs px-3 py-1.5 rounded-lg font-semibold transition-all"
+                          style={{ background: isActive ? 'rgba(0,212,255,0.18)' : 'rgba(255,255,255,0.04)', border: `1px solid ${isActive ? 'rgba(0,212,255,0.45)' : 'rgba(255,255,255,0.1)'}`, color: isActive ? '#00D4FF' : 'rgba(160,160,210,0.6)' }}
+                        >{p.label}</button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div className="neon-divider" />
+
+                {/* ── Clip Interval ── */}
+                <div>
+                  <label className="block text-sm font-semibold mb-3" style={{ color: 'rgba(200,200,240,0.85)' }}>✂️ אורך כל קטע</label>
+                  <div className="grid grid-cols-2 gap-3 mb-3">
+                    {([
+                      { label: 'דקות',  val: draft.cutEveryMinutes, key: 'cutEveryMinutes' as const, max: 59 },
+                      { label: 'שניות', val: draft.cutEverySeconds, key: 'cutEverySeconds' as const, max: 59 },
+                    ]).map(f => (
+                      <div key={f.key}>
+                        <label className="block text-xs mb-1.5 text-center" style={{ color: 'rgba(150,150,200,0.55)' }}>{f.label}</label>
+                        <div className="flex items-center gap-1">
+                          <button type="button" onClick={() => setDraft(prev => ({ ...prev, [f.key]: Math.max(0, prev[f.key]-1) }))}
+                            className="w-8 h-9 rounded-lg flex items-center justify-center font-bold transition-all hover:scale-110"
+                            style={{ background: 'rgba(178,75,243,0.1)', border: '1px solid rgba(178,75,243,0.25)', color: '#B24BF3' }}>−</button>
+                          <input type="number" min={0} max={f.max} value={f.val}
+                            onChange={e => setDraft(prev => ({ ...prev, [f.key]: Math.min(f.max, Math.max(0, parseInt(e.target.value)||0)) }))}
+                            className="flex-1 h-9 rounded-lg text-center text-base font-bold ai-input px-1" style={{ color: '#B24BF3' }} />
+                          <button type="button" onClick={() => setDraft(prev => ({ ...prev, [f.key]: Math.min(f.max, prev[f.key]+1) }))}
+                            className="w-8 h-9 rounded-lg flex items-center justify-center font-bold transition-all hover:scale-110"
+                            style={{ background: 'rgba(178,75,243,0.1)', border: '1px solid rgba(178,75,243,0.25)', color: '#B24BF3' }}>+</button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="flex gap-2 flex-wrap mb-4">
+                    {[
+                      { label: '5ש׳', m:0, s:5 }, { label: '8ש׳', m:0, s:8 }, { label: '10ש׳', m:0, s:10 },
+                      { label: '15ש׳', m:0, s:15 }, { label: '30ש׳', m:0, s:30 }, { label: '1 דק׳', m:1, s:0 },
+                    ].map(p => {
+                      const isActive = draft.cutEveryMinutes===p.m && draft.cutEverySeconds===p.s;
+                      return (
+                        <button key={p.label} type="button"
+                          onClick={() => setDraft(prev => ({ ...prev, cutEveryMinutes: p.m, cutEverySeconds: p.s }))}
+                          className="text-xs px-3 py-1.5 rounded-lg font-semibold transition-all"
+                          style={{ background: isActive ? 'rgba(178,75,243,0.18)' : 'rgba(255,255,255,0.04)', border: `1px solid ${isActive ? 'rgba(178,75,243,0.45)' : 'rgba(255,255,255,0.1)'}`, color: isActive ? '#B24BF3' : 'rgba(160,160,210,0.6)' }}
+                        >{p.label}</button>
+                      );
+                    })}
+                  </div>
+
+                  {/* ── Gap between clips ── */}
+                  <div className="p-4 rounded-xl" style={{ background: 'rgba(255,200,0,0.04)', border: '1px solid rgba(255,200,0,0.18)' }}>
+                    <div className="flex items-center justify-between mb-3">
+                      <div>
+                        <div className="text-sm font-semibold" style={{ color: 'rgba(255,200,0,0.9)' }}>⏸ הפסקה בין קטעים</div>
+                        <div className="text-xs mt-0.5" style={{ color: 'rgba(160,160,140,0.55)' }}>כל {intervalSeconds} שניות קטע ← {gapSeconds} שניות הפסקה</div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <button type="button" onClick={() => setGapSeconds(g => Math.max(0, g-1))}
+                          className="w-9 h-9 rounded-lg flex items-center justify-center font-bold text-lg transition-all hover:scale-110"
+                          style={{ background: 'rgba(255,200,0,0.1)', border: '1px solid rgba(255,200,0,0.25)', color: '#ffcc00' }}>−</button>
+                        <div className="w-16 text-center">
+                          <span className="text-3xl font-black tabular-nums" style={{ color: '#ffcc00' }}>{gapSeconds}</span>
+                          <span className="text-xs block" style={{ color: 'rgba(160,160,120,0.6)' }}>שניות</span>
+                        </div>
+                        <button type="button" onClick={() => setGapSeconds(g => Math.min(30, g+1))}
+                          className="w-9 h-9 rounded-lg flex items-center justify-center font-bold text-lg transition-all hover:scale-110"
+                          style={{ background: 'rgba(255,200,0,0.1)', border: '1px solid rgba(255,200,0,0.25)', color: '#ffcc00' }}>+</button>
+                      </div>
+                    </div>
+                    <div className="flex gap-2 flex-wrap">
+                      {[0,1,2,3,5,8,10].map(s => (
+                        <button key={s} type="button" onClick={() => setGapSeconds(s)}
+                          className="text-xs px-3 py-1 rounded-lg font-semibold transition-all"
+                          style={{ background: gapSeconds===s ? 'rgba(255,200,0,0.18)' : 'rgba(255,255,255,0.04)', border: `1px solid ${gapSeconds===s ? 'rgba(255,200,0,0.45)' : 'rgba(255,255,255,0.08)'}`, color: gapSeconds===s ? '#ffcc00' : 'rgba(160,160,130,0.6)' }}
+                        >{s===0 ? 'ללא' : `${s}ש׳`}</button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                {/* ── Live Calc Summary ── */}
+                {totalSeconds > 0 && intervalSeconds > 0 && (
+                  <div className="p-3 rounded-xl flex flex-wrap gap-x-6 gap-y-2" style={{ background: 'rgba(0,0,0,0.25)', border: '1px solid rgba(255,255,255,0.06)' }}>
+                    {[
+                      { label: 'אורך סיכום', val: `${String(draft.targetDurationHours).padStart(2,'0')}:${String(draft.targetDurationMinutes).padStart(2,'0')}:${String(draft.targetDurationSeconds).padStart(2,'0')}`, color: '#00D4FF' },
+                      { label: 'קטע',        val: `${intervalSeconds}ש׳`,    color: '#B24BF3' },
+                      { label: 'הפסקה',      val: `${gapSeconds}ש׳`,         color: '#ffcc00' },
+                      { label: '~קטעים',     val: `${estimatedClips}`,        color: '#00ff80' },
+                      { label: 'זמן קטעים',  val: `${totalUsedSeconds}ש׳`,   color: '#00D4FF' },
+                      { label: 'זמן הפסקות', val: `${totalGapSeconds}ש׳`,    color: '#ffcc00' },
+                    ].map((item, i) => (
+                      <div key={i} className="text-center">
+                        <div className="text-sm font-black tabular-nums" style={{ color: item.color }}>{item.val}</div>
+                        <div className="text-xs" style={{ color: 'rgba(130,130,160,0.55)', fontSize: 10 }}>{item.label}</div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Step Content */}
         <div className="ai-card p-7 mb-5">
