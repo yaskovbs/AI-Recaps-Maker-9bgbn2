@@ -7,11 +7,9 @@ export default defineConfig({
   server: {
     host: "::",
     port: 8080,
-    headers: {
-      // Required for FFmpeg.wasm SharedArrayBuffer support
-      'Cross-Origin-Opener-Policy': 'same-origin',
-      'Cross-Origin-Embedder-Policy': 'require-corp',
-    },
+    // COI headers are now handled by the service worker (public/sw.js)
+    // This allows FFmpeg.wasm to work AND Supabase Storage uploads to succeed
+    // (vite dev server headers blocked cross-origin fetch responses)
   },
   plugins: [
     react(),

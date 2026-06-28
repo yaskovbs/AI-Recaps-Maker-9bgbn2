@@ -26,25 +26,39 @@ ReactDOM.createRoot(rootElement).render(
 );
 
 if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => {
-    navigator.serviceWorker
-      .register('/sw.js')
-      .then((registration) => {
-        console.log('Service Worker registered:', registration.scope);
+  // Register immediately (not on 'load') so COI headers are applied ASAP
+  navigator.serviceWorker
+    .register('/sw.js')
+    .then(async (registration) => {
+      console.log('[SW] Registered:', registration.scope);
 
-        registration.addEventListener('updatefound', () => {
-          const newWorker = registration.installing;
-          if (newWorker) {
-            newWorker.addEventListener('statechange', () => {
-              if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                console.log('New Service Worker available. Reload to update.');
-              }
-            });
-          }
-        });
-      })
-      .catch((error) => {
-        console.error('Service Worker registration failed:', error);
+      // If a new SW is waiting, activate it immediately
+      if (registration.waiting) {
+        registration.waiting.postMessage({ type: 'SKIP_WAITING' });
+      }
+
+      registration.addEventListener('updatefound', () => {
+        const newWorker = registration.installing;
+        if (newWorker) {
+          newWorker.addEventListener('statechange', () => {
+            if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+              // New SW available — reload to activate COI headers on first load
+              window.location.reload();
+            }
+          });
+        }
       });
-  });
+
+      // If SW was just registered (no controller yet), reload once to get COI headers
+      if (!navigator.serviceWorker.controller) {
+        await registration.update();
+        if (registration.active) {
+          console.log('[SW] Active — reloading for COI headers...');
+          window.location.reload();
+        }
+      }
+    })
+    .catch((error) => {
+      console.error('[SW] Registration failed:', error);
+    });
 }
