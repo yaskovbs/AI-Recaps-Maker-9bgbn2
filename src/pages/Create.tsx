@@ -453,105 +453,51 @@ export default function Create() {
     return `${(bytes / 1024).toFixed(0)} KB`;
   };
 
-  // ── Upload via XMLHttpRequest — real progress + proper error messages ──
-  // Uses the Supabase Storage REST API directly so we get progress events
-  // AND the service worker adds CORP headers to the response so COEP is happy.
+  // ── Upload via Supabase JS client — most reliable across all environments ──
+  // Uses the official Supabase client which handles CORS, auth tokens and retries
+  // internally. Progress is simulated smoothly based on file size.
   const uploadWithProgress = async (
     file: File,
     fileName: string,
     mimeType: string,
     onProgress: (pct: number) => void
   ): Promise<void> => {
-    // Get a fresh session token
-    const { data: sessionData } = await supabase.auth.getSession();
-    const token = sessionData?.session?.access_token;
+    // Simulate upload progress based on file size (realistic feel)
+    const totalMs = Math.max(3000, (file.size / (512 * 1024)) * 1000); // ~512 KB/s estimate
+    const intervalMs = 250;
+    const steps = totalMs / intervalMs;
+    let simulatedPct = 0;
 
-    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
-    const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
+    const timer = setInterval(() => {
+      // Ease-in-out curve: fast start, slow near 85%
+      const remaining = 85 - simulatedPct;
+      const increment = (remaining / steps) * (1.5 + Math.random() * 0.5);
+      simulatedPct = Math.min(85, simulatedPct + increment);
+      onProgress(Math.round(simulatedPct));
+    }, intervalMs);
 
-    if (!supabaseUrl) throw new Error('Supabase URL not configured');
-
-    // Try XHR first for real progress tracking
-    const tryXHR = (): Promise<void> => {
-      return new Promise((resolve, reject) => {
-        const xhr = new XMLHttpRequest();
-        const uploadUrl = `${supabaseUrl}/storage/v1/object/recap-assets/${fileName}`;
-
-        xhr.upload.onprogress = (e) => {
-          if (e.lengthComputable) {
-            onProgress(Math.round((e.loaded / e.total) * 95));
-          }
-        };
-
-        xhr.onload = () => {
-          if (xhr.status >= 200 && xhr.status < 300) {
-            onProgress(100);
-            resolve();
-          } else {
-            let errMsg = `HTTP ${xhr.status} error: ${xhr.statusText || 'Upload error'}`;
-            try {
-              const body = JSON.parse(xhr.responseText);
-              if (body?.message) errMsg = body.message;
-              else if (body?.error) errMsg = body.error;
-            } catch {}
-            reject(new Error(errMsg));
-          }
-        };
-
-        xhr.onerror = () => reject(new Error('שגיאת רשת — בדוק חיבור לאינטרנט'));
-        xhr.ontimeout = () => reject(new Error('העלאה ארכה יותר מדי — נסה שוב'));
-        xhr.timeout = 5 * 60 * 1000; // 5 minutes
-
-        xhr.open('POST', uploadUrl);
-        xhr.setRequestHeader('Authorization', token ? `Bearer ${token}` : `Bearer ${supabaseAnonKey}`);
-        xhr.setRequestHeader('apikey', supabaseAnonKey);
-        xhr.setRequestHeader('Content-Type', mimeType);
-        xhr.setRequestHeader('x-upsert', 'true');
-        xhr.setRequestHeader('Cache-Control', '3600');
-
-        xhr.send(file);
-      });
-    };
-
-    // Fallback: Supabase JS client (no progress but more reliable in some envs)
-    const trySupabaseClient = async (): Promise<void> => {
-      let simulatedPct = 0;
-      const totalMs = Math.max(4000, (file.size / (300 * 1024)) * 1000);
-      const intervalMs = 300;
-      const stepPct = 85 / (totalMs / intervalMs);
-
-      const timer = setInterval(() => {
-        simulatedPct = Math.min(85, simulatedPct + stepPct + Math.random() * stepPct * 0.3);
-        onProgress(Math.round(simulatedPct));
-      }, intervalMs);
-
-      try {
-        const { error } = await supabase.storage
-          .from('recap-assets')
-          .upload(fileName, file, { cacheControl: '3600', upsert: true, contentType: mimeType });
-        clearInterval(timer);
-        if (error) throw new Error(error.message);
-        onProgress(100);
-      } catch (err) {
-        clearInterval(timer);
-        throw err;
-      }
-    };
-
-    // Try XHR first, fall back to Supabase JS client on network or 5xx errors
     try {
-      await tryXHR();
-    } catch (xhrErr: any) {
-      const msg = xhrErr?.message || '';
-      // Fall back for network errors OR server errors (503, 502, 500)
-      const isNetworkErr = msg.includes('רשת') || msg.includes('network') || msg.includes('CORS') || msg === '';
-      const isServerErr  = /HTTP 5\d\d/.test(msg);
-      if (isNetworkErr || isServerErr) {
-        console.warn('[Upload] XHR failed, trying Supabase JS client fallback:', msg);
-        await trySupabaseClient();
-      } else {
-        throw xhrErr;
+      const { error } = await supabase.storage
+        .from('recap-assets')
+        .upload(fileName, file, {
+          cacheControl: '3600',
+          upsert: true,
+          contentType: mimeType,
+        });
+
+      clearInterval(timer);
+
+      if (error) {
+        throw new Error(error.message);
       }
+
+      // Jump to 100% smoothly
+      onProgress(95);
+      await new Promise(r => setTimeout(r, 200));
+      onProgress(100);
+    } catch (err) {
+      clearInterval(timer);
+      throw err;
     }
   };
 
