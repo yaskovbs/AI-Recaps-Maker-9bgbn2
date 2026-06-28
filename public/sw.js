@@ -2,8 +2,8 @@
 // Handles: COI headers (SharedArrayBuffer/FFmpeg), PWA caching, Push Notifications
 
 const APP_NAME = 'AI Recaps Maker';
-const CACHE_NAME = 'ai-recaps-v2';
-const RUNTIME_CACHE = 'ai-recaps-runtime-v2';
+const CACHE_NAME = 'ai-recaps-v3';
+const RUNTIME_CACHE = 'ai-recaps-runtime-v3';
 
 const PRECACHE_URLS = [
   '/',
@@ -96,14 +96,10 @@ self.addEventListener('fetch', (event) => {
   // Skip non-http(s) and chrome-extension requests
   if (!url.protocol.startsWith('http')) return;
 
-  // Skip POST / PUT / DELETE (uploads) — don't cache, just add headers
+  // Skip POST / PUT / DELETE (uploads) — pass through completely unmodified
+  // Do NOT wrap these responses — wrapping causes 503 on large file uploads
   if (request.method !== 'GET') {
-    event.respondWith(
-      fetch(request)
-        .then((response) => addCoiHeaders(response, request))
-        .catch(() => new Response('Network error', { status: 503 }))
-    );
-    return;
+    return; // Let the browser handle it natively
   }
 
   // For same-origin GET requests — network-first with cache fallback

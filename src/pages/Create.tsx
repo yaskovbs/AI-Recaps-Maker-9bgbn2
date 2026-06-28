@@ -538,14 +538,16 @@ export default function Create() {
       }
     };
 
-    // Try XHR first, fall back to Supabase client on network-level errors
+    // Try XHR first, fall back to Supabase JS client on network or 5xx errors
     try {
       await tryXHR();
     } catch (xhrErr: any) {
       const msg = xhrErr?.message || '';
-      // Only fall back for CORS/network errors, not for auth/size errors
-      if (msg.includes('רשת') || msg.includes('network') || msg.includes('CORS') || msg === '') {
-        console.warn('[Upload] XHR failed, trying Supabase client fallback:', msg);
+      // Fall back for network errors OR server errors (503, 502, 500)
+      const isNetworkErr = msg.includes('רשת') || msg.includes('network') || msg.includes('CORS') || msg === '';
+      const isServerErr  = /HTTP 5\d\d/.test(msg);
+      if (isNetworkErr || isServerErr) {
+        console.warn('[Upload] XHR failed, trying Supabase JS client fallback:', msg);
         await trySupabaseClient();
       } else {
         throw xhrErr;
