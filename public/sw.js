@@ -2,8 +2,8 @@
 // Handles: COI headers (SharedArrayBuffer/FFmpeg), PWA caching, Push Notifications
 
 const APP_NAME = 'AI Recaps Maker';
-const CACHE_NAME = 'ai-recaps-v3';
-const RUNTIME_CACHE = 'ai-recaps-runtime-v3';
+const CACHE_NAME = 'ai-recaps-v5';
+const RUNTIME_CACHE = 'ai-recaps-runtime-v5';
 
 const PRECACHE_URLS = [
   '/',
@@ -96,8 +96,12 @@ self.addEventListener('fetch', (event) => {
   // Skip non-http(s) and chrome-extension requests
   if (!url.protocol.startsWith('http')) return;
 
+  // Skip ALL Supabase Storage requests — pass through completely unmodified
+  if (url.hostname.includes('supabase') || url.hostname.includes('onspace')) {
+    return; // Native browser fetch, no SW interception
+  }
+
   // Skip POST / PUT / DELETE (uploads) — pass through completely unmodified
-  // Do NOT wrap these responses — wrapping causes 503 on large file uploads
   if (request.method !== 'GET') {
     return; // Let the browser handle it natively
   }

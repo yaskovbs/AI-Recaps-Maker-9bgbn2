@@ -4,6 +4,7 @@ import { useAuth } from '@/lib/AuthContext';
 import { useWallet } from '@/hooks/useWallet';
 import { createJob } from '@/lib/recapService';
 import { supabase } from '@/lib/supabase';
+import { getSessionOnce } from '@/lib/supabase';
 import { processVideo, loadFFmpeg, isFFmpegLoaded } from '@/lib/ffmpegService';
 import type { FFmpegLogLine, FFmpegProgress } from '@/lib/ffmpegService';
 import {
@@ -453,52 +454,74 @@ export default function Create() {
     return `${(bytes / 1024).toFixed(0)} KB`;
   };
 
-  // ── Upload via Supabase JS client — most reliable across all environments ──
-  // Uses the official Supabase client which handles CORS, auth tokens and retries
-  // internally. Progress is simulated smoothly based on file size.
+  // ── Upload via XMLHttpRequest — real progress + bypasses service worker ──
+  // XHR is not intercepted by the service worker, so it can upload directly
+  // to Supabase Storage without COEP/CORP interference.
   const uploadWithProgress = async (
     file: File,
     fileName: string,
     mimeType: string,
     onProgress: (pct: number) => void
   ): Promise<void> => {
-    // Simulate upload progress based on file size (realistic feel)
-    const totalMs = Math.max(3000, (file.size / (512 * 1024)) * 1000); // ~512 KB/s estimate
-    const intervalMs = 250;
-    const steps = totalMs / intervalMs;
-    let simulatedPct = 0;
+    const { data: { session } } = await getSessionOnce();
+    const token = session?.access_token;
+    if (!token) throw new Error('לא מחובר — יש להתחבר מחדש');
 
-    const timer = setInterval(() => {
-      // Ease-in-out curve: fast start, slow near 85%
-      const remaining = 85 - simulatedPct;
-      const increment = (remaining / steps) * (1.5 + Math.random() * 0.5);
-      simulatedPct = Math.min(85, simulatedPct + increment);
-      onProgress(Math.round(simulatedPct));
-    }, intervalMs);
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string;
+    if (!supabaseUrl) throw new Error('VITE_SUPABASE_URL חסר');
 
-    try {
-      const { error } = await supabase.storage
-        .from('recap-assets')
-        .upload(fileName, file, {
-          cacheControl: '3600',
-          upsert: true,
-          contentType: mimeType,
-        });
+    // Build the REST URL for Supabase Storage
+    const uploadUrl = `${supabaseUrl}/storage/v1/object/recap-assets/${fileName}`;
 
-      clearInterval(timer);
+    console.log('[Upload] Starting XHR upload:', { fileName, size: file.size, mimeType, url: uploadUrl });
 
-      if (error) {
-        throw new Error(error.message);
-      }
+    return new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
 
-      // Jump to 100% smoothly
-      onProgress(95);
-      await new Promise(r => setTimeout(r, 200));
-      onProgress(100);
-    } catch (err) {
-      clearInterval(timer);
-      throw err;
-    }
+      xhr.upload.addEventListener('progress', (e) => {
+        if (e.lengthComputable) {
+          const pct = Math.round((e.loaded / e.total) * 95);
+          onProgress(pct);
+        }
+      });
+
+      xhr.addEventListener('load', () => {
+        console.log('[Upload] XHR response:', xhr.status, xhr.responseText.slice(0, 200));
+        if (xhr.status >= 200 && xhr.status < 300) {
+          onProgress(100);
+          resolve();
+        } else {
+          // Try to parse Supabase error
+          let errMsg = `HTTP ${xhr.status}`;
+          try { errMsg = JSON.parse(xhr.responseText)?.error || errMsg; } catch {}
+          reject(new Error(errMsg));
+        }
+      });
+
+      xhr.addEventListener('error', () => {
+        console.error('[Upload] XHR network error — falling back to Supabase client');
+        // Fallback: Supabase JS client
+        supabase.storage
+          .from('recap-assets')
+          .upload(fileName, file, { cacheControl: '3600', upsert: true, contentType: mimeType })
+          .then(({ error }) => {
+            if (error) { reject(new Error(error.message)); return; }
+            onProgress(100);
+            resolve();
+          })
+          .catch(reject);
+      });
+
+      xhr.addEventListener('timeout', () => reject(new Error('העלאה ארכה יותר מדי — נסה קובץ קטן יותר')));
+
+      xhr.open('POST', uploadUrl);
+      xhr.timeout = 10 * 60 * 1000; // 10 minutes
+      xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+      xhr.setRequestHeader('Content-Type', mimeType);
+      xhr.setRequestHeader('x-upsert', 'true');
+      xhr.setRequestHeader('Cache-Control', '3600');
+      xhr.send(file);
+    });
   };
 
   // ── Central file handler ──
