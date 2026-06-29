@@ -42,6 +42,18 @@ interface TxtFileInfo {
   paragraphCount: number;
 }
 
+interface VideoFileInfo {
+  name: string;
+  size: number;
+  format: string;
+  duration: number | null;
+  width: number | null;
+  height: number | null;
+  fps: number | null;
+  thumbnail: string | null;
+  objectUrl: string;
+}
+
 interface AudioFileInfo {
   name: string;
   size: number;
@@ -116,6 +128,8 @@ export default function Create() {
   const [analyzingAudio, setAnalyzingAudio] = useState(false);
   const [txtInfo, setTxtInfo] = useState<TxtFileInfo | null>(null);
   const [analyzingTxt, setAnalyzingTxt] = useState(false);
+  const [videoInfo, setVideoInfo] = useState<VideoFileInfo | null>(null);
+  const [analyzingVideo, setAnalyzingVideo] = useState(false);
 
   // Drag-and-drop state
   const [dragOverTxt, setDragOverTxt]   = useState(false);
@@ -453,8 +467,69 @@ export default function Create() {
     return `${(bytes / 1024).toFixed(0)} KB`;
   };
 
-  // ── Upload via Supabase JS client with simulated progress ──
-  // Using the Supabase client avoids XHR COEP/CORP cross-origin blocking issues.
+  // ── Analyze video file: extract duration, resolution, thumbnail ──
+  const analyzeVideoFile = (file: File): Promise<VideoFileInfo> => {
+    return new Promise((resolve) => {
+      const ext = file.name.split('.').pop()?.toLowerCase() || '';
+      const formatMap: Record<string, string> = { mp4: 'MP4', avi: 'AVI', mov: 'MOV (QuickTime)', mkv: 'MKV (Matroska)', webm: 'WebM' };
+      const format = formatMap[ext] || ext.toUpperCase();
+      const objectUrl = URL.createObjectURL(file);
+
+      const video = document.createElement('video');
+      video.preload = 'metadata';
+      video.muted = true;
+      video.crossOrigin = 'anonymous';
+
+      const captureThumbnail = () => {
+        try {
+          const canvas = document.createElement('canvas');
+          const w = video.videoWidth || 640;
+          const h = video.videoHeight || 360;
+          canvas.width  = Math.min(w, 640);
+          canvas.height = Math.round((h / w) * canvas.width);
+          const ctx = canvas.getContext('2d');
+          if (ctx) {
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+            return canvas.toDataURL('image/jpeg', 0.75);
+          }
+        } catch { /* cross-origin block */ }
+        return null;
+      };
+
+      video.onseeked = () => {
+        const thumb = captureThumbnail();
+        const dur  = isFinite(video.duration) ? video.duration : null;
+        resolve({
+          name: file.name, size: file.size, format,
+          duration: dur,
+          width: video.videoWidth || null,
+          height: video.videoHeight || null,
+          fps: null,
+          thumbnail: thumb,
+          objectUrl,
+        });
+        video.src = '';
+      };
+
+      video.onloadedmetadata = () => {
+        // Seek to 1 second (or 10% in) to get a good thumbnail frame
+        video.currentTime = Math.min(1, (video.duration || 0) * 0.1);
+      };
+
+      video.onerror = () => {
+        resolve({ name: file.name, size: file.size, format, duration: null, width: null, height: null, fps: null, thumbnail: null, objectUrl });
+      };
+
+      setTimeout(() => {
+        resolve({ name: file.name, size: file.size, format, duration: null, width: null, height: null, fps: null, thumbnail: null, objectUrl });
+      }, 8000);
+
+      video.src = objectUrl;
+    });
+  };
+
+  // ── Upload via XHR directly to Supabase Storage REST API ──
+  // Uses the live session token to bypass COEP restrictions.
   const uploadWithProgress = async (
     file: File,
     fileName: string,
@@ -463,27 +538,82 @@ export default function Create() {
   ): Promise<void> => {
     console.log('[Upload] Starting:', { fileName, size: file.size, mimeType });
 
-    // Simulate smooth progress (0 → 90%) during upload
+    // Get the current session token for Authorization header
+    const { data: { session } } = await supabase.auth.getSession();
+    const token = session?.access_token;
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
+    const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
+
+    if (token && supabaseUrl) {
+      // Primary: XHR with real progress + Bearer token
+      return new Promise((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        const endpoint = `${supabaseUrl}/storage/v1/object/recap-assets/${fileName}`;
+
+        xhr.open('POST', endpoint, true);
+        xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+        xhr.setRequestHeader('Content-Type', mimeType);
+        xhr.setRequestHeader('x-upsert', 'true');
+        xhr.setRequestHeader('Cache-Control', '3600');
+        // Do NOT set apikey header — bearer token is sufficient
+
+        xhr.upload.onprogress = (e) => {
+          if (e.lengthComputable) {
+            onProgress(Math.min(95, Math.round((e.loaded / e.total) * 95)));
+          }
+        };
+
+        xhr.onload = () => {
+          if (xhr.status >= 200 && xhr.status < 300) {
+            onProgress(100);
+            console.log('[Upload] XHR success:', xhr.status);
+            resolve();
+          } else {
+            console.warn('[Upload] XHR HTTP error:', xhr.status, xhr.responseText);
+            // Fallback to Supabase JS client
+            fallbackUpload(file, fileName, mimeType, onProgress).then(resolve).catch(reject);
+          }
+        };
+
+        xhr.onerror = () => {
+          console.warn('[Upload] XHR network error, falling back to Supabase client');
+          fallbackUpload(file, fileName, mimeType, onProgress).then(resolve).catch(reject);
+        };
+
+        xhr.ontimeout = () => {
+          console.warn('[Upload] XHR timeout, falling back');
+          fallbackUpload(file, fileName, mimeType, onProgress).then(resolve).catch(reject);
+        };
+
+        xhr.timeout = 10 * 60 * 1000; // 10 minutes
+        xhr.send(file);
+      });
+    } else {
+      // No session token — use Supabase JS client with simulated progress
+      return fallbackUpload(file, fileName, mimeType, onProgress);
+    }
+  };
+
+  const fallbackUpload = async (
+    file: File,
+    fileName: string,
+    mimeType: string,
+    onProgress: (pct: number) => void
+  ): Promise<void> => {
+    console.log('[Upload] Fallback (Supabase client):', fileName);
     let simPct = 0;
     const tick = file.size > 500 * 1024 * 1024 ? 400 : file.size > 100 * 1024 * 1024 ? 250 : 150;
     const interval = setInterval(() => {
       simPct = Math.min(simPct + 1.5, 90);
       onProgress(Math.round(simPct));
     }, tick);
-
     try {
       const { error } = await supabase.storage
         .from('recap-assets')
-        .upload(fileName, file, {
-          cacheControl: '3600',
-          upsert: true,
-          contentType: mimeType,
-        });
-
+        .upload(fileName, file, { cacheControl: '3600', upsert: true, contentType: mimeType });
       clearInterval(interval);
       if (error) throw new Error(error.message);
       onProgress(100);
-      console.log('[Upload] Success:', fileName);
     } catch (err) {
       clearInterval(interval);
       throw err;
@@ -494,7 +624,16 @@ export default function Create() {
   const processSelectedFile = async (file: File, type: 'txt' | 'mp3' | 'video') => {
     if (!user) { alert('יש להתחבר כדי להעלות קבצים'); return; }
 
-    if (type === 'video') setLocalVideoFile(file);
+    if (type === 'video') {
+      setLocalVideoFile(file);
+      // Analyze video immediately before upload
+      setAnalyzingVideo(true);
+      setVideoInfo(null);
+      analyzeVideoFile(file).then(info => {
+        setVideoInfo(info);
+        setAnalyzingVideo(false);
+      });
+    }
 
     const maxSize = type === 'video' ? MAX_VIDEO_SIZE : type === 'mp3' ? MAX_AUDIO_SIZE : MAX_TXT_SIZE;
     if (file.size > maxSize) {
@@ -1214,8 +1353,112 @@ export default function Create() {
                       </div>
                     </div>
                   )}
+                  {/* ── Video Preview Card ── */}
+                  {(videoInfo || analyzingVideo) && !draft.videoAssetId && (
+                    <div className="p-4 rounded-xl space-y-3" style={{ background: 'rgba(0,212,255,0.05)', border: '1px solid rgba(0,212,255,0.2)' }}>
+                      {analyzingVideo ? (
+                        <div className="flex items-center gap-3">
+                          <Loader2 className="w-5 h-5 animate-spin" style={{ color: '#00D4FF' }} />
+                          <span className="text-sm" style={{ color: 'rgba(160,160,210,0.7)' }}>מנתח קובץ וידאו...</span>
+                        </div>
+                      ) : videoInfo && (
+                        <>
+                          {/* Thumbnail / Player */}
+                          <div className="relative rounded-xl overflow-hidden" style={{ background: '#000', aspectRatio: videoInfo.width && videoInfo.height ? `${videoInfo.width}/${videoInfo.height}` : '16/9', maxHeight: 220 }}>
+                            {videoInfo.thumbnail ? (
+                              <img src={videoInfo.thumbnail} alt="thumbnail" className="w-full h-full object-cover" />
+                            ) : (
+                              <video
+                                src={videoInfo.objectUrl}
+                                className="w-full h-full object-contain"
+                                controls
+                                preload="metadata"
+                                style={{ maxHeight: 220 }}
+                              />
+                            )}
+                            {videoInfo.thumbnail && (
+                              <div className="absolute inset-0 flex items-center justify-center">
+                                <div className="w-12 h-12 rounded-full flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(4px)', border: '1px solid rgba(255,255,255,0.2)' }}>
+                                  <Play className="w-5 h-5 text-white" style={{ marginLeft: 2 }} />
+                                </div>
+                              </div>
+                            )}
+                            <div className="absolute top-2 right-2">
+                              <span className="text-xs px-2 py-0.5 rounded font-bold" style={{ background: 'rgba(0,0,0,0.7)', color: '#00D4FF', border: '1px solid rgba(0,212,255,0.3)' }}>{videoInfo.format}</span>
+                            </div>
+                            {videoInfo.duration && (
+                              <div className="absolute bottom-2 left-2">
+                                <span className="text-xs px-2 py-0.5 rounded font-bold tabular-nums" style={{ background: 'rgba(0,0,0,0.7)', color: '#fff' }}>{formatDuration(videoInfo.duration)}</span>
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Metadata grid */}
+                          <div className="grid grid-cols-2 gap-2">
+                            {[
+                              { label: 'שם קובץ',    val: videoInfo.name.length > 24 ? videoInfo.name.slice(0,22)+'…' : videoInfo.name },
+                              { label: 'גודל',        val: formatBytes(videoInfo.size) },
+                              { label: 'אורך',        val: videoInfo.duration ? formatDuration(videoInfo.duration) : '—' },
+                              { label: 'רזולוציה',    val: videoInfo.width && videoInfo.height ? `${videoInfo.width}×${videoInfo.height}` : '—' },
+                              { label: 'פורמט',       val: videoInfo.format },
+                              { label: 'איכות',       val: videoInfo.height ? (videoInfo.height >= 2160 ? '4K' : videoInfo.height >= 1080 ? 'Full HD' : videoInfo.height >= 720 ? 'HD' : 'SD') : '—' },
+                            ].map((item, i) => (
+                              <div key={i} className="flex justify-between items-center text-xs">
+                                <span style={{ color: 'rgba(140,140,190,0.55)' }}>{item.label}:</span>
+                                <span className="font-semibold" style={{ color: 'rgba(220,220,250,0.85)' }}>{item.val}</span>
+                              </div>
+                            ))}
+                          </div>
+
+                          {/* Quality badge */}
+                          {videoInfo.height && (
+                            <div className="flex items-center gap-2">
+                              <div className="text-xs px-2.5 py-1 rounded-full font-bold" style={{
+                                background: videoInfo.height >= 1080 ? 'rgba(0,255,128,0.1)' : videoInfo.height >= 720 ? 'rgba(0,212,255,0.1)' : 'rgba(255,200,0,0.1)',
+                                border: `1px solid ${videoInfo.height >= 1080 ? 'rgba(0,255,128,0.25)' : videoInfo.height >= 720 ? 'rgba(0,212,255,0.25)' : 'rgba(255,200,0,0.25)'}`,
+                                color: videoInfo.height >= 1080 ? '#00ff80' : videoInfo.height >= 720 ? '#00D4FF' : '#ffcc00',
+                              }}>
+                                {videoInfo.height >= 2160 ? '● 4K Ultra HD' : videoInfo.height >= 1080 ? '● Full HD 1080p' : videoInfo.height >= 720 ? '● HD 720p' : '● Standard Definition'}
+                              </div>
+                              <span className="text-xs" style={{ color: 'rgba(130,130,170,0.5)' }}>מוכן להעלאה</span>
+                            </div>
+                          )}
+
+                          {/* Preview player (shown if no thumbnail captured) */}
+                          {!videoInfo.thumbnail && (
+                            <div className="rounded-xl overflow-hidden" style={{ border: '1px solid rgba(0,212,255,0.15)' }}>
+                              <video
+                                src={videoInfo.objectUrl}
+                                className="w-full"
+                                controls
+                                preload="metadata"
+                                style={{ maxHeight: 200, background: '#000' }}
+                              />
+                            </div>
+                          )}
+                        </>
+                      )}
+                    </div>
+                  )}
+
                   {draft.videoAssetId && !uploading && (
-                    <p className="text-sm mt-3 flex items-center gap-2" style={{ color: '#00ff80' }}><CheckCircle className="w-4 h-4" /> {t.create.step3.uploadComplete}</p>
+                    <div className="space-y-3">
+                      {videoInfo && (
+                        <div className="rounded-xl overflow-hidden" style={{ border: '1px solid rgba(0,255,128,0.2)' }}>
+                          {videoInfo.thumbnail ? (
+                            <div className="relative">
+                              <img src={videoInfo.thumbnail} alt="thumbnail" className="w-full object-cover" style={{ maxHeight: 160 }} />
+                              <div className="absolute inset-0 flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.3)' }}>
+                                <CheckCircle className="w-8 h-8" style={{ color: '#00ff80' }} />
+                              </div>
+                            </div>
+                          ) : (
+                            <video src={videoInfo.objectUrl} controls className="w-full" style={{ maxHeight: 160, background: '#000' }} />
+                          )}
+                        </div>
+                      )}
+                      <p className="text-sm flex items-center gap-2" style={{ color: '#00ff80' }}><CheckCircle className="w-4 h-4" /> {t.create.step3.uploadComplete}</p>
+                    </div>
                   )}
                 </div>
 
