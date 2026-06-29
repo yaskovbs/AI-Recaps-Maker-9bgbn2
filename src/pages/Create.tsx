@@ -4,7 +4,6 @@ import { useAuth } from '@/lib/AuthContext';
 import { useWallet } from '@/hooks/useWallet';
 import { createJob } from '@/lib/recapService';
 import { supabase } from '@/lib/supabase';
-import { getSessionOnce } from '@/lib/supabase';
 import { processVideo, loadFFmpeg, isFFmpegLoaded } from '@/lib/ffmpegService';
 import type { FFmpegLogLine, FFmpegProgress } from '@/lib/ffmpegService';
 import {
@@ -454,74 +453,41 @@ export default function Create() {
     return `${(bytes / 1024).toFixed(0)} KB`;
   };
 
-  // ── Upload via XMLHttpRequest — real progress + bypasses service worker ──
-  // XHR is not intercepted by the service worker, so it can upload directly
-  // to Supabase Storage without COEP/CORP interference.
+  // ── Upload via Supabase JS client with simulated progress ──
+  // Using the Supabase client avoids XHR COEP/CORP cross-origin blocking issues.
   const uploadWithProgress = async (
     file: File,
     fileName: string,
     mimeType: string,
     onProgress: (pct: number) => void
   ): Promise<void> => {
-    const { data: { session } } = await getSessionOnce();
-    const token = session?.access_token;
-    if (!token) throw new Error('לא מחובר — יש להתחבר מחדש');
+    console.log('[Upload] Starting:', { fileName, size: file.size, mimeType });
 
-    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string;
-    if (!supabaseUrl) throw new Error('VITE_SUPABASE_URL חסר');
+    // Simulate smooth progress (0 → 90%) during upload
+    let simPct = 0;
+    const tick = file.size > 500 * 1024 * 1024 ? 400 : file.size > 100 * 1024 * 1024 ? 250 : 150;
+    const interval = setInterval(() => {
+      simPct = Math.min(simPct + 1.5, 90);
+      onProgress(Math.round(simPct));
+    }, tick);
 
-    // Build the REST URL for Supabase Storage
-    const uploadUrl = `${supabaseUrl}/storage/v1/object/recap-assets/${fileName}`;
+    try {
+      const { error } = await supabase.storage
+        .from('recap-assets')
+        .upload(fileName, file, {
+          cacheControl: '3600',
+          upsert: true,
+          contentType: mimeType,
+        });
 
-    console.log('[Upload] Starting XHR upload:', { fileName, size: file.size, mimeType, url: uploadUrl });
-
-    return new Promise((resolve, reject) => {
-      const xhr = new XMLHttpRequest();
-
-      xhr.upload.addEventListener('progress', (e) => {
-        if (e.lengthComputable) {
-          const pct = Math.round((e.loaded / e.total) * 95);
-          onProgress(pct);
-        }
-      });
-
-      xhr.addEventListener('load', () => {
-        console.log('[Upload] XHR response:', xhr.status, xhr.responseText.slice(0, 200));
-        if (xhr.status >= 200 && xhr.status < 300) {
-          onProgress(100);
-          resolve();
-        } else {
-          // Try to parse Supabase error
-          let errMsg = `HTTP ${xhr.status}`;
-          try { errMsg = JSON.parse(xhr.responseText)?.error || errMsg; } catch {}
-          reject(new Error(errMsg));
-        }
-      });
-
-      xhr.addEventListener('error', () => {
-        console.error('[Upload] XHR network error — falling back to Supabase client');
-        // Fallback: Supabase JS client
-        supabase.storage
-          .from('recap-assets')
-          .upload(fileName, file, { cacheControl: '3600', upsert: true, contentType: mimeType })
-          .then(({ error }) => {
-            if (error) { reject(new Error(error.message)); return; }
-            onProgress(100);
-            resolve();
-          })
-          .catch(reject);
-      });
-
-      xhr.addEventListener('timeout', () => reject(new Error('העלאה ארכה יותר מדי — נסה קובץ קטן יותר')));
-
-      xhr.open('POST', uploadUrl);
-      xhr.timeout = 10 * 60 * 1000; // 10 minutes
-      xhr.setRequestHeader('Authorization', `Bearer ${token}`);
-      xhr.setRequestHeader('Content-Type', mimeType);
-      xhr.setRequestHeader('x-upsert', 'true');
-      xhr.setRequestHeader('Cache-Control', '3600');
-      xhr.send(file);
-    });
+      clearInterval(interval);
+      if (error) throw new Error(error.message);
+      onProgress(100);
+      console.log('[Upload] Success:', fileName);
+    } catch (err) {
+      clearInterval(interval);
+      throw err;
+    }
   };
 
   // ── Central file handler ──
