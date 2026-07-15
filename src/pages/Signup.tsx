@@ -23,8 +23,8 @@ export default function Signup() {
     if (password !== confirmPassword) { setError(t.auth.errors.passwordMismatch); return; }
     if (username.length < 3) { setError(t.auth.errors.usernameTooShort); return; }
     try {
-      await signup(email, password, username);
-      navigate('/dashboard');
+      await signup(email.trim(), password, username.trim());
+      navigate('/dashboard', { replace: true });
     } catch (err: any) {
       setError(err.message || t.auth.errors.signupFailed);
     }

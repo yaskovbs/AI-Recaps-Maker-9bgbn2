@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useLocation, useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '@/lib/AuthContext';
 import { useLanguage } from '@/lib/LanguageContext';
 import { Lock, Mail, LogIn, Sparkles, Eye, EyeOff } from 'lucide-react';
@@ -8,6 +8,8 @@ export default function Login() {
   const { t } = useLanguage();
   const { login, loginWithGoogle, isLoading } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+  const returnTo = (location.state as { from?: { pathname?: string } } | null)?.from?.pathname || '/dashboard';
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -19,9 +21,9 @@ export default function Login() {
     if (!email || !password) { setError(t.auth.errors.fillAllFields); return; }
     try {
       await login(email, password);
-      navigate('/dashboard');
-    } catch (err: any) {
-      setError(err.message || t.auth.errors.loginFailed);
+      navigate(returnTo, { replace: true });
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : t.auth.errors.loginFailed);
     }
   };
 

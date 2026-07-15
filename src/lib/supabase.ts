@@ -7,11 +7,6 @@ if (!supabaseUrl || !supabaseAnonKey) {
   console.error('Missing Supabase environment variables: VITE_SUPABASE_URL and/or VITE_SUPABASE_ANON_KEY');
 }
 
-// Google OAuth credentials (configured in .env)
-export const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID || '';
-export const googleClientSecret = import.meta.env.VITE_GOOGLE_CLIENT_SECRET || '';
-export const isGoogleOAuthConfigured = Boolean(googleClientId && googleClientSecret);
-
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
     flowType: 'pkce',

@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { supabase, isGoogleOAuthConfigured, googleClientId } from './supabase';
+import { supabase } from './supabase';
 import type { User as SupabaseUser } from '@supabase/supabase-js';
 
 interface User {
@@ -37,21 +37,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     // Safety timeout — if INITIAL_SESSION never fires, stop loading after 5s
     const timeout = setTimeout(() => {
-      if (mounted) setIsLoading(false);
+      if (mounted) {
+        setUser(null);
+        localStorage.removeItem('airm_user');
+        setIsLoading(false);
+      }
     }, 5000);
 
     // Single listener handles ALL auth events — no separate getSession() call
     // This prevents the race condition between checkAuth() and onAuthStateChange
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
+      (event, session) => {
         if (!mounted) return;
         clearTimeout(timeout);
 
         console.log('Auth state change:', event, session?.user?.id);
 
         if ((event === 'INITIAL_SESSION' || event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') && session?.user) {
-          await handleAuthUser(session.user);
+          // Do not await Supabase queries inside onAuthStateChange; doing so can
+          // contend with the auth client's internal session lock.
+          void handleAuthUser(session.user);
         } else if (event === 'INITIAL_SESSION' && !session) {
+          setUser(null);
+          localStorage.removeItem('airm_user');
           setIsLoading(false);
         } else if (event === 'SIGNED_OUT') {
           setUser(null);
@@ -71,11 +79,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const handleAuthUser = async (authUser: SupabaseUser) => {
     try {
       // Get or create user profile
-      let { data: profile, error: profileError } = await supabase
+      const { data: initialProfile, error: profileError } = await supabase
         .from('user_profiles')
         .select('*')
         .eq('id', authUser.id)
         .single();
+      let profile = initialProfile;
 
       // If profile doesn't exist (OAuth user), create it
       if (profileError && profileError.code === 'PGRST116') {
@@ -134,6 +143,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     } catch (error) {
       console.error('Error handling auth user:', error);
+      setUser(null);
+      localStorage.removeItem('airm_user');
     } finally {
       setIsLoading(false);
     }
@@ -141,22 +152,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const loginWithGoogle = async () => {
     try {
-      // Check if Google OAuth credentials are configured
-      if (!isGoogleOAuthConfigured) {
-        console.warn('⚠️ Google OAuth credentials not configured in .env file (VITE_GOOGLE_CLIENT_ID, VITE_GOOGLE_CLIENT_SECRET)');
-        console.warn('⚠️ Also make sure credentials are configured in OnSpace/Supabase dashboard under Auth > Providers > Google');
-      }
-
-      console.log('🔵 Starting Google OAuth login...');
-      console.log('🔵 Redirect URL:', window.location.origin);
-      if (googleClientId) {
-        console.log('🔵 Using Google Client ID:', googleClientId.substring(0, 20) + '...');
-      }
-
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: `${window.location.origin}/`,
+          redirectTo: `${window.location.origin}/dashboard`,
           queryParams: {
             access_type: 'offline',
             prompt: 'consent',
@@ -171,8 +170,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // Check if it's a configuration error
         if (error.message.includes('not enabled') || error.message.includes('provider')) {
           throw new Error(
-            'Google OAuth לא מוגדר במערכת. יש להגדיר VITE_GOOGLE_CLIENT_ID ו-VITE_GOOGLE_CLIENT_SECRET בקובץ .env ' +
-            'וגם בלוח הבקרה של OnSpace/Supabase תחת Auth > Providers > Google'
+            'Google OAuth is not enabled. Configure Google under Auth > Providers in the OnSpace/Supabase dashboard.'
           );
         }
 
@@ -207,54 +205,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (authError) throw authError;
       if (!authData.user) throw new Error('No user returned from signup');
 
-      // Wait a bit for auth to fully process
-      await new Promise(resolve => setTimeout(resolve, 500));
-
-      // Create user profile (now that user is authenticated)
-      const { error: profileError } = await supabase
-        .from('user_profiles')
-        .insert({
-          id: authData.user.id,
-          email,
-          username,
-        });
-
-      if (profileError) {
-        console.error('Profile creation error:', profileError);
-        // If profile already exists (from trigger), ignore error
-        if (!profileError.message?.includes('duplicate') && !profileError.code?.includes('23505')) {
-          throw profileError;
-        }
+      // This application uses immediate signup without email confirmation.
+      // A missing session means the Supabase project is configured differently
+      // and must be corrected instead of creating a fake local login.
+      if (!authData.session) {
+        setUser(null);
+        localStorage.removeItem('airm_user');
+        throw new Error('Signup requires email confirmation in Supabase. Disable Confirm email under Authentication settings for immediate account activation.');
       }
 
-      // Create user data
-      const userData: User = {
-        id: authData.user.id,
-        email,
-        username,
-        createdAt: new Date().toISOString(),
-      };
-
-      setUser(userData);
-      localStorage.setItem('airm_user', JSON.stringify(userData));
-
-      // Initialize gamification and wallet for new user
-      const { error: walletError } = await supabase
-        .from('credits_wallet')
-        .insert({
-          user_id: authData.user.id,
-          balance: 5, // Welcome bonus
-        });
-
-      if (walletError) console.error('Wallet creation error:', walletError);
-
-      const { error: learningError } = await supabase
-        .from('learning_profiles')
-        .insert({
-          user_id: authData.user.id,
-        });
-
-      if (learningError) console.error('Learning profile creation error:', learningError);
+      await handleAuthUser(authData.user);
 
     } catch (error: any) {
       throw new Error(error.message || 'Signup failed');

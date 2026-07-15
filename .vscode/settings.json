@@ -1,0 +1,40 @@
+{
+  "workbench.colorCustomizations": {
+    "activityBar.activeBackground": "#00CCFF22",
+    "activityBar.activeBorder": "#00CCFF",
+    "activityBar.background": "#071A21",
+    "activityBar.foreground": "#E6FAFF",
+    "activityBar.inactiveForeground": "#8BA7AE",
+    "activityBarBadge.background": "#454a4b",
+    "activityBarBadge.foreground": "#031014",
+    "statusBar.background": "#292f31",
+    "statusBar.foreground": "#FFFFFF",
+    "statusBar.noFolderBackground": "#455458",
+    "statusBar.debuggingBackground": "#D47C47",
+    "statusBar.debuggingForeground": "#FFFFFF",
+    "titleBar.activeBackground": "#071A21",
+    "titleBar.activeForeground": "#E6FAFF",
+    "titleBar.inactiveBackground": "#071A21CC",
+    "titleBar.inactiveForeground": "#8BA7AE",
+    "sash.hoverBorder": "#262f31"
+  },
+  "editor.formatOnSave": true,
+  "editor.codeActionsOnSave": {
+    "source.fixAll.eslint": "explicit"
+  },
+  "editor.defaultFormatter": "vscode.typescript-language-features",
+  "[typescriptreact]": {
+    "editor.defaultFormatter": "vscode.typescript-language-features"
+  },
+  "files.exclude": {
+    "**/.git": true,
+    "**/dist": true,
+    "**/node_modules": true
+  },
+  "search.exclude": {
+    "**/dist": true,
+    "**/node_modules": true
+  },
+  "typescript.tsdk": "node_modules/typescript/lib",
+  "typescript.enablePromptUseWorkspaceTsdk": true
+}

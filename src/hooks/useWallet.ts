@@ -73,8 +73,14 @@ export function useWallet() {
   };
 
   const refresh = () => {
-    // In a real app, this would fetch from the server
-    console.log('Refreshing wallet from server...');
+    const saved = localStorage.getItem(WALLET_KEY);
+    if (!saved) return;
+
+    try {
+      setWallet(JSON.parse(saved) as WalletData);
+    } catch {
+      localStorage.removeItem(WALLET_KEY);
+    }
   };
 
   return {
@@ -82,5 +88,6 @@ export function useWallet() {
     rewardCredits,
     consumeCredits,
     refresh,
+    refreshWallet: refresh,
   };
 }
