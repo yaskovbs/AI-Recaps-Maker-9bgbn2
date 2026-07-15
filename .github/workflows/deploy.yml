@@ -9,6 +9,11 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    env:
+      HOSTINGER_SSH_HOST: 72.61.101.138
+      HOSTINGER_SSH_PORT: 22
+      HOSTINGER_SSH_USER: deploy
+      HOSTINGER_DEPLOY_PATH: /var/www/recaps/current/
 
     steps:
       - name: Checkout
@@ -41,6 +46,6 @@ jobs:
       - name: Deploy dist
         run: |
           rsync -az --delete \
-            -e "ssh -i ~/.ssh/hostinger_deploy_key -p ${{ secrets.HOSTINGER_SSH_PORT }}" \
+            -e "ssh -i ~/.ssh/hostinger_deploy_key -p ${HOSTINGER_SSH_PORT}" \
             dist/ \
-            "${{ secrets.HOSTINGER_SSH_USER }}@${{ secrets.HOSTINGER_SSH_HOST }}:/var/www/recaps/current/"
+            "${HOSTINGER_SSH_USER}@${HOSTINGER_SSH_HOST}:${HOSTINGER_DEPLOY_PATH}"
