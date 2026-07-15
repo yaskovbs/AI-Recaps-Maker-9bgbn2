@@ -90,22 +90,26 @@ CREATE TABLE IF NOT EXISTS jobs (
 
 ALTER TABLE jobs ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Users can view own jobs" ON jobs;
 CREATE POLICY "Users can view own jobs"
   ON jobs FOR SELECT
   TO authenticated
   USING (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "Users can create own jobs" ON jobs;
 CREATE POLICY "Users can create own jobs"
   ON jobs FOR INSERT
   TO authenticated
   WITH CHECK (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "Users can update own jobs" ON jobs;
 CREATE POLICY "Users can update own jobs"
   ON jobs FOR UPDATE
   TO authenticated
   USING (auth.uid() = user_id)
   WITH CHECK (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "Users can delete own jobs" ON jobs;
 CREATE POLICY "Users can delete own jobs"
   ON jobs FOR DELETE
   TO authenticated
@@ -135,22 +139,26 @@ CREATE TABLE IF NOT EXISTS public_recaps (
 
 ALTER TABLE public_recaps ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Anyone can view public recaps" ON public_recaps;
 CREATE POLICY "Anyone can view public recaps"
   ON public_recaps FOR SELECT
   TO authenticated
   USING (is_public = true OR auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "Users can create own recaps" ON public_recaps;
 CREATE POLICY "Users can create own recaps"
   ON public_recaps FOR INSERT
   TO authenticated
   WITH CHECK (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "Users can update own recaps" ON public_recaps;
 CREATE POLICY "Users can update own recaps"
   ON public_recaps FOR UPDATE
   TO authenticated
   USING (auth.uid() = user_id)
   WITH CHECK (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "Users can delete own recaps" ON public_recaps;
 CREATE POLICY "Users can delete own recaps"
   ON public_recaps FOR DELETE
   TO authenticated
@@ -173,11 +181,13 @@ CREATE TABLE IF NOT EXISTS ad_views (
 
 ALTER TABLE ad_views ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Users can view own ad views" ON ad_views;
 CREATE POLICY "Users can view own ad views"
   ON ad_views FOR SELECT
   TO authenticated
   USING (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "Users can create own ad views" ON ad_views;
 CREATE POLICY "Users can create own ad views"
   ON ad_views FOR INSERT
   TO authenticated

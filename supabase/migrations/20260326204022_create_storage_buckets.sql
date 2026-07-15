@@ -42,6 +42,7 @@ VALUES (
 )
 ON CONFLICT (id) DO NOTHING;
 
+DROP POLICY IF EXISTS "Users can upload to own originals folder" ON storage.objects;
 CREATE POLICY "Users can upload to own originals folder"
   ON storage.objects FOR INSERT
   TO authenticated
@@ -50,6 +51,7 @@ CREATE POLICY "Users can upload to own originals folder"
     AND (storage.foldername(name))[1] = auth.uid()::text
   );
 
+DROP POLICY IF EXISTS "Users can view own originals" ON storage.objects;
 CREATE POLICY "Users can view own originals"
   ON storage.objects FOR SELECT
   TO authenticated
@@ -58,6 +60,7 @@ CREATE POLICY "Users can view own originals"
     AND (storage.foldername(name))[1] = auth.uid()::text
   );
 
+DROP POLICY IF EXISTS "Users can delete own originals" ON storage.objects;
 CREATE POLICY "Users can delete own originals"
   ON storage.objects FOR DELETE
   TO authenticated
@@ -66,6 +69,7 @@ CREATE POLICY "Users can delete own originals"
     AND (storage.foldername(name))[1] = auth.uid()::text
   );
 
+DROP POLICY IF EXISTS "Users can upload to own processed folder" ON storage.objects;
 CREATE POLICY "Users can upload to own processed folder"
   ON storage.objects FOR INSERT
   TO authenticated
@@ -74,11 +78,13 @@ CREATE POLICY "Users can upload to own processed folder"
     AND (storage.foldername(name))[1] = auth.uid()::text
   );
 
+DROP POLICY IF EXISTS "Anyone can view processed files" ON storage.objects;
 CREATE POLICY "Anyone can view processed files"
   ON storage.objects FOR SELECT
   TO authenticated
   USING (bucket_id = 'video-processed');
 
+DROP POLICY IF EXISTS "Users can delete own processed files" ON storage.objects;
 CREATE POLICY "Users can delete own processed files"
   ON storage.objects FOR DELETE
   TO authenticated
@@ -87,6 +93,7 @@ CREATE POLICY "Users can delete own processed files"
     AND (storage.foldername(name))[1] = auth.uid()::text
   );
 
+DROP POLICY IF EXISTS "Users can upload to own recap-assets folder" ON storage.objects;
 CREATE POLICY "Users can upload to own recap-assets folder"
   ON storage.objects FOR INSERT
   TO authenticated
@@ -95,11 +102,13 @@ CREATE POLICY "Users can upload to own recap-assets folder"
     AND (storage.foldername(name))[1] = auth.uid()::text
   );
 
+DROP POLICY IF EXISTS "Anyone can view recap assets" ON storage.objects;
 CREATE POLICY "Anyone can view recap assets"
   ON storage.objects FOR SELECT
   TO authenticated
   USING (bucket_id = 'recap-assets');
 
+DROP POLICY IF EXISTS "Users can delete own recap assets" ON storage.objects;
 CREATE POLICY "Users can delete own recap assets"
   ON storage.objects FOR DELETE
   TO authenticated

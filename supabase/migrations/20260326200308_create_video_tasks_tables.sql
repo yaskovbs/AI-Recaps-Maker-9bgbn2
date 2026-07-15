@@ -89,22 +89,26 @@ CREATE TABLE IF NOT EXISTS video_tasks (
 
 ALTER TABLE video_tasks ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Users can view own video tasks" ON video_tasks;
 CREATE POLICY "Users can view own video tasks"
   ON video_tasks FOR SELECT
   TO authenticated
   USING (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "Users can create own video tasks" ON video_tasks;
 CREATE POLICY "Users can create own video tasks"
   ON video_tasks FOR INSERT
   TO authenticated
   WITH CHECK (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "Users can update own video tasks" ON video_tasks;
 CREATE POLICY "Users can update own video tasks"
   ON video_tasks FOR UPDATE
   TO authenticated
   USING (auth.uid() = user_id)
   WITH CHECK (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "Users can delete own video tasks" ON video_tasks;
 CREATE POLICY "Users can delete own video tasks"
   ON video_tasks FOR DELETE
   TO authenticated
@@ -130,6 +134,7 @@ CREATE TABLE IF NOT EXISTS playlist_items (
 
 ALTER TABLE playlist_items ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Users can view own playlist items" ON playlist_items;
 CREATE POLICY "Users can view own playlist items"
   ON playlist_items FOR SELECT
   TO authenticated
@@ -141,6 +146,7 @@ CREATE POLICY "Users can view own playlist items"
     )
   );
 
+DROP POLICY IF EXISTS "Users can create playlist items for own tasks" ON playlist_items;
 CREATE POLICY "Users can create playlist items for own tasks"
   ON playlist_items FOR INSERT
   TO authenticated
@@ -152,6 +158,7 @@ CREATE POLICY "Users can create playlist items for own tasks"
     )
   );
 
+DROP POLICY IF EXISTS "Users can update own playlist items" ON playlist_items;
 CREATE POLICY "Users can update own playlist items"
   ON playlist_items FOR UPDATE
   TO authenticated
@@ -170,6 +177,7 @@ CREATE POLICY "Users can update own playlist items"
     )
   );
 
+DROP POLICY IF EXISTS "Users can delete own playlist items" ON playlist_items;
 CREATE POLICY "Users can delete own playlist items"
   ON playlist_items FOR DELETE
   TO authenticated
@@ -195,6 +203,7 @@ CREATE TABLE IF NOT EXISTS task_logs (
 
 ALTER TABLE task_logs ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Users can view logs for own tasks" ON task_logs;
 CREATE POLICY "Users can view logs for own tasks"
   ON task_logs FOR SELECT
   TO authenticated
@@ -206,6 +215,7 @@ CREATE POLICY "Users can view logs for own tasks"
     )
   );
 
+DROP POLICY IF EXISTS "Users can create logs for own tasks" ON task_logs;
 CREATE POLICY "Users can create logs for own tasks"
   ON task_logs FOR INSERT
   TO authenticated
