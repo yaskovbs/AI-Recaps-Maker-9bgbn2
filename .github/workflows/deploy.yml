@@ -24,34 +24,58 @@ jobs:
         with:
           version: latest
 
-      - name: Validate Supabase deployment secrets
+      - name: Detect Supabase deployment mode
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-          SUPABASE_PROJECT_ID: ${{ secrets.SUPABASE_PROJECT_ID || secrets.PRODUCTION_PROJECT_ID }}
+          SUPABASE_PROJECT_ID: ${{ secrets.SUPABASE_PROJECT_ID || secrets.SUPABASE_PROJECT_REF || secrets.PRODUCTION_PROJECT_ID || secrets.PRODUCTION_PROJECT_REF }}
           SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD || secrets.PRODUCTION_DB_PASSWORD }}
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL || secrets.SUPABASE_DATABASE_URL || secrets.DATABASE_URL }}
         run: |
-          missing=0
-          for name in SUPABASE_ACCESS_TOKEN SUPABASE_PROJECT_ID SUPABASE_DB_PASSWORD; do
-            if [ -z "${!name}" ]; then
-              echo "::error::$name is required for database migrations"
-              missing=1
-            fi
-          done
-          exit "$missing"
+          if [ -n "$SUPABASE_DB_URL" ]; then
+            echo "SUPABASE_DEPLOY_MODE=postgres" >> "$GITHUB_ENV"
+            echo "Using direct Postgres URL for database migrations."
+          elif [ -n "$SUPABASE_ACCESS_TOKEN" ] && [ -n "$SUPABASE_PROJECT_ID" ] && [ -n "$SUPABASE_DB_PASSWORD" ]; then
+            echo "SUPABASE_DEPLOY_MODE=supabase_cli" >> "$GITHUB_ENV"
+            echo "Using Supabase CLI for database migrations."
+          else
+            echo "SUPABASE_DEPLOY_MODE=skip" >> "$GITHUB_ENV"
+            echo "::warning::Database migrations skipped. Add SUPABASE_DB_URL, or add SUPABASE_ACCESS_TOKEN, SUPABASE_PROJECT_ID, and SUPABASE_DB_PASSWORD."
+          fi
 
-      - name: Push Supabase migrations
+          if [ -n "$SUPABASE_ACCESS_TOKEN" ] && [ -n "$SUPABASE_PROJECT_ID" ]; then
+            echo "SUPABASE_FUNCTIONS_ENABLED=true" >> "$GITHUB_ENV"
+          else
+            echo "SUPABASE_FUNCTIONS_ENABLED=false" >> "$GITHUB_ENV"
+            echo "::warning::Edge Function deployment skipped. Add SUPABASE_ACCESS_TOKEN and SUPABASE_PROJECT_ID."
+          fi
+
+      - name: Push Supabase migrations with CLI
+        if: env.SUPABASE_DEPLOY_MODE == 'supabase_cli'
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-          SUPABASE_PROJECT_ID: ${{ secrets.SUPABASE_PROJECT_ID || secrets.PRODUCTION_PROJECT_ID }}
+          SUPABASE_PROJECT_ID: ${{ secrets.SUPABASE_PROJECT_ID || secrets.SUPABASE_PROJECT_REF || secrets.PRODUCTION_PROJECT_ID || secrets.PRODUCTION_PROJECT_REF }}
           SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD || secrets.PRODUCTION_DB_PASSWORD }}
         run: |
           supabase link --project-ref "$SUPABASE_PROJECT_ID"
           supabase db push
 
+      - name: Push Supabase migrations with Postgres URL
+        if: env.SUPABASE_DEPLOY_MODE == 'postgres'
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL || secrets.SUPABASE_DATABASE_URL || secrets.DATABASE_URL }}
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client
+          for migration in supabase/migrations/*.sql; do
+            echo "Applying $migration"
+            psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -f "$migration"
+          done
+
       - name: Deploy Supabase Edge Functions
+        if: env.SUPABASE_FUNCTIONS_ENABLED == 'true'
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-          SUPABASE_PROJECT_ID: ${{ secrets.SUPABASE_PROJECT_ID || secrets.PRODUCTION_PROJECT_ID }}
+          SUPABASE_PROJECT_ID: ${{ secrets.SUPABASE_PROJECT_ID || secrets.SUPABASE_PROJECT_REF || secrets.PRODUCTION_PROJECT_ID || secrets.PRODUCTION_PROJECT_REF }}
         run: |
           for function_name in cleanup-expired fetch-playlist process-video-task summarize-video; do
             supabase functions deploy "$function_name" --project-ref "$SUPABASE_PROJECT_ID"
