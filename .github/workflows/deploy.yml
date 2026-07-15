@@ -40,12 +40,20 @@ jobs:
           chmod 700 ~/.ssh
           printf '%s\n' "${{ secrets.HOSTINGER_SSH_KEY }}" > ~/.ssh/hostinger_deploy_key
           chmod 600 ~/.ssh/hostinger_deploy_key
-          printf '%s\n' "${{ secrets.HOSTINGER_KNOWN_HOSTS }}" > ~/.ssh/known_hosts
+          printf '%s\n' "72.61.101.138 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIMLeR9MQfoNdiEiRRot1wE6novmNpuvNHxaBE26oQj2L" > ~/.ssh/known_hosts
           chmod 600 ~/.ssh/known_hosts
 
       - name: Deploy dist
         run: |
-          rsync -az --delete \
-            -e "ssh -i ~/.ssh/hostinger_deploy_key -p ${HOSTINGER_SSH_PORT}" \
-            dist/ \
-            "${HOSTINGER_SSH_USER}@${HOSTINGER_SSH_HOST}:${HOSTINGER_DEPLOY_PATH}"
+          tar -C dist -czf /tmp/recaps-dist.tar.gz .
+          scp -i ~/.ssh/hostinger_deploy_key -P "${HOSTINGER_SSH_PORT}" /tmp/recaps-dist.tar.gz "${HOSTINGER_SSH_USER}@${HOSTINGER_SSH_HOST}:/tmp/recaps-dist.tar.gz"
+          ssh -i ~/.ssh/hostinger_deploy_key -p "${HOSTINGER_SSH_PORT}" "${HOSTINGER_SSH_USER}@${HOSTINGER_SSH_HOST}" <<'EOF'
+          set -euo pipefail
+          target=/var/www/recaps/current
+          case "$target" in
+            /var/www/recaps/current) find "$target" -mindepth 1 -maxdepth 1 -exec rm -rf -- {} + ;;
+            *) echo "Refusing unsafe deploy target: $target" >&2; exit 1 ;;
+          esac
+          tar -xzf /tmp/recaps-dist.tar.gz -C "$target"
+          rm -f /tmp/recaps-dist.tar.gz
+          EOF
