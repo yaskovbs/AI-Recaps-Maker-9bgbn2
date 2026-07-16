@@ -132,6 +132,8 @@ export default function NewVideoTaskDialog({ onClose, onCreated }: NewVideoTaskD
 
     try {
       const { keys } = await apiKeysService.loadKeys(user.id);
+      if (!keys.gemini) throw new Error('Add and validate your Gemini API key in Settings before creating a recap.');
+      if (sourceType === 'youtube' && !keys.youtube) throw new Error('Add and validate your YouTube Data API key for YouTube sources.');
 
       if (sourceType === 'youtube') {
         if (fetchedType === 'playlist' && selectedVideoIds.size > 0) {
@@ -145,12 +147,12 @@ export default function NewVideoTaskDialog({ onClose, onCreated }: NewVideoTaskD
               enable_3d_conversion: enable3d,
             });
 
-            if (task) {
-              processVideoTask(task.id, {
+            if (!task) throw new Error(`Could not create task for ${item.title}.`);
+            const queued = await processVideoTask(task.id, {
                 youtube: keys.youtube,
                 gemini: keys.gemini,
               });
-            }
+            if (!queued.success) throw new Error(queued.error || `Could not queue ${item.title}.`);
           }
         } else {
           const task = await createVideoTask(user.id, {
@@ -161,12 +163,12 @@ export default function NewVideoTaskDialog({ onClose, onCreated }: NewVideoTaskD
             enable_3d_conversion: enable3d,
           });
 
-          if (task) {
-            processVideoTask(task.id, {
+          if (!task) throw new Error('Could not create the YouTube task.');
+          const queued = await processVideoTask(task.id, {
               youtube: keys.youtube,
               gemini: keys.gemini,
             });
-          }
+          if (!queued.success) throw new Error(queued.error || 'Could not queue the YouTube task.');
         }
       } else {
         const task = await createVideoTask(user.id, {
@@ -177,9 +179,9 @@ export default function NewVideoTaskDialog({ onClose, onCreated }: NewVideoTaskD
           enable_3d_conversion: enable3d,
         });
 
-        if (task && keys.gemini) {
-          processVideoTask(task.id, { gemini: keys.gemini });
-        }
+        if (!task) throw new Error('Could not create the upload task.');
+        const queued = await processVideoTask(task.id, { gemini: keys.gemini });
+        if (!queued.success) throw new Error(queued.error || 'Could not queue the upload task.');
       }
 
       onCreated();

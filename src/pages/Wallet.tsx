@@ -1,13 +1,11 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { useLanguage } from '@/lib/LanguageContext';
 import { useWallet } from '@/hooks/useWallet';
 import { Wallet as WalletIcon, Plus, Minus, RefreshCw, TrendingUp, Clock } from 'lucide-react';
-import { RewardedAd } from '@/components/ads/AdSenseUnit';
 
 export default function Wallet() {
   const { t } = useLanguage();
-  const { wallet, claimRewardedAd, refreshWallet, isLoading, error } = useWallet();
-  const [showRewardedAd, setShowRewardedAd] = useState(false);
+  const { wallet, refreshWallet, isLoading, error } = useWallet();
 
   /* Removed simulated reward flow.
   const legacyHandleWatchAd = () => {
@@ -19,8 +17,6 @@ export default function Wallet() {
   };
 
   */
-  const handleWatchAd = () => setShowRewardedAd(true);
-
   const handleRefresh = () => {
     refreshWallet();
     alert('היתרה עודכנה!');
@@ -52,14 +48,7 @@ export default function Wallet() {
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <button
-              onClick={handleWatchAd}
-              className="steampunk-button flex items-center justify-center gap-2"
-            >
-              <Plus className="w-5 h-5" />
-              {t.wallet.watchAd}
-            </button>
+          <div className="grid grid-cols-1 gap-4">
             <button
               onClick={handleRefresh}
               className="bg-steam-800 hover:bg-steam-700 text-brass-200 px-4 py-3 rounded-lg font-semibold transition-all flex items-center justify-center gap-2"
@@ -170,9 +159,6 @@ export default function Wallet() {
           )}
         </div>
       </div>
-      {showRewardedAd && <div className="fixed inset-0 bg-black/90 z-50 flex items-center justify-center p-4"><div className="steampunk-card max-w-lg w-full p-6">
-        <RewardedAd rewardType="credit" onRewardEarned={claimRewardedAd} onAdClosed={() => setShowRewardedAd(false)} />
-      </div></div>}
     </div>
   );
 }

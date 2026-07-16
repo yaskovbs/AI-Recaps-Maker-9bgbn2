@@ -177,7 +177,7 @@ export function useYouTubeChannels(userId: string | undefined) {
 
   const addChannel = async (
     channelInput: string,
-    unlockMethod: 'ads' | 'credits' | false = false
+    unlockMethod: 'credits' | false = false
   ): Promise<{ success: boolean; error?: string }> => {
     if (!userId) return { success: false, error: 'User not authenticated' };
 
@@ -218,11 +218,6 @@ export function useYouTubeChannels(userId: string | undefined) {
 
       const { data: existingChannel } = await supabase.from('youtube_channels').select('id').eq('user_id', userId).eq('channel_id', finalChannelId).maybeSingle();
       if (existingChannel) return { success: false, error: 'This channel is already connected.' };
-
-      if (slotInfo.needsAdsToUnlock && unlockMethod === 'ads') {
-        const { data: unlocked, error: unlockError } = await supabase.rpc('consume_rewarded_slot_views');
-        if (unlockError || !unlocked) return { success: false, error: 'Two verified rewarded ads are required for this slot.' };
-      }
 
       // Determine slot type
       let slotType: YouTubeChannel['slot_type'] = 'free';
@@ -317,25 +312,6 @@ export function useYouTubeChannels(userId: string | undefined) {
     }
   };
 
-  const recordAdView = async (
-    purpose: 'credit' | 'youtube_slot',
-    _adType: 'rewarded' | 'interstitial',
-    eventId: string
-  ): Promise<boolean> => {
-    if (!userId) return false;
-
-    try {
-      const functionName = purpose === 'credit' ? 'claim_rewarded_ad_credit' : 'record_rewarded_slot_view';
-      const { error } = await supabase.rpc(functionName, { p_event_id: eventId });
-
-      if (error) throw error;
-      return true;
-    } catch (error) {
-      console.error('Error recording ad view:', error);
-      return false;
-    }
-  };
-
   return {
     channels,
     slotInfo,
@@ -344,7 +320,6 @@ export function useYouTubeChannels(userId: string | undefined) {
     addChannel,
     removeChannel,
     syncChannel,
-    recordAdView,
     settings,
     saveSettings,
   };

@@ -222,7 +222,7 @@ export async function getTaskStats(userId: string): Promise<{
 
 export async function processVideoTask(
   taskId: string,
-  apiKeys: { youtube?: string; gemini?: string }
+  apiKeys: { youtube?: string; gemini?: string; googleSearch?: string; searchEngineId?: string; webSearchEnabled?: boolean }
 ): Promise<{ success: boolean; error?: string }> {
   try {
     const { data: { session } } = await supabase.auth.getSession();
@@ -242,6 +242,9 @@ export async function processVideoTask(
         task_id: taskId,
         youtube_api_key: apiKeys.youtube || '',
         gemini_api_key: apiKeys.gemini || '',
+        google_search_api_key: apiKeys.googleSearch || '',
+        search_engine_id: apiKeys.searchEngineId || '',
+        web_search_enabled: apiKeys.webSearchEnabled === true,
       }),
     });
 

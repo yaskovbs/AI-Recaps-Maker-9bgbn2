@@ -19,7 +19,7 @@ export function useGamification(){
   supabase.from('daily_challenge_progress').select('*').eq('user_id',user.id).eq('challenge_date',new Date().toISOString().slice(0,10))]);
   if(p.data){setXp(p.data.xp);setLevel(p.data.level);setStreak(p.data.streak);setOptIn(p.data.leaderboard_opt_in);}
   setAchievements(Object.entries(DEFINITIONS).map(([id,d])=>{const row=a.data?.find(x=>x.achievement_id===id);return{id,...d,progress:row?.progress||0,unlockedAt:row?.unlocked_at||undefined};}));
-  const expiry=new Date(); expiry.setHours(23,59,59,999); const challenges=[{id:'create_recap',title:'Create a recap',description:'Complete one recap today',xpReward:25,maxProgress:1},{id:'rewarded_ad',title:'Earn an ad reward',description:'Complete one rewarded ad today',xpReward:5,maxProgress:1}];
+  const expiry=new Date(); expiry.setHours(23,59,59,999); const challenges=[{id:'create_recap',title:'Create a recap',description:'Complete one recap today',xpReward:25,maxProgress:1}];
   setChallenges(challenges.map(d=>{const row=c.data?.find(x=>x.challenge_id===d.id);return{...d,progress:row?.progress||0,completed:!!row?.completed_at,expiresAt:expiry.toISOString()};})); setLoading(false);
  },[user]);
  useEffect(()=>{void refresh();},[refresh]);

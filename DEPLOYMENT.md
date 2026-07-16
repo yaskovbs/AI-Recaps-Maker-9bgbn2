@@ -6,7 +6,6 @@ Frontend build (public values despite being stored as Actions secrets):
 
 - `VITE_SUPABASE_URL`
 - `VITE_SUPABASE_ANON_KEY`
-- `VITE_GOOGLE_REWARDED_AD_UNIT_PATH` — Google Ad Manager path such as `/1234567/recaps_rewarded`
 - `VAPID_PUBLIC_KEY` — also injected as `VITE_VAPID_PUBLIC_KEY`
 
 Supabase deployment:
@@ -39,8 +38,8 @@ Copy the non-secret limits from `worker/.env.example`. Deploy the worker with `w
 
 - Supabase/OnSpace Auth: configure the production site URL, redirect URLs, and Google OAuth provider.
 - Google Cloud OAuth: add the Supabase callback URL.
-- Google Ad Manager: create a rewarded web ad unit and place its path in `VITE_GOOGLE_REWARDED_AD_UNIT_PATH`.
+- Google AdSense: enable standard display or Auto ads for the production domain. Regular ads never grant credits or unlock features.
 - Web Push: generate one VAPID key pair and use the same public key in the frontend and Edge Function.
 - Apply every migration and deploy all Edge Functions before deploying the frontend.
 
-Users supply YouTube, Gemini, Google Search, and Search Engine ID values inside the app. Those BYOK values are not GitHub secrets.
+Users supply their own YouTube, Gemini, Google Search, and Search Engine ID values inside the app. Those BYOK values are encrypted, isolated per user, and are not GitHub secrets. There is no platform-key fallback.

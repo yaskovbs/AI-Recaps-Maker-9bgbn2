@@ -49,23 +49,26 @@ Deno.serve(async (req: Request) => {
     const { data: task } = await service.from("video_tasks").select("id,status,source_type,source_url,user_id").eq("id", taskId).eq("user_id", user.id).maybeSingle();
     if (!task) return json(req, { error: "Task not found" }, 404);
     if (!["pending", "error", "cancelled"].includes(task.status)) return json(req, { error: `Task cannot be queued from status ${task.status}` }, 409);
-    if (task.source_type === "youtube" && !body.youtube_api_key) return json(req, { error: "A YouTube API key is required" }, 400);
-    if (!body.gemini_api_key) return json(req, { error: "A Gemini API key is required" }, 400);
+    const youtubeKey = typeof body.youtube_api_key === "string" ? body.youtube_api_key.trim() : "";
+    const geminiKey = typeof body.gemini_api_key === "string" ? body.gemini_api_key.trim() : "";
+    const googleSearchKey = typeof body.google_search_api_key === "string" ? body.google_search_api_key.trim() : "";
+    const searchEngineId = typeof body.search_engine_id === "string" ? body.search_engine_id.trim().replace(/^cx=/, "") : "";
+    if (task.source_type === "youtube" && !youtubeKey) return json(req, { error: "Add and validate your YouTube API key before processing this source" }, 400);
+    if (!geminiKey) return json(req, { error: "Add and validate your Gemini API key before creating a recap" }, 400);
+    if (body.web_search_enabled === true && (!googleSearchKey || !searchEngineId)) return json(req, { error: "Add and validate your Google Search API key and Search Engine ID, or disable web search" }, 400);
 
     const encryptedPayload = await encryptWorkerPayload({
-      youtube_api_key: body.youtube_api_key || "",
-      gemini_api_key: body.gemini_api_key,
+      youtube_api_key: youtubeKey,
+      gemini_api_key: geminiKey,
+      credential_source: "byok",
+      google_search_api_key: googleSearchKey,
+      search_engine_id: searchEngineId,
+      web_search_enabled: body.web_search_enabled === true && Boolean(googleSearchKey && searchEngineId),
       language: typeof body.language === "string" ? body.language : "en",
       recap_duration_seconds: Number(body.recap_duration_seconds || 0),
     });
-    const { error: chargeError } = await service.rpc("charge_task_credit", { p_user_id: user.id, p_task_id: taskId });
-    if (chargeError) {
-      const insufficient = chargeError.message.toLowerCase().includes("insufficient credits");
-      return json(req, { error: insufficient ? "Insufficient credits" : "Unable to charge task credit" }, insufficient ? 402 : 500);
-    }
     const { error: secretError } = await service.from("video_task_secrets").upsert({ task_id: taskId, encrypted_payload: encryptedPayload, updated_at: new Date().toISOString() });
     if (secretError) {
-      await service.rpc("refund_task_credit", { p_task_id: taskId, p_reason: "Queue setup failed" });
       throw secretError;
     }
     const { error: queueError } = await service.from("video_tasks").update({
@@ -75,7 +78,6 @@ Deno.serve(async (req: Request) => {
     }).eq("id", taskId).eq("user_id", user.id);
     if (queueError) {
       await service.from("video_task_secrets").delete().eq("task_id", taskId);
-      await service.rpc("refund_task_credit", { p_task_id: taskId, p_reason: "Queue update failed" });
       throw queueError;
     }
     await service.from("task_logs").insert({ task_id: taskId, level: "info", message: "Task securely queued for processing" });

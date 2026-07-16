@@ -79,22 +79,10 @@ export function useWallet() {
     return () => { void supabase.removeChannel(channel); };
   }, [user, refreshWallet]);
 
-  const claimRewardedAd = useCallback(async (eventId: string) => {
-    if (!user) return false;
-    const { error: claimError } = await supabase.rpc('claim_rewarded_ad_credit', { p_event_id: eventId });
-    if (claimError) {
-      setError(claimError.message);
-      return false;
-    }
-    await refreshWallet();
-    return true;
-  }, [user, refreshWallet]);
-
   return {
     wallet,
     isLoading,
     error,
-    claimRewardedAd,
     refresh: refreshWallet,
     refreshWallet,
   };

@@ -174,7 +174,7 @@ export default function Home() {
             </div>
             <div className="w-px h-10" style={{ background: 'rgba(0,212,255,0.15)' }} />
             <Link to="/wallet" className="btn-neon-purple text-sm py-2.5 px-5">
-              + {t.wallet.watchAd}
+              {t.wallet.title}
             </Link>
           </div>
         </div>
