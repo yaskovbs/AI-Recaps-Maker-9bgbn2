@@ -102,7 +102,7 @@ const GENRES_HE: Record<string, string> = {
 export default function Create() {
   const { t } = useLanguage();
   const { user } = useAuth();
-  const { wallet, consumeCredits, rewardCredits } = useWallet();
+  const { wallet, refreshWallet } = useWallet();
   const navigate = useNavigate();
   const [currentStep, setCurrentStep] = useState(1);
   const totalSteps = 5;
@@ -768,7 +768,7 @@ export default function Create() {
       if (!task) throw new Error('The processing job could not be created.');
       const queued = await processVideoTask(task.id, { youtube: keys.youtube, gemini: keys.gemini });
       if (!queued.success) throw new Error(queued.error || 'The processing job could not be queued.');
-      consumeCredits(1, `Created recap: ${task.title}`);
+      await refreshWallet();
       navigate('/my-videos', { replace: true });
       return;
     /* Removed: obsolete browser-side and simulated rendering fallback.
@@ -1831,7 +1831,7 @@ export default function Create() {
                       <AlertCircle className="w-5 h-5 flex-shrink-0 mt-0.5" style={{ color: '#ffcc00' }} />
                       <div>
                         <p className="text-sm font-medium" style={{ color: '#ffdd44' }}>נדרש קרדיט אחד</p>
-                        <button onClick={() => { rewardCredits(1, 'Ad reward'); setShowRewardAlert(false); }} className="text-xs mt-1.5 underline" style={{ color: '#ffcc00' }}>
+                        <button onClick={() => navigate('/wallet')} className="text-xs mt-1.5 underline" style={{ color: '#ffcc00' }}>
                           צפה במודעה לקבלת קרדיט חינם
                         </button>
                       </div>

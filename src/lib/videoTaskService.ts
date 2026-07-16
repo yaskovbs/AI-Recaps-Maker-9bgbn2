@@ -141,10 +141,8 @@ export async function deleteVideoTasks(taskIds: string[]): Promise<boolean> {
 }
 
 export async function cancelVideoTask(taskId: string): Promise<boolean> {
-  const { error } = await supabase.from('video_tasks').update({
-    status: 'cancelled', current_step: 'Cancellation requested', cancel_requested_at: new Date().toISOString(),
-  }).eq('id', taskId);
-  return !error;
+  const { data, error } = await supabase.rpc('cancel_video_task', { p_task_id: taskId });
+  return !error && data === true;
 }
 
 export async function getTaskDownloadUrl(task: VideoTask): Promise<string | null> {

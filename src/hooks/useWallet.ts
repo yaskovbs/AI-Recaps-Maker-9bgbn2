@@ -1,93 +1,101 @@
-import { useState, useEffect } from 'react';
+import { useCallback, useEffect, useState } from 'react';
+import { useAuth } from '@/lib/AuthContext';
+import { supabase } from '@/lib/supabase';
+
+export interface WalletTransaction {
+  id: string;
+  type: 'reward' | 'consume' | 'bonus' | 'refund';
+  amount: number;
+  date: string;
+  description?: string;
+}
 
 interface WalletData {
   balance: number;
+  totalEarned: number;
+  totalSpent: number;
   lastRewardAt?: string;
   updatedAt: string;
-  history: Array<{
-    type: 'reward' | 'consume';
-    amount: number;
-    date: string;
-    description?: string;
-  }>;
+  history: WalletTransaction[];
 }
 
-const WALLET_KEY = 'wallet_data';
+const EMPTY_WALLET: WalletData = {
+  balance: 0,
+  totalEarned: 0,
+  totalSpent: 0,
+  updatedAt: new Date(0).toISOString(),
+  history: [],
+};
 
 export function useWallet() {
-  const [wallet, setWallet] = useState<WalletData>(() => {
-    const saved = localStorage.getItem(WALLET_KEY);
-    if (saved) {
-      return JSON.parse(saved);
-    }
-    return {
-      balance: 5, // Starting balance
-      updatedAt: new Date().toISOString(),
-      history: [],
-    };
-  });
+  const { user } = useAuth();
+  const [wallet, setWallet] = useState<WalletData>(EMPTY_WALLET);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    localStorage.setItem(WALLET_KEY, JSON.stringify(wallet));
-  }, [wallet]);
-
-  const rewardCredits = (amount: number = 1, description?: string) => {
-    setWallet(prev => ({
-      ...prev,
-      balance: prev.balance + amount,
-      lastRewardAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      history: [
-        {
-          type: 'reward',
-          amount,
-          date: new Date().toISOString(),
-          description: description || 'Watched ad',
-        },
-        ...prev.history,
-      ],
-    }));
-  };
-
-  const consumeCredits = (amount: number = 1, description?: string): boolean => {
-    if (wallet.balance < amount) {
+  const refreshWallet = useCallback(async () => {
+    if (!user) {
+      setWallet(EMPTY_WALLET);
+      setIsLoading(false);
       return false;
     }
-    
-    setWallet(prev => ({
-      ...prev,
-      balance: prev.balance - amount,
-      updatedAt: new Date().toISOString(),
-      history: [
-        {
-          type: 'consume',
-          amount: -amount,
-          date: new Date().toISOString(),
-          description: description || 'Created recap',
-        },
-        ...prev.history,
-      ],
-    }));
-    
-    return true;
-  };
-
-  const refresh = () => {
-    const saved = localStorage.getItem(WALLET_KEY);
-    if (!saved) return;
-
-    try {
-      setWallet(JSON.parse(saved) as WalletData);
-    } catch {
-      localStorage.removeItem(WALLET_KEY);
+    setIsLoading(true);
+    const [walletResult, historyResult] = await Promise.all([
+      supabase.from('credits_wallet').select('balance,total_earned,total_spent,updated_at').eq('user_id', user.id).maybeSingle(),
+      supabase.from('credits_transactions').select('id,amount,type,reason,created_at').eq('user_id', user.id).order('created_at', { ascending: false }).limit(100),
+    ]);
+    setIsLoading(false);
+    if (walletResult.error || historyResult.error || !walletResult.data) {
+      setError(walletResult.error?.message || historyResult.error?.message || 'Wallet is unavailable');
+      return false;
     }
-  };
+    const history: WalletTransaction[] = (historyResult.data || []).map(item => ({
+      id: item.id,
+      type: item.type as WalletTransaction['type'],
+      amount: Number(item.amount),
+      date: item.created_at,
+      description: item.reason || undefined,
+    }));
+    setWallet({
+      balance: walletResult.data.balance,
+      totalEarned: walletResult.data.total_earned,
+      totalSpent: walletResult.data.total_spent,
+      updatedAt: walletResult.data.updated_at,
+      lastRewardAt: history.find(item => item.type === 'reward' || item.type === 'bonus')?.date,
+      history,
+    });
+    setError(null);
+    return true;
+  }, [user]);
+
+  useEffect(() => { void refreshWallet(); }, [refreshWallet]);
+
+  useEffect(() => {
+    if (!user) return;
+    const channel = supabase.channel(`wallet-${user.id}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'credits_wallet', filter: `user_id=eq.${user.id}` }, () => { void refreshWallet(); })
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'credits_transactions', filter: `user_id=eq.${user.id}` }, () => { void refreshWallet(); })
+      .subscribe();
+    return () => { void supabase.removeChannel(channel); };
+  }, [user, refreshWallet]);
+
+  const claimRewardedAd = useCallback(async (eventId: string) => {
+    if (!user) return false;
+    const { error: claimError } = await supabase.rpc('claim_rewarded_ad_credit', { p_event_id: eventId });
+    if (claimError) {
+      setError(claimError.message);
+      return false;
+    }
+    await refreshWallet();
+    return true;
+  }, [user, refreshWallet]);
 
   return {
     wallet,
-    rewardCredits,
-    consumeCredits,
-    refresh,
-    refreshWallet: refresh,
+    isLoading,
+    error,
+    claimRewardedAd,
+    refresh: refreshWallet,
+    refreshWallet,
   };
 }

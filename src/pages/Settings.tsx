@@ -47,6 +47,8 @@ export default function Settings() {
     email: false,
     recapComplete: true,
     weeklyDigest: false,
+    learningInsights: true,
+    creditMilestones: true,
   });
   const [notifPermission, setNotifPermission] = useState<NotificationPermission>('default');
   const [notifSaveStatus, setNotifSaveStatus] = useState<'idle' | 'saved' | 'error'>('idle');
@@ -237,10 +239,14 @@ export default function Settings() {
   };
 
   const handleTestNotification = async () => {
+    if (!user) return;
+    /* Local-only notification replaced by an end-to-end push delivery test.
     const sent = await notificationService.sendNotification('בדיקת התראות', {
       body: 'ההתראות עובדות! תקבל התראות כשהסיכומים שלך יהיו מוכנים.',
       tag: 'test',
     });
+    */
+    const sent = await notificationService.sendPushTest(user.id);
     if (sent) {
       toast.success('התראת בדיקה נשלחה!');
     } else {
@@ -702,6 +708,8 @@ export default function Settings() {
                   />
                 </button>
               </div>
+              <div className="flex items-center justify-between mt-3"><span className="text-brass-300">Learning insights</span><button onClick={() => handleNotificationToggle('learningInsights')} className={`relative inline-flex h-6 w-11 items-center rounded-full ${notifications.learningInsights?'bg-brass-600':'bg-steam-700'}`}><span className={`inline-block h-4 w-4 rounded-full bg-white transition-transform ${notifications.learningInsights?'translate-x-6':'translate-x-1'}`}/></button></div>
+              <div className="flex items-center justify-between mt-3"><span className="text-brass-300">Credit milestones</span><button onClick={() => handleNotificationToggle('creditMilestones')} className={`relative inline-flex h-6 w-11 items-center rounded-full ${notifications.creditMilestones?'bg-brass-600':'bg-steam-700'}`}><span className={`inline-block h-4 w-4 rounded-full bg-white transition-transform ${notifications.creditMilestones?'translate-x-6':'translate-x-1'}`}/></button></div>
             </div>
           </div>
         </div>

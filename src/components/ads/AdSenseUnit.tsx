@@ -6,249 +6,119 @@ interface AdSenseUnitProps {
   style?: React.CSSProperties;
   className?: string;
   onAdLoaded?: () => void;
-  onAdFailed?: (error: any) => void;
+  onAdFailed?: (error: unknown) => void;
 }
 
 declare global {
   interface Window {
-    adsbygoogle: any[];
+    adsbygoogle: unknown[];
+    googletag?: any;
   }
 }
 
-export default function AdSenseUnit({
-  adSlot,
-  adFormat = 'auto',
-  style,
-  className = '',
-  onAdLoaded,
-  onAdFailed,
-}: AdSenseUnitProps) {
+export default function AdSenseUnit({ adSlot, adFormat = 'auto', style, className = '', onAdLoaded, onAdFailed }: AdSenseUnitProps) {
   const adRef = useRef<HTMLModElement>(null);
-  const [adLoaded, setAdLoaded] = useState(false);
-  const [adError, setAdError] = useState<any>(null);
-
   useEffect(() => {
-    if (!adRef.current) return;
-
+    if (!adRef.current || !adSlot || adSlot.startsWith('YOUR_')) return;
     try {
-      // Push ad to AdSense queue
       (window.adsbygoogle = window.adsbygoogle || []).push({});
-      
-      setAdLoaded(true);
       onAdLoaded?.();
-    } catch (error) {
-      console.error('AdSense error:', error);
-      setAdError(error);
-      onAdFailed?.(error);
-    }
-  }, []);
-
+    } catch (error) { onAdFailed?.(error); }
+  }, [adSlot, onAdLoaded, onAdFailed]);
   return (
     <div className={`adsense-container ${className}`} style={style}>
-      <ins
-        ref={adRef}
-        className="adsbygoogle"
-        style={{ display: 'block', ...style }}
-        data-ad-client="ca-pub-9953179201685717"
-        data-ad-slot={adSlot}
-        data-ad-format={adFormat}
-        data-full-width-responsive="true"
-      ></ins>
-      
-      {adError && (
-        <div className="text-xs text-red-400 mt-2 text-center">
-          מודעה לא נטענה - נסה לרענן
-        </div>
-      )}
+      <ins ref={adRef} className="adsbygoogle" style={{ display: 'block', ...style }} data-ad-client="ca-pub-9953179201685717"
+        data-ad-slot={adSlot} data-ad-format={adFormat} data-full-width-responsive="true" />
     </div>
   );
 }
 
-// Rewarded Ad Component (for credits)
 interface RewardedAdProps {
-  onRewardEarned: () => void;
+  onRewardEarned: (eventId: string) => void | Promise<void | boolean>;
   onAdClosed: () => void;
-  onAdFailed?: (error: any) => void;
+  onAdFailed?: (error: unknown) => void;
   rewardType: 'credit' | 'youtube_slot';
 }
 
+const GPT_SRC = 'https://securepubads.g.doubleclick.net/tag/js/gpt.js';
+
 export function RewardedAd({ onRewardEarned, onAdClosed, onAdFailed, rewardType }: RewardedAdProps) {
-  const [isWatching, setIsWatching] = useState(false);
-  const [countdown, setCountdown] = useState(30); // 30 seconds ad simulation
+  const [status, setStatus] = useState<'idle' | 'loading' | 'ready' | 'watching' | 'granted' | 'unavailable'>('idle');
+  const slotRef = useRef<any>(null);
+  const adUnitPath = import.meta.env.VITE_GOOGLE_REWARDED_AD_UNIT_PATH as string | undefined;
 
-  useEffect(() => {
-    if (!isWatching) return;
-
-    const timer = setInterval(() => {
-      setCountdown(prev => {
-        if (prev <= 1) {
-          clearInterval(timer);
-          handleAdComplete();
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
-
-    return () => clearInterval(timer);
-  }, [isWatching]);
-
-  const handleAdComplete = () => {
-    setIsWatching(false);
-    onRewardEarned();
-    setTimeout(() => {
-      onAdClosed();
-    }, 1000);
-  };
-
-  const handleClose = () => {
-    if (countdown > 0) {
-      const confirmClose = window.confirm('האם אתה בטוח? לא תקבל את הקרדיט אם תסגור עכשיו.');
-      if (!confirmClose) return;
-    }
-    setIsWatching(false);
-    onAdClosed();
-  };
-
-  if (!isWatching) {
-    return (
-      <div className="text-center">
-        <div className="mb-4">
-          <div className="text-6xl mb-4">📺</div>
-          <h3 className="text-xl font-semibold text-brass-200 mb-2">
-            {rewardType === 'credit' ? 'קבל קרדיט חינם!' : 'פתח סלוט חדש!'}
-          </h3>
-          <p className="text-brass-400 mb-4">
-            {rewardType === 'credit' 
-              ? 'צפה במודעה קצרה וקבל 1 קרדיט חינם'
-              : 'צפה ב-2 מודעות כדי לפתוח סלוט ערוץ נוסף'}
-          </p>
-        </div>
-        
-        <button
-          onClick={() => setIsWatching(true)}
-          className="steampunk-button w-full py-3 mb-2"
-        >
-          התחל צפייה במודעה
-        </button>
-        
-        <button
-          onClick={onAdClosed}
-          className="steampunk-button-secondary w-full py-2"
-        >
-          ביטול
-        </button>
-      </div>
-    );
-  }
-
-  return (
-    <div className="relative">
-      {/* Ad Placeholder (replace with real AdSense) */}
-      <div className="aspect-video bg-gradient-to-br from-steam-900 to-steam-800 rounded-lg mb-4 flex items-center justify-center relative overflow-hidden">
-        <div className="text-center">
-          <div className="text-4xl mb-2">🎬</div>
-          <p className="text-brass-300 font-medium">מודעה מתנגנת...</p>
-          <p className="text-brass-500 text-sm mt-2">
-            נותרו {countdown} שניות
-          </p>
-        </div>
-        
-        {/* Real AdSense Unit */}
-        <div className="absolute inset-0">
-          <AdSenseUnit
-            adSlot="YOUR_REWARDED_AD_SLOT_ID"
-            adFormat="auto"
-            onAdLoaded={() => console.log('Rewarded ad loaded')}
-            onAdFailed={(error) => {
-              console.error('Rewarded ad failed:', error);
-              onAdFailed?.(error);
-            }}
-          />
-        </div>
-      </div>
-
-      {/* Progress Bar */}
-      <div className="w-full bg-steam-800 rounded-full h-2 mb-4 overflow-hidden">
-        <div
-          className="bg-gradient-to-r from-brass-500 to-copper-500 h-full transition-all duration-1000"
-          style={{ width: `${((30 - countdown) / 30) * 100}%` }}
-        ></div>
-      </div>
-
-      {/* Close button (only after 5 seconds) */}
-      {countdown <= 25 && (
-        <button
-          onClick={handleClose}
-          className="steampunk-button-secondary w-full py-2"
-        >
-          {countdown > 0 ? `סגור (ללא קרדיט)` : 'סגור'}
-        </button>
-      )}
-    </div>
-  );
-}
-
-// Interstitial Ad (for recap creation gate)
-interface InterstitialAdProps {
-  onAdClosed: () => void;
-  onAdFailed?: (error: any) => void;
-}
-
-export function InterstitialAd({ onAdClosed, onAdFailed }: InterstitialAdProps) {
-  const [countdown, setCountdown] = useState(5); // 5 seconds minimum
-
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setCountdown(prev => {
-        if (prev <= 1) {
-          clearInterval(timer);
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
-
-    return () => clearInterval(timer);
+  useEffect(() => () => {
+    if (slotRef.current && window.googletag?.destroySlots) window.googletag.destroySlots([slotRef.current]);
   }, []);
 
-  return (
-    <div className="fixed inset-0 bg-black/90 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="steampunk-card max-w-2xl w-full p-6">
-        <div className="aspect-video bg-gradient-to-br from-steam-900 to-steam-800 rounded-lg mb-4 flex items-center justify-center relative overflow-hidden">
-          <div className="text-center">
-            <div className="text-4xl mb-2">📺</div>
-            <p className="text-brass-300 font-medium">מודעה</p>
-            {countdown > 0 && (
-              <p className="text-brass-500 text-sm mt-2">
-                נותרו {countdown} שניות
-              </p>
-            )}
-          </div>
-          
-          {/* Real AdSense Unit */}
-          <div className="absolute inset-0">
-            <AdSenseUnit
-              adSlot="YOUR_INTERSTITIAL_AD_SLOT_ID"
-              adFormat="auto"
-              onAdLoaded={() => console.log('Interstitial ad loaded')}
-              onAdFailed={(error) => {
-                console.error('Interstitial ad failed:', error);
-                onAdFailed?.(error);
-              }}
-            />
-          </div>
-        </div>
+  const start = () => {
+    if (!adUnitPath) {
+      setStatus('unavailable');
+      onAdFailed?.(new Error('Rewarded ad unit is not configured'));
+      return;
+    }
+    setStatus('loading');
+    const initialize = () => {
+      window.googletag = window.googletag || { cmd: [] };
+      window.googletag.cmd.push(() => {
+        const gpt = window.googletag;
+        const slot = gpt.defineOutOfPageSlot(adUnitPath, gpt.enums.OutOfPageFormat.REWARDED);
+        if (!slot) { setStatus('unavailable'); onAdFailed?.(new Error('Rewarded ads are unavailable on this device')); return; }
+        slotRef.current = slot;
+        slot.addService(gpt.pubads());
+        gpt.pubads().addEventListener('rewardedSlotReady', (event: any) => {
+          if (event.slot !== slot) return;
+          setStatus('ready');
+          event.makeRewardedVisible();
+          setStatus('watching');
+        });
+        gpt.pubads().addEventListener('rewardedSlotGranted', async (event: any) => {
+          if (event.slot !== slot) return;
+          setStatus('granted');
+          await onRewardEarned(crypto.randomUUID());
+        });
+        gpt.pubads().addEventListener('rewardedSlotClosed', (event: any) => {
+          if (event.slot !== slot) return;
+          gpt.destroySlots([slot]);
+          slotRef.current = null;
+          onAdClosed();
+        });
+        gpt.pubads().addEventListener('slotRenderEnded', (event: any) => {
+          if (event.slot === slot && event.isEmpty) { setStatus('unavailable'); onAdFailed?.(new Error('No rewarded ad inventory is available')); }
+        });
+        gpt.enableServices();
+        gpt.display(slot);
+      });
+    };
+    if (window.googletag) initialize();
+    else {
+      const existing = document.querySelector<HTMLScriptElement>(`script[src="${GPT_SRC}"]`);
+      if (existing) existing.addEventListener('load', initialize, { once: true });
+      else {
+        const script = document.createElement('script');
+        script.async = true; script.src = GPT_SRC; script.onload = initialize;
+        script.onerror = () => { setStatus('unavailable'); onAdFailed?.(new Error('Google ad library failed to load')); };
+        document.head.appendChild(script);
+      }
+    }
+  };
 
-        {countdown === 0 && (
-          <button
-            onClick={onAdClosed}
-            className="steampunk-button w-full py-3"
-          >
-            המשך ליצירת הסיכום
-          </button>
-        )}
-      </div>
+  return (
+    <div className="text-center space-y-4">
+      <h3 className="text-xl font-semibold text-brass-200">{rewardType === 'credit' ? 'Earn 1 credit' : 'Unlock a channel slot'}</h3>
+      <p className="text-brass-400">The reward is granted only after Google confirms the rewarded ad was viewed.</p>
+      {status === 'idle' && <button onClick={start} className="steampunk-button w-full py-3">Watch rewarded ad</button>}
+      {['loading', 'ready', 'watching'].includes(status) && <p className="text-brass-300">Loading rewarded ad…</p>}
+      {status === 'granted' && <p className="text-green-300">Reward confirmed.</p>}
+      {status === 'unavailable' && <p className="text-red-300">No rewarded ad is available. Try again later.</p>}
+      <button onClick={onAdClosed} className="steampunk-button-secondary w-full py-2">Close</button>
     </div>
   );
+}
+
+interface InterstitialAdProps { onAdClosed: () => void; onAdFailed?: (error: unknown) => void; }
+export function InterstitialAd({ onAdClosed }: InterstitialAdProps) {
+  return <div className="fixed inset-0 bg-black/90 z-50 flex items-center justify-center p-4"><div className="steampunk-card p-6">
+    <p className="text-brass-200 mb-4">Advertisement</p><button onClick={onAdClosed} className="steampunk-button">Continue</button>
+  </div></div>;
 }

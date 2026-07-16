@@ -1,19 +1,25 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useLanguage } from '@/lib/LanguageContext';
 import { useWallet } from '@/hooks/useWallet';
 import { Wallet as WalletIcon, Plus, Minus, RefreshCw, TrendingUp, Clock } from 'lucide-react';
+import { RewardedAd } from '@/components/ads/AdSenseUnit';
 
 export default function Wallet() {
   const { t } = useLanguage();
-  const { wallet, rewardCredits, refreshWallet } = useWallet();
+  const { wallet, claimRewardedAd, refreshWallet, isLoading, error } = useWallet();
+  const [showRewardedAd, setShowRewardedAd] = useState(false);
 
-  const handleWatchAd = () => {
+  /* Removed simulated reward flow.
+  const legacyHandleWatchAd = () => {
     alert('מציג מודעה מתגמלת...');
     setTimeout(() => {
       rewardCredits(1, 'Watched rewarded ad from wallet');
       alert('קיבלת קרדיט אחד!');
     }, 1000);
   };
+
+  */
+  const handleWatchAd = () => setShowRewardedAd(true);
 
   const handleRefresh = () => {
     refreshWallet();
@@ -37,7 +43,7 @@ export default function Wallet() {
             <div>
               <p className="text-brass-300 text-sm mb-2">{t.wallet.balance}</p>
               <div className="flex items-baseline gap-2">
-                <span className="text-5xl font-bold text-brass-100">{wallet.balance}</span>
+                <span className="text-5xl font-bold text-brass-100">{isLoading ? '…' : wallet.balance}</span>
                 <span className="text-brass-300">{t.wallet.credits}</span>
               </div>
             </div>
@@ -70,7 +76,7 @@ export default function Wallet() {
             <div className="flex items-center justify-between mb-2">
               <Plus className="w-5 h-5 text-green-400" />
               <span className="text-2xl font-bold text-brass-100">
-                {wallet.history.filter(h => h.type === 'reward').length}
+                {wallet.totalEarned}
               </span>
             </div>
             <p className="text-sm text-brass-300">קרדיטים התקבלו</p>
@@ -80,7 +86,7 @@ export default function Wallet() {
             <div className="flex items-center justify-between mb-2">
               <Minus className="w-5 h-5 text-red-400" />
               <span className="text-2xl font-bold text-brass-100">
-                {wallet.history.filter(h => h.type === 'consume').length}
+                {wallet.totalSpent}
               </span>
             </div>
             <p className="text-sm text-brass-300">קרדיטים נוצלו</p>
@@ -106,6 +112,7 @@ export default function Wallet() {
             {t.wallet.history.title}
           </h2>
 
+          {error && <p className="text-red-300 mb-4">{error}</p>}
           {wallet.history.length === 0 ? (
             <div className="text-center py-12">
               <WalletIcon className="w-12 h-12 text-brass-400 mx-auto mb-4" />
@@ -118,18 +125,18 @@ export default function Wallet() {
                 .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
                 .map((transaction, idx) => (
                   <div
-                    key={idx}
+                    key={transaction.id || idx}
                     className="flex items-center justify-between p-4 bg-steam-800/30 border border-brass-700/20 rounded-lg hover:bg-steam-800/50 transition-all"
                   >
                     <div className="flex items-center gap-4">
                       <div
                         className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                          transaction.type === 'reward'
+                            transaction.amount > 0
                             ? 'bg-green-900/50 text-green-300'
                             : 'bg-red-900/50 text-red-300'
                         }`}
                       >
-                        {transaction.type === 'reward' ? (
+                        {transaction.amount > 0 ? (
                           <Plus className="w-5 h-5" />
                         ) : (
                           <Minus className="w-5 h-5" />
@@ -137,7 +144,7 @@ export default function Wallet() {
                       </div>
                       <div>
                         <p className="text-brass-200 font-medium">
-                          {transaction.type === 'reward'
+                          {transaction.amount > 0
                             ? t.wallet.history.reward
                             : t.wallet.history.consume}
                         </p>
@@ -147,11 +154,11 @@ export default function Wallet() {
                     <div className="text-left">
                       <p
                         className={`text-lg font-bold ${
-                          transaction.type === 'reward' ? 'text-green-300' : 'text-red-300'
+                          transaction.amount > 0 ? 'text-green-300' : 'text-red-300'
                         }`}
                       >
-                        {transaction.type === 'reward' ? '+' : '-'}
-                        {transaction.amount}
+                        {transaction.amount > 0 ? '+' : '-'}
+                        {Math.abs(transaction.amount)}
                       </p>
                       <p className="text-xs text-brass-400">
                         {new Date(transaction.date).toLocaleString('he-IL')}
@@ -163,6 +170,9 @@ export default function Wallet() {
           )}
         </div>
       </div>
+      {showRewardedAd && <div className="fixed inset-0 bg-black/90 z-50 flex items-center justify-center p-4"><div className="steampunk-card max-w-lg w-full p-6">
+        <RewardedAd rewardType="credit" onRewardEarned={claimRewardedAd} onAdClosed={() => setShowRewardedAd(false)} />
+      </div></div>}
     </div>
   );
 }

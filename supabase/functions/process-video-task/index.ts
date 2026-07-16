@@ -58,14 +58,26 @@ Deno.serve(async (req: Request) => {
       language: typeof body.language === "string" ? body.language : "en",
       recap_duration_seconds: Number(body.recap_duration_seconds || 0),
     });
+    const { error: chargeError } = await service.rpc("charge_task_credit", { p_user_id: user.id, p_task_id: taskId });
+    if (chargeError) {
+      const insufficient = chargeError.message.toLowerCase().includes("insufficient credits");
+      return json(req, { error: insufficient ? "Insufficient credits" : "Unable to charge task credit" }, insufficient ? 402 : 500);
+    }
     const { error: secretError } = await service.from("video_task_secrets").upsert({ task_id: taskId, encrypted_payload: encryptedPayload, updated_at: new Date().toISOString() });
-    if (secretError) throw secretError;
+    if (secretError) {
+      await service.rpc("refund_task_credit", { p_task_id: taskId, p_reason: "Queue setup failed" });
+      throw secretError;
+    }
     const { error: queueError } = await service.from("video_tasks").update({
       status: "pending", current_step: "Queued for processing", progress_percentage: 0,
       error_code: null, error_message: null, error_details: null, error_action: null,
       cancel_requested_at: null, worker_id: null, locked_at: null, heartbeat_at: null,
     }).eq("id", taskId).eq("user_id", user.id);
-    if (queueError) throw queueError;
+    if (queueError) {
+      await service.from("video_task_secrets").delete().eq("task_id", taskId);
+      await service.rpc("refund_task_credit", { p_task_id: taskId, p_reason: "Queue update failed" });
+      throw queueError;
+    }
     await service.from("task_logs").insert({ task_id: taskId, level: "info", message: "Task securely queued for processing" });
     return json(req, { status: "queued", task_id: taskId }, 202);
   } catch (error) {

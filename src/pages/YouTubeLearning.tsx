@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useLanguage } from '@/lib/LanguageContext';
 import { useAuth } from '@/lib/AuthContext';
 import { useYouTubeChannels } from '@/hooks/useYouTubeChannels';
 import { RewardedAd } from '@/components/ads/AdSenseUnit';
+import { supabase } from '@/lib/supabase';
 import { Youtube, Plus, Trash2, RefreshCw, Lock, ChevronDown, ChevronUp, Sparkles, Film, Clock, Palette, Music, Tag } from 'lucide-react';
 
 export default function YouTubeLearning() {
@@ -16,6 +17,8 @@ export default function YouTubeLearning() {
     removeChannel,
     syncChannel,
     recordAdView,
+    settings,
+    saveSettings,
   } = useYouTubeChannels(user?.id);
   
   const [channelInput, setChannelInput] = useState('');
@@ -23,6 +26,15 @@ export default function YouTubeLearning() {
   const [adsWatchedForSlot, setAdsWatchedForSlot] = useState(0);
   const [pendingChannelInput, setPendingChannelInput] = useState('');
   const [expandedChannels, setExpandedChannels] = useState<Set<string>>(new Set());
+  const autoSynced = useRef(new Set<string>());
+
+  useEffect(() => {
+    const now=Date.now();
+    channels.forEach(channel=>{
+      const stale=!channel.last_synced_at || now-new Date(channel.last_synced_at).getTime()>=settings.refresh_interval_seconds*1000;
+      if(stale&&!autoSynced.current.has(channel.id)){autoSynced.current.add(channel.id);void syncChannel(channel.id);}
+    });
+  },[channels,settings.refresh_interval_seconds,syncChannel]);
 
   const toggleChannelExpanded = (channelId: string) => {
     setExpandedChannels(prev => {
@@ -55,7 +67,7 @@ export default function YouTubeLearning() {
     }
 
     // Add channel
-    const result = await addChannel(channelInput, adsWatchedForSlot === slotInfo.adsRequired);
+    const result = await addChannel(channelInput, adsWatchedForSlot === slotInfo.adsRequired ? 'ads' : false);
     if (result.success) {
       setChannelInput('');
       setAdsWatchedForSlot(0);
@@ -84,15 +96,16 @@ export default function YouTubeLearning() {
     }
   };
 
-  const handleAdReward = async () => {
-    await recordAdView('youtube_slot', 'rewarded');
+  const handleAdReward = async (eventId: string) => {
+    const recorded = await recordAdView('youtube_slot', 'rewarded', eventId);
+    if (!recorded) return;
     
     const newCount = adsWatchedForSlot + 1;
     setAdsWatchedForSlot(newCount);
 
     if (newCount >= slotInfo.adsRequired) {
       setShowAdDialog(false);
-      const result = await addChannel(pendingChannelInput, true);
+      const result = await addChannel(pendingChannelInput, 'ads');
       if (result.success) {
         setChannelInput('');
         setPendingChannelInput('');
@@ -104,6 +117,14 @@ export default function YouTubeLearning() {
     } else {
       alert(`נותרו עוד ${slotInfo.adsRequired - newCount} מודעות`);
     }
+  };
+
+  const handleCreditUnlock = async () => {
+    const { data, error } = await supabase.rpc('purchase_youtube_slot_with_credits');
+    if (error || !data) { alert(error?.message || 'Unable to purchase slot.'); return; }
+    const result = await addChannel(pendingChannelInput, 'credits');
+    if (result.success) { setShowAdDialog(false); setPendingChannelInput(''); setChannelInput(''); }
+    else alert(result.error || 'Unable to add channel.');
   };
 
   const formatDuration = (seconds: number) => {
@@ -421,7 +442,7 @@ export default function YouTubeLearning() {
               <label className="block text-brass-200 font-medium mb-2">
                 {t.youtube.settings.refreshInterval}
               </label>
-              <select className="w-full bg-steam-900/50 border border-brass-600/30 rounded-lg p-3 text-brass-200 focus:outline-none focus:ring-2 focus:ring-brass-500">
+              <select value={settings.refresh_interval_seconds} onChange={e=>void saveSettings({...settings,refresh_interval_seconds:Number(e.target.value)})} className="w-full bg-steam-900/50 border border-brass-600/30 rounded-lg p-3 text-brass-200 focus:outline-none focus:ring-2 focus:ring-brass-500">
                 <option value="3600">כל שעה</option>
                 <option value="21600">כל 6 שעות</option>
                 <option value="86400">כל 24 שעות</option>
@@ -435,19 +456,19 @@ export default function YouTubeLearning() {
               </label>
               <div className="space-y-2">
                 <label className="flex items-center gap-2 text-brass-300">
-                  <input type="checkbox" defaultChecked className="rounded" />
+                  <input type="checkbox" checked={settings.include_public} onChange={e=>void saveSettings({...settings,include_public:e.target.checked})} className="rounded" />
                   {t.youtube.settings.public}
                 </label>
                 <label className="flex items-center gap-2 text-brass-300">
-                  <input type="checkbox" defaultChecked className="rounded" />
+                  <input type="checkbox" checked={settings.include_shorts} onChange={e=>void saveSettings({...settings,include_shorts:e.target.checked})} className="rounded" />
                   {t.youtube.settings.shorts}
                 </label>
                 <label className="flex items-center gap-2 text-brass-300">
-                  <input type="checkbox" defaultChecked className="rounded" />
+                  <input type="checkbox" checked={settings.include_live} onChange={e=>void saveSettings({...settings,include_live:e.target.checked})} className="rounded" />
                   {t.youtube.settings.live}
                 </label>
                 <label className="flex items-center gap-2 text-brass-300">
-                  <input type="checkbox" defaultChecked className="rounded" />
+                  <input type="checkbox" checked={settings.recent_90_days} onChange={e=>void saveSettings({...settings,recent_90_days:e.target.checked})} className="rounded" />
                   {t.youtube.settings.recent90}
                 </label>
               </div>
@@ -466,6 +487,7 @@ export default function YouTubeLearning() {
             <p className="text-brass-300 mb-4">
               צפה ב-{slotInfo.adsRequired} מודעות כדי לפתוח סלוט זה ({adsWatchedForSlot} / {slotInfo.adsRequired})
             </p>
+            <button onClick={handleCreditUnlock} className="steampunk-button-secondary w-full py-3 mb-4">Use 2 credits for a 7-day slot</button>
             
             <RewardedAd
               onRewardEarned={handleAdReward}

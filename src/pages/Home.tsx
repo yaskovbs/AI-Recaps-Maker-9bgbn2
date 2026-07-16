@@ -15,7 +15,7 @@ import {
 
 export default function Home() {
   const { t } = useLanguage();
-  const { wallet, rewardCredits } = useWallet();
+  const { wallet } = useWallet();
   const { stats: ratingStats, submitRating, shouldShowPrompt, markAsAsked } = useRating();
   const [isRatingModalOpen, setIsRatingModalOpen] = useState(false);
   const [statsInView, setStatsInView] = useState(false);
@@ -54,10 +54,6 @@ export default function Home() {
     const interval = setInterval(() => setActiveFeature(p => (p + 1) % 4), 3500);
     return () => clearInterval(interval);
   }, []);
-
-  const handleWatchAd = () => {
-    rewardCredits(1, 'Watched ad from home');
-  };
 
   const features = [
     {
@@ -177,9 +173,9 @@ export default function Home() {
               <div className="text-xs" style={{ color: 'rgba(150,150,200,0.7)' }}>{t.wallet.credits}</div>
             </div>
             <div className="w-px h-10" style={{ background: 'rgba(0,212,255,0.15)' }} />
-            <button onClick={handleWatchAd} className="btn-neon-purple text-sm py-2.5 px-5">
+            <Link to="/wallet" className="btn-neon-purple text-sm py-2.5 px-5">
               + {t.wallet.watchAd}
-            </button>
+            </Link>
           </div>
         </div>
 

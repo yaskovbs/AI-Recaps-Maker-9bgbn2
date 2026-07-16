@@ -238,6 +238,13 @@ def upload(task: dict[str, Any], output: Path) -> str:
     return object_path
 
 
+def send_push(task: dict[str, Any], title: str, message: str, notification_type: str = "recap_complete") -> None:
+    try:
+        request("POST", "/functions/v1/send-push", json={"user_id": task["user_id"], "type": notification_type, "title": title, "message": message, "url": "/my-videos"})
+    except Exception as error:
+        log(task["id"], "warning", "Push notification delivery failed", {"error": str(error)[:300]})
+
+
 def process(task: dict[str, Any]) -> None:
     global active_task_id
     task_id = task["id"]
@@ -268,6 +275,7 @@ def process(task: dict[str, Any]) -> None:
                    processed_file_url=None, file_size_mb=round(output_meta["size"] / 1048576, 2), completed_at=time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()), expires_at=time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(time.time() + 44 * 86400)))
         request("DELETE", f"/rest/v1/video_task_secrets?task_id=eq.{task_id}")
         log(task_id, "info", "Task completed successfully", {"elapsed_seconds": round(time.monotonic() - started, 2), "output_bytes": output_meta["size"]})
+        send_push(task, "Your recap is ready", f'{task.get("title", "Video recap")} finished processing.')
     active_task_id = None
 
 
@@ -284,6 +292,7 @@ def fail(task: dict[str, Any], error: Exception) -> None:
     log(task["id"], "warning" if status != "error" else "error", message, {"code": code, "retrying": retryable})
     if not retryable:
         request("DELETE", f'/rest/v1/video_task_secrets?task_id=eq.{task["id"]}')
+        request("POST", "/rest/v1/rpc/refund_task_credit", json={"p_task_id": task["id"], "p_reason": message[:300]})
     active_task_id = None
 
 

@@ -40,6 +40,7 @@ export interface SlotInfo {
   adsRequired: number; // 0 or 2
   nextTier: 'premium_12' | 'premium_22' | 'unlimited' | null;
 }
+export interface YouTubeLearningSettings { refresh_interval_seconds:number;include_public:boolean;include_shorts:boolean;include_live:boolean;recent_90_days:boolean; }
 
 export function useYouTubeChannels(userId: string | undefined) {
   const [channels, setChannels] = useState<YouTubeChannel[]>([]);
@@ -52,10 +53,12 @@ export function useYouTubeChannels(userId: string | undefined) {
     nextTier: 'premium_12',
   });
   const [isLoading, setIsLoading] = useState(false);
+  const [settings,setSettings]=useState<YouTubeLearningSettings>({refresh_interval_seconds:86400,include_public:true,include_shorts:true,include_live:true,recent_90_days:true});
 
   useEffect(() => {
     if (userId) {
       loadChannels();
+      void loadSettings();
     }
   }, [userId]);
 
@@ -119,6 +122,9 @@ export function useYouTubeChannels(userId: string | undefined) {
     });
   };
 
+  const loadSettings=async()=>{if(!userId)return;const{data}=await supabase.from('youtube_learning_settings').select('*').eq('user_id',userId).maybeSingle();if(data)setSettings(data);};
+  const saveSettings=async(next:YouTubeLearningSettings)=>{if(!userId)return false;const{error}=await supabase.from('youtube_learning_settings').upsert({user_id:userId,...next,updated_at:new Date().toISOString()});if(!error)setSettings(next);return !error;};
+
   const fetchChannelDetails = async (input: string) => {
     if (!userId) throw new Error('User not authenticated');
     const { keys } = await apiKeysService.loadKeys(userId);
@@ -129,7 +135,7 @@ export function useYouTubeChannels(userId: string | undefined) {
     const query = channelMatch ? `id=${encodeURIComponent(channelMatch[1])}` : handleMatch || trimmed.startsWith('@')
       ? `forHandle=${encodeURIComponent(handleMatch?.[1] || trimmed.slice(1))}` : null;
     if (!query) throw new Error('Use a YouTube channel URL, @handle, or channel ID.');
-    const response = await fetch(`https://www.googleapis.com/youtube/v3/channels?part=snippet,statistics&${query}&key=${encodeURIComponent(keys.youtube)}`);
+    const response = await fetch(`https://www.googleapis.com/youtube/v3/channels?part=snippet,statistics,contentDetails&${query}&key=${encodeURIComponent(keys.youtube)}`);
     const payload = await response.json();
     if (!response.ok) {
       if (response.status === 429 || JSON.stringify(payload).toLowerCase().includes('quota')) throw new Error('YouTube API quota is exhausted.');
@@ -144,17 +150,39 @@ export function useYouTubeChannels(userId: string | undefined) {
       description: channel.snippet?.description as string,
       subscriberCount: Number(channel.statistics?.subscriberCount || 0),
       videoCount: Number(channel.statistics?.videoCount || 0),
+      uploadsPlaylistId: channel.contentDetails?.relatedPlaylists?.uploads as string | undefined,
     };
+  };
+
+  const fetchLearningInsights = async (uploadsPlaylistId?: string): Promise<LearningInsights> => {
+    if (!userId || !uploadsPlaylistId) return { videos_analyzed: 0, genres: [], avg_duration_seconds: 0, topics: [], editing_style: '', color_palette: [], music_style: '', last_learning_at: new Date().toISOString() };
+    const { keys } = await apiKeysService.loadKeys(userId);
+    const listResponse = await fetch(`https://www.googleapis.com/youtube/v3/playlistItems?part=contentDetails&playlistId=${encodeURIComponent(uploadsPlaylistId)}&maxResults=50&key=${encodeURIComponent(keys.youtube)}`);
+    const listPayload = await listResponse.json();
+    if (!listResponse.ok) throw new Error(listPayload?.error?.message || 'Unable to load channel videos.');
+    const ids = (listPayload.items || []).map((item: any) => item.contentDetails?.videoId).filter(Boolean);
+    if (!ids.length) return { videos_analyzed: 0, genres: [], avg_duration_seconds: 0, topics: [], editing_style: '', color_palette: [], music_style: '', last_learning_at: new Date().toISOString() };
+    const videosResponse = await fetch(`https://www.googleapis.com/youtube/v3/videos?part=snippet,contentDetails,liveStreamingDetails&id=${ids.join(',')}&key=${encodeURIComponent(keys.youtube)}`);
+    const videosPayload = await videosResponse.json();
+    if (!videosResponse.ok) throw new Error(videosPayload?.error?.message || 'Unable to analyze channel videos.');
+    const cutoff = Date.now() - 90 * 86400000;
+    const videos = (videosPayload.items || []).filter((video: any) => new Date(video.snippet?.publishedAt || 0).getTime() >= cutoff);
+    const duration = (iso = '') => { const match = iso.match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/); return match ? Number(match[1] || 0) * 3600 + Number(match[2] || 0) * 60 + Number(match[3] || 0) : 0; };
+    const words = new Map<string, number>();
+    videos.forEach((video: any) => [...(video.snippet?.tags || []), ...(video.snippet?.title || '').split(/\W+/)].forEach((value: string) => { const word = value.trim().toLowerCase(); if (word.length > 3) words.set(word, (words.get(word) || 0) + 1); }));
+    const durations = videos.map((video: any) => duration(video.contentDetails?.duration));
+    return { videos_analyzed: videos.length, genres: [], avg_duration_seconds: durations.length ? Math.round(durations.reduce((a: number,b: number)=>a+b,0)/durations.length) : 0,
+      topics: [...words.entries()].sort((a,b)=>b[1]-a[1]).slice(0,20).map(([word])=>word), editing_style: '', color_palette: [], music_style: '', last_learning_at: new Date().toISOString() };
   };
 
   const addChannel = async (
     channelInput: string,
-    slotUnlockedByAds: boolean = false
+    unlockMethod: 'ads' | 'credits' | false = false
   ): Promise<{ success: boolean; error?: string }> => {
     if (!userId) return { success: false, error: 'User not authenticated' };
 
     // Check if user needs to watch ads first
-    if (slotInfo.needsAdsToUnlock && !slotUnlockedByAds) {
+    if (slotInfo.needsAdsToUnlock && !unlockMethod) {
       return {
         success: false,
         error: `צריך לצפות ב-${slotInfo.adsRequired} מודעות כדי לפתוח סלוט זה`,
@@ -188,6 +216,14 @@ export function useYouTubeChannels(userId: string | undefined) {
       // For now, use handle or ID as channel_id (in real app, use YouTube API to resolve)
       const finalChannelId = details.id;
 
+      const { data: existingChannel } = await supabase.from('youtube_channels').select('id').eq('user_id', userId).eq('channel_id', finalChannelId).maybeSingle();
+      if (existingChannel) return { success: false, error: 'This channel is already connected.' };
+
+      if (slotInfo.needsAdsToUnlock && unlockMethod === 'ads') {
+        const { data: unlocked, error: unlockError } = await supabase.rpc('consume_rewarded_slot_views');
+        if (unlockError || !unlocked) return { success: false, error: 'Two verified rewarded ads are required for this slot.' };
+      }
+
       // Determine slot type
       let slotType: YouTubeChannel['slot_type'] = 'free';
       if (slotInfo.usedSlots >= 22) {
@@ -209,8 +245,9 @@ export function useYouTubeChannels(userId: string | undefined) {
           channel_description: details.description,
           subscriber_count: details.subscriberCount,
           video_count: details.videoCount,
+          category: slotInfo.usedSlots === 0 ? 'personal' : 'inspiration',
           slot_type: slotType,
-          slot_unlocked_at: slotUnlockedByAds ? new Date().toISOString() : null,
+          slot_unlocked_at: unlockMethod ? new Date().toISOString() : null,
         })
         .select()
         .single();
@@ -255,6 +292,7 @@ export function useYouTubeChannels(userId: string | undefined) {
       const channel = channels.find(item => item.id === channelId);
       if (!channel) return false;
       const details = await fetchChannelDetails(channel.channel_id);
+      const insights = await fetchLearningInsights(details.uploadsPlaylistId);
       const { error } = await supabase
         .from('youtube_channels')
         .update({
@@ -263,6 +301,7 @@ export function useYouTubeChannels(userId: string | undefined) {
           channel_description: details.description,
           subscriber_count: details.subscriberCount,
           video_count: details.videoCount,
+          learning_insights: insights,
           last_synced_at: new Date().toISOString(),
         })
         .eq('id', channelId)
@@ -280,16 +319,14 @@ export function useYouTubeChannels(userId: string | undefined) {
 
   const recordAdView = async (
     purpose: 'credit' | 'youtube_slot',
-    adType: 'rewarded' | 'interstitial'
+    _adType: 'rewarded' | 'interstitial',
+    eventId: string
   ): Promise<boolean> => {
     if (!userId) return false;
 
     try {
-      const { error } = await supabase.from('ad_views').insert({
-        user_id: userId,
-        ad_type: adType,
-        reward_credits: purpose === 'credit' ? 1 : 0,
-      });
+      const functionName = purpose === 'credit' ? 'claim_rewarded_ad_credit' : 'record_rewarded_slot_view';
+      const { error } = await supabase.rpc(functionName, { p_event_id: eventId });
 
       if (error) throw error;
       return true;
@@ -308,5 +345,7 @@ export function useYouTubeChannels(userId: string | undefined) {
     removeChannel,
     syncChannel,
     recordAdView,
+    settings,
+    saveSettings,
   };
 }
