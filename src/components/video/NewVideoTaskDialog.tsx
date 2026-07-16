@@ -99,11 +99,9 @@ export default function NewVideoTaskDialog({ onClose, onCreated }: NewVideoTaskD
 
         if (error) throw error;
 
-        const { data: { publicUrl } } = supabase.storage
-          .from('video-originals')
-          .getPublicUrl(fileName);
-
-        setUploadedFileUrl(publicUrl);
+        // Keep private uploads as storage references. The processing worker
+        // downloads them with its service credential; no public URL is exposed.
+        setUploadedFileUrl(`storage://video-originals/${fileName}`);
         setUploadedFileName(file.name);
         if (!title) setTitle(file.name.replace(/\.[^.]+$/, ''));
       } catch (err: any) {

@@ -5,7 +5,7 @@ import { useLanguage } from '@/lib/LanguageContext';
 import { useAuth } from '@/lib/AuthContext';
 import { supabase } from '@/lib/supabase';
 import { notificationService, NotificationPreferences } from '@/lib/notificationService';
-import { apiKeysService, APIKeysData } from '@/lib/apiKeysService';
+import { apiKeysService, APIKeysData, APIKeyValidationResult } from '@/lib/apiKeysService';
 import { learningService, LearningPreferences } from '@/lib/learningService';
 import { Key, Lock, Globe, Brain, Trash2, AlertCircle, CheckCircle, Eye, EyeOff, Save, RefreshCw, Bell, LogOut, Cloud, CloudOff, Smartphone } from 'lucide-react';
 
@@ -13,7 +13,10 @@ export default function Settings() {
   const { t, language, setLanguage } = useLanguage();
   const { user, logout } = useAuth();
   const navigate = useNavigate();
-  const [showKeys, setShowKeys] = useState(false);
+  // Settings is already behind authenticated routing. Values stay masked until
+  // explicitly revealed; the previous arbitrary six-digit gate was not real
+  // re-authentication and created a false security boundary.
+  const [showKeys, setShowKeys] = useState(true);
   const [showKeyValues, setShowKeyValues] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -28,6 +31,7 @@ export default function Settings() {
   });
 
   const [keyHints, setKeyHints] = useState<Record<string, string>>({});
+  const [keyValidation, setKeyValidation] = useState<Record<string, APIKeyValidationResult>>({});
   const [pin, setPin] = useState('');
   const [dbSyncStatus, setDbSyncStatus] = useState<'checking' | 'connected' | 'disconnected' | null>(null);
   const [isSyncing, setIsSyncing] = useState(false);
@@ -172,6 +176,9 @@ export default function Settings() {
 
     try {
       const result = await apiKeysService.saveKeys(user.id, apiKeys);
+      if (result.validations) {
+        setKeyValidation(Object.fromEntries(result.validations.map(validation => [validation.provider, validation])));
+      }
 
       if (result.success) {
         if (result.dbSynced) {
@@ -210,6 +217,23 @@ export default function Settings() {
     } finally {
       setIsSyncing(false);
     }
+  };
+
+  const handleDeleteKey = async (provider: string) => {
+    if (!user) return;
+    const deleted = await apiKeysService.deleteKey(user.id, provider);
+    if (!deleted) {
+      toast.error('The key could not be deleted from every storage location.');
+      return;
+    }
+    const fieldByProvider: Record<string, keyof APIKeysData> = {
+      youtube: 'youtube', google_search: 'googleSearch', search_engine_id: 'searchEngineId', gemini: 'gemini',
+    };
+    const field = fieldByProvider[provider];
+    if (field) setApiKeys(current => ({ ...current, [field]: '' }));
+    setKeyHints(current => { const next = { ...current }; delete next[provider]; return next; });
+    setKeyValidation(current => { const next = { ...current }; delete next[provider]; return next; });
+    toast.success('API key deleted.');
   };
 
   const handleTestNotification = async () => {
@@ -376,6 +400,9 @@ export default function Settings() {
                         <CheckCircle className="w-4 h-4 text-green-400" />
                         <span className="capitalize">{provider.replace('_', ' ')}</span>
                         <span className="text-brass-500 font-mono text-xs">{hint}</span>
+                        <button type="button" onClick={() => handleDeleteKey(provider)} className="text-red-400 hover:text-red-300" aria-label={`Delete ${provider} key`}>
+                          <Trash2 className="w-4 h-4" />
+                        </button>
                       </div>
                     ))}
                   </div>
@@ -413,6 +440,17 @@ export default function Settings() {
                   }`}
                 >
                   {saveMessage.text}
+                </div>
+              )}
+
+              {Object.keys(keyValidation).length > 0 && (
+                <div className="grid gap-2 sm:grid-cols-2">
+                  {Object.values(keyValidation).map(status => (
+                    <div key={status.provider} className={`rounded-lg border p-3 text-xs ${status.valid ? 'border-green-700/40 bg-green-900/20 text-green-300' : 'border-red-700/40 bg-red-900/20 text-red-300'}`}>
+                      <div className="font-semibold capitalize">{status.provider.replaceAll('_', ' ')}</div>
+                      <div>{status.message}</div>
+                    </div>
+                  ))}
                 </div>
               )}
 

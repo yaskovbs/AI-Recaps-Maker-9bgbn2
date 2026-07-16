@@ -144,7 +144,7 @@ export default function VideoTaskCard({
 
             {/* Actions */}
             <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-              {task.status === 'completed' && task.processed_file_url && (
+              {task.status === 'completed' && (task.output_storage_path || task.processed_file_url) && (
                 <>
                   <button
                     onClick={() => onPlay(task)}

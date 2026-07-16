@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { X, Clock, TriangleAlert as AlertTriangle, CircleCheck as CheckCircle, Info, Download, FileVideo, Layers3, Brain, Tag } from 'lucide-react';
-import { fetchTaskLogs } from '@/lib/videoTaskService';
+import { fetchTaskLogs, getTaskDownloadUrl } from '@/lib/videoTaskService';
 import type { VideoTask, TaskLog } from '@/lib/videoTaskTypes';
 import { TASK_STATUS_LABELS, TASK_PRIORITY_LABELS } from '@/lib/videoTaskTypes';
 import CountdownTimer from './CountdownTimer';
@@ -20,9 +20,11 @@ export default function TaskDetailsModal({ task, onClose }: TaskDetailsModalProp
   const [logs, setLogs] = useState<TaskLog[]>([]);
   const [isLoadingLogs, setIsLoadingLogs] = useState(true);
   const [activeTab, setActiveTab] = useState<'details' | 'summary' | 'logs' | 'error'>('details');
+  const [downloadUrl, setDownloadUrl] = useState<string | null>(null);
 
   useEffect(() => {
     loadLogs();
+    if (task.status === 'completed') void getTaskDownloadUrl(task).then(setDownloadUrl);
   }, [task.id]);
 
   const loadLogs = async () => {
@@ -174,10 +176,10 @@ export default function TaskDetailsModal({ task, onClose }: TaskDetailsModalProp
               )}
 
               {/* Actions */}
-              {task.status === 'completed' && task.processed_file_url && (
+              {task.status === 'completed' && downloadUrl && (
                 <div className="flex gap-3">
                   <a
-                    href={task.processed_file_url}
+                    href={downloadUrl}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="flex-1 steampunk-button py-3 flex items-center justify-center gap-2"
@@ -186,7 +188,7 @@ export default function TaskDetailsModal({ task, onClose }: TaskDetailsModalProp
                     Play Now
                   </a>
                   <a
-                    href={task.processed_file_url}
+                    href={downloadUrl}
                     download={`${task.title}.mp4`}
                     className="flex-1 steampunk-button-secondary py-3 flex items-center justify-center gap-2 border border-brass-600/30 rounded-lg text-brass-200 hover:bg-brass-700/20 transition-colors"
                   >

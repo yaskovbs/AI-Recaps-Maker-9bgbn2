@@ -141,10 +141,18 @@ export async function deleteVideoTasks(taskIds: string[]): Promise<boolean> {
 }
 
 export async function cancelVideoTask(taskId: string): Promise<boolean> {
-  return updateVideoTask(taskId, {
-    status: 'cancelled',
-    current_step: null,
-  });
+  const { error } = await supabase.from('video_tasks').update({
+    status: 'cancelled', current_step: 'Cancellation requested', cancel_requested_at: new Date().toISOString(),
+  }).eq('id', taskId);
+  return !error;
+}
+
+export async function getTaskDownloadUrl(task: VideoTask): Promise<string | null> {
+  if (task.output_storage_path) {
+    const { data, error } = await supabase.storage.from('video-processed').createSignedUrl(task.output_storage_path, 300);
+    return error ? null : data.signedUrl;
+  }
+  return task.processed_file_url;
 }
 
 export async function fetchTaskLogs(taskId: string): Promise<TaskLog[]> {

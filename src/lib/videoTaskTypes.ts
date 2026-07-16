@@ -21,6 +21,7 @@ export interface VideoTask {
   error_action: string | null;
   original_file_url: string | null;
   processed_file_url: string | null;
+  output_storage_path: string | null;
   file_size_mb: number;
   duration_seconds: number;
   enable_3d_conversion: boolean;
@@ -33,6 +34,11 @@ export interface VideoTask {
   started_at: string | null;
   completed_at: string | null;
   expires_at: string;
+  attempt_count: number;
+  max_attempts: number;
+  cancel_requested_at: string | null;
+  source_metadata: Record<string, unknown>;
+  clip_plan: Array<{ start: number; end: number; reason: string }>;
 }
 
 export interface PlaylistItem {

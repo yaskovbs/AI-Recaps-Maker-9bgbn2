@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
+import { apiKeysService } from '@/lib/apiKeysService';
 
 export interface LearningInsights {
   videos_analyzed: number;
@@ -118,6 +119,34 @@ export function useYouTubeChannels(userId: string | undefined) {
     });
   };
 
+  const fetchChannelDetails = async (input: string) => {
+    if (!userId) throw new Error('User not authenticated');
+    const { keys } = await apiKeysService.loadKeys(userId);
+    if (!keys.youtube) throw new Error('Add and validate a YouTube Data API key in Settings first.');
+    const trimmed = input.trim();
+    const channelMatch = trimmed.match(/(?:youtube\.com\/channel\/)?(UC[\w-]{20,})/i);
+    const handleMatch = trimmed.match(/(?:youtube\.com\/)?@([\w.-]+)/i);
+    const query = channelMatch ? `id=${encodeURIComponent(channelMatch[1])}` : handleMatch || trimmed.startsWith('@')
+      ? `forHandle=${encodeURIComponent(handleMatch?.[1] || trimmed.slice(1))}` : null;
+    if (!query) throw new Error('Use a YouTube channel URL, @handle, or channel ID.');
+    const response = await fetch(`https://www.googleapis.com/youtube/v3/channels?part=snippet,statistics&${query}&key=${encodeURIComponent(keys.youtube)}`);
+    const payload = await response.json();
+    if (!response.ok) {
+      if (response.status === 429 || JSON.stringify(payload).toLowerCase().includes('quota')) throw new Error('YouTube API quota is exhausted.');
+      throw new Error(payload?.error?.message || 'YouTube channel lookup failed.');
+    }
+    const channel = payload.items?.[0];
+    if (!channel) throw new Error('YouTube channel was not found.');
+    return {
+      id: channel.id as string,
+      handle: channel.snippet?.customUrl as string | undefined,
+      title: channel.snippet?.title as string,
+      description: channel.snippet?.description as string,
+      subscriberCount: Number(channel.statistics?.subscriberCount || 0),
+      videoCount: Number(channel.statistics?.videoCount || 0),
+    };
+  };
+
   const addChannel = async (
     channelInput: string,
     slotUnlockedByAds: boolean = false
@@ -133,6 +162,7 @@ export function useYouTubeChannels(userId: string | undefined) {
     }
 
     try {
+      const details = await fetchChannelDetails(channelInput);
       // Parse channel input (URL, @handle, or UC... ID)
       let channelId = '';
       let channelHandle = '';
@@ -156,7 +186,7 @@ export function useYouTubeChannels(userId: string | undefined) {
       }
 
       // For now, use handle or ID as channel_id (in real app, use YouTube API to resolve)
-      const finalChannelId = channelId || channelHandle.replace('@', 'handle_');
+      const finalChannelId = details.id;
 
       // Determine slot type
       let slotType: YouTubeChannel['slot_type'] = 'free';
@@ -173,9 +203,12 @@ export function useYouTubeChannels(userId: string | undefined) {
         .insert({
           user_id: userId,
           channel_id: finalChannelId,
-          channel_handle: channelHandle || null,
-          channel_url: channelUrl,
-          channel_name: channelHandle || channelId || 'Unknown',
+          channel_handle: details.handle || channelHandle || null,
+          channel_url: `https://youtube.com/channel/${details.id}`,
+          channel_name: details.title,
+          channel_description: details.description,
+          subscriber_count: details.subscriberCount,
+          video_count: details.videoCount,
           slot_type: slotType,
           slot_unlocked_at: slotUnlockedByAds ? new Date().toISOString() : null,
         })
@@ -218,11 +251,18 @@ export function useYouTubeChannels(userId: string | undefined) {
   };
 
   const syncChannel = async (channelId: string): Promise<boolean> => {
-    // In real app, call YouTube API to sync channel data
     try {
+      const channel = channels.find(item => item.id === channelId);
+      if (!channel) return false;
+      const details = await fetchChannelDetails(channel.channel_id);
       const { error } = await supabase
         .from('youtube_channels')
         .update({
+          channel_handle: details.handle || null,
+          channel_name: details.title,
+          channel_description: details.description,
+          subscriber_count: details.subscriberCount,
+          video_count: details.videoCount,
           last_synced_at: new Date().toISOString(),
         })
         .eq('id', channelId)

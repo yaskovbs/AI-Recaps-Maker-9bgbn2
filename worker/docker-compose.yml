@@ -1,0 +1,14 @@
+services:
+  processor:
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    volumes:
+      - whisper-cache:/home/worker/.cache
+    deploy:
+      resources:
+        limits:
+          memory: 8G
+
+volumes:
+  whisper-cache:

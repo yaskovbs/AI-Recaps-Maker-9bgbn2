@@ -1,406 +1,75 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2.51.0";
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
-  "Access-Control-Allow-Headers":
-    "Content-Type, Authorization, X-Client-Info, Apikey",
-};
-
-interface VideoMetadata {
-  title: string;
-  description: string;
-  thumbnail: string;
-  duration: number;
-  formats: Array<{
-    url: string;
-    quality: string;
-    mimeType: string;
-    filesize?: number;
-  }>;
-}
-
-async function fetchVideoMetadata(
-  videoId: string,
-  apiKey: string
-): Promise<VideoMetadata | null> {
-  const params = new URLSearchParams({
-    part: "snippet,contentDetails",
-    id: videoId,
-    key: apiKey,
-  });
-
-  const res = await fetch(
-    `https://www.googleapis.com/youtube/v3/videos?${params}`
-  );
-  const data = await res.json();
-
-  if (!data.items || data.items.length === 0) return null;
-
-  const item = data.items[0];
-  const durationMatch = (item.contentDetails?.duration || "").match(
-    /PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/
-  );
-  const duration = durationMatch
-    ? (parseInt(durationMatch[1] || "0") * 3600 +
-      parseInt(durationMatch[2] || "0") * 60 +
-      parseInt(durationMatch[3] || "0"))
-    : 0;
-
+function corsHeaders(req: Request) {
+  const allowed = (Deno.env.get("ALLOWED_ORIGINS") || "").split(",").map(v => v.trim()).filter(Boolean);
+  const origin = req.headers.get("origin") || "";
   return {
-    title: item.snippet.title,
-    description: item.snippet.description || "",
-    thumbnail:
-      item.snippet.thumbnails?.maxres?.url ||
-      item.snippet.thumbnails?.high?.url ||
-      item.snippet.thumbnails?.medium?.url ||
-      "",
-    duration,
-    formats: [],
+    "Access-Control-Allow-Origin": allowed.includes(origin) ? origin : allowed[0] || "null",
+    "Access-Control-Allow-Methods": "POST, OPTIONS",
+    "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Client-Info, Apikey",
+    "Vary": "Origin",
   };
 }
 
-function extractVideoId(url: string): string | null {
-  try {
-    const parsed = new URL(url);
-    if (parsed.hostname.includes("youtu.be")) {
-      return parsed.pathname.slice(1);
-    }
-    return parsed.searchParams.get("v");
-  } catch {
-    if (/^[A-Za-z0-9_-]{11}$/.test(url)) return url;
-    return null;
-  }
+function json(req: Request, body: unknown, status = 200) {
+  return new Response(JSON.stringify(body), { status, headers: { ...corsHeaders(req), "Content-Type": "application/json" } });
+}
+
+async function encryptWorkerPayload(payload: object): Promise<string> {
+  const secret = Deno.env.get("PROCESSING_SECRET");
+  if (!secret || secret.length < 32) throw new Error("PROCESSING_SECRET must contain at least 32 characters");
+  const keyBytes = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(secret));
+  const key = await crypto.subtle.importKey("raw", keyBytes, "AES-GCM", false, ["encrypt"]);
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const ciphertext = new Uint8Array(await crypto.subtle.encrypt({ name: "AES-GCM", iv }, key, new TextEncoder().encode(JSON.stringify(payload))));
+  const combined = new Uint8Array(iv.length + ciphertext.length);
+  combined.set(iv); combined.set(ciphertext, iv.length);
+  return btoa(String.fromCharCode(...combined));
 }
 
 Deno.serve(async (req: Request) => {
-  if (req.method === "OPTIONS") {
-    return new Response(null, { status: 200, headers: corsHeaders });
-  }
+  if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: corsHeaders(req) });
+  if (req.method !== "POST") return json(req, { error: "Method not allowed" }, 405);
 
   try {
     const authHeader = req.headers.get("Authorization");
-    if (!authHeader) {
-      return new Response(
-        JSON.stringify({ error: "Missing authorization" }),
-        {
-          status: 401,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        }
-      );
-    }
-
-    const supabase = createClient(
-      Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_ANON_KEY")!,
-      { global: { headers: { Authorization: authHeader } } }
-    );
-
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) {
-      return new Response(
-        JSON.stringify({ error: "Unauthorized" }),
-        {
-          status: 401,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        }
-      );
-    }
+    if (!authHeader) return json(req, { error: "Missing authorization" }, 401);
+    const userClient = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_ANON_KEY")!, {
+      global: { headers: { Authorization: authHeader } },
+    });
+    const { data: { user }, error: userError } = await userClient.auth.getUser();
+    if (userError || !user) return json(req, { error: "Unauthorized" }, 401);
 
     const body = await req.json();
-    const { task_id, youtube_api_key, gemini_api_key } = body;
+    const taskId = typeof body.task_id === "string" ? body.task_id : "";
+    if (!taskId) return json(req, { error: "Missing task_id" }, 400);
 
-    if (!task_id) {
-      return new Response(
-        JSON.stringify({ error: "Missing task_id" }),
-        {
-          status: 400,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        }
-      );
-    }
+    const service = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
+    const { data: task } = await service.from("video_tasks").select("id,status,source_type,source_url,user_id").eq("id", taskId).eq("user_id", user.id).maybeSingle();
+    if (!task) return json(req, { error: "Task not found" }, 404);
+    if (!["pending", "error", "cancelled"].includes(task.status)) return json(req, { error: `Task cannot be queued from status ${task.status}` }, 409);
+    if (task.source_type === "youtube" && !body.youtube_api_key) return json(req, { error: "A YouTube API key is required" }, 400);
+    if (!body.gemini_api_key) return json(req, { error: "A Gemini API key is required" }, 400);
 
-    const serviceClient = createClient(
-      Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
-    );
-
-    const { data: task, error: taskError } = await serviceClient
-      .from("video_tasks")
-      .select("*")
-      .eq("id", task_id)
-      .eq("user_id", user.id)
-      .maybeSingle();
-
-    if (taskError || !task) {
-      return new Response(
-        JSON.stringify({ error: "Task not found" }),
-        {
-          status: 404,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        }
-      );
-    }
-
-    await serviceClient
-      .from("video_tasks")
-      .update({
-        status: "downloading",
-        current_step: "Fetching video metadata...",
-        progress_percentage: 10,
-        started_at: new Date().toISOString(),
-      })
-      .eq("id", task_id);
-
-    await serviceClient.from("task_logs").insert({
-      task_id,
-      level: "info",
-      message: "Task processing started",
+    const encryptedPayload = await encryptWorkerPayload({
+      youtube_api_key: body.youtube_api_key || "",
+      gemini_api_key: body.gemini_api_key,
+      language: typeof body.language === "string" ? body.language : "en",
+      recap_duration_seconds: Number(body.recap_duration_seconds || 0),
     });
-
-    if (task.source_type === "youtube" && task.source_url && youtube_api_key) {
-      const videoId = extractVideoId(task.source_url);
-
-      if (!videoId) {
-        await serviceClient
-          .from("video_tasks")
-          .update({
-            status: "error",
-            error_code: "ERR_INVALID_FORMAT",
-            error_message: "Could not extract video ID from URL",
-            current_step: "Failed",
-            progress_percentage: 0,
-          })
-          .eq("id", task_id);
-
-        return new Response(
-          JSON.stringify({ error: "Invalid video URL" }),
-          {
-            status: 400,
-            headers: { ...corsHeaders, "Content-Type": "application/json" },
-          }
-        );
-      }
-
-      await serviceClient
-        .from("video_tasks")
-        .update({
-          current_step: "Fetching video details from YouTube...",
-          progress_percentage: 20,
-        })
-        .eq("id", task_id);
-
-      const metadata = await fetchVideoMetadata(videoId, youtube_api_key);
-
-      if (!metadata) {
-        await serviceClient
-          .from("video_tasks")
-          .update({
-            status: "error",
-            error_code: "ERR_DOWNLOAD_FAILED",
-            error_message: "Video not found or is private",
-            current_step: "Failed",
-            progress_percentage: 0,
-          })
-          .eq("id", task_id);
-
-        return new Response(
-          JSON.stringify({ error: "Video not found" }),
-          {
-            status: 404,
-            headers: { ...corsHeaders, "Content-Type": "application/json" },
-          }
-        );
-      }
-
-      await serviceClient
-        .from("video_tasks")
-        .update({
-          title: task.title || metadata.title,
-          description: metadata.description.substring(0, 2000),
-          thumbnail_url: metadata.thumbnail,
-          duration_seconds: metadata.duration,
-          current_step: "Video metadata retrieved",
-          progress_percentage: 40,
-          status: "processing",
-        })
-        .eq("id", task_id);
-
-      await serviceClient.from("task_logs").insert({
-        task_id,
-        level: "info",
-        message: `Video metadata fetched: ${metadata.title}`,
-        metadata: {
-          duration: metadata.duration,
-          has_thumbnail: !!metadata.thumbnail,
-        },
-      });
-
-      if (gemini_api_key) {
-        await serviceClient
-          .from("video_tasks")
-          .update({
-            status: "summarizing",
-            current_step: "Generating AI summary...",
-            progress_percentage: 60,
-          })
-          .eq("id", task_id);
-
-        try {
-          const summaryRes = await fetch(
-            `${Deno.env.get("SUPABASE_URL")}/functions/v1/summarize-video`,
-            {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-                Authorization: authHeader,
-                Apikey: Deno.env.get("SUPABASE_ANON_KEY")!,
-              },
-              body: JSON.stringify({
-                task_id,
-                gemini_api_key,
-                language: "he",
-              }),
-            }
-          );
-
-          if (!summaryRes.ok) {
-            await serviceClient.from("task_logs").insert({
-              task_id,
-              level: "warning",
-              message: "AI summary generation failed, continuing without summary",
-            });
-          }
-        } catch (summaryErr) {
-          await serviceClient.from("task_logs").insert({
-            task_id,
-            level: "warning",
-            message: `Summary error: ${summaryErr instanceof Error ? summaryErr.message : "Unknown"}`,
-          });
-        }
-      }
-
-      if (task.enable_3d_conversion) {
-        await serviceClient
-          .from("video_tasks")
-          .update({
-            status: "converting_3d",
-            current_step: "3D conversion queued (requires external processor)",
-            progress_percentage: 90,
-          })
-          .eq("id", task_id);
-
-        await serviceClient.from("task_logs").insert({
-          task_id,
-          level: "info",
-          message: "3D conversion flagged - requires external processing service",
-        });
-      }
-
-      await serviceClient
-        .from("video_tasks")
-        .update({
-          status: "completed",
-          current_step: "Processing complete",
-          progress_percentage: 100,
-          completed_at: new Date().toISOString(),
-          processed_file_url: metadata.thumbnail,
-        })
-        .eq("id", task_id);
-
-      await serviceClient.from("task_logs").insert({
-        task_id,
-        level: "info",
-        message: "Task completed successfully",
-      });
-
-      return new Response(
-        JSON.stringify({
-          status: "completed",
-          title: metadata.title,
-          duration: metadata.duration,
-          thumbnail: metadata.thumbnail,
-        }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
-    if (task.source_type === "upload") {
-      await serviceClient
-        .from("video_tasks")
-        .update({
-          status: "processing",
-          current_step: "Processing uploaded file...",
-          progress_percentage: 50,
-        })
-        .eq("id", task_id);
-
-      if (gemini_api_key) {
-        await serviceClient
-          .from("video_tasks")
-          .update({
-            status: "summarizing",
-            current_step: "Generating AI summary for uploaded video...",
-            progress_percentage: 70,
-          })
-          .eq("id", task_id);
-
-        try {
-          await fetch(
-            `${Deno.env.get("SUPABASE_URL")}/functions/v1/summarize-video`,
-            {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-                Authorization: authHeader,
-                Apikey: Deno.env.get("SUPABASE_ANON_KEY")!,
-              },
-              body: JSON.stringify({
-                task_id,
-                gemini_api_key,
-                language: "he",
-              }),
-            }
-          );
-        } catch {
-          // continue without summary
-        }
-      }
-
-      await serviceClient
-        .from("video_tasks")
-        .update({
-          status: "completed",
-          current_step: "Processing complete",
-          progress_percentage: 100,
-          completed_at: new Date().toISOString(),
-        })
-        .eq("id", task_id);
-
-      return new Response(
-        JSON.stringify({ status: "completed" }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
-    return new Response(
-      JSON.stringify({ error: "Unsupported source type" }),
-      {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      }
-    );
-  } catch (err) {
-    const message = err instanceof Error ? err.message : "Internal error";
-    return new Response(
-      JSON.stringify({ error: message }),
-      {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      }
-    );
+    const { error: secretError } = await service.from("video_task_secrets").upsert({ task_id: taskId, encrypted_payload: encryptedPayload, updated_at: new Date().toISOString() });
+    if (secretError) throw secretError;
+    const { error: queueError } = await service.from("video_tasks").update({
+      status: "pending", current_step: "Queued for processing", progress_percentage: 0,
+      error_code: null, error_message: null, error_details: null, error_action: null,
+      cancel_requested_at: null, worker_id: null, locked_at: null, heartbeat_at: null,
+    }).eq("id", taskId).eq("user_id", user.id);
+    if (queueError) throw queueError;
+    await service.from("task_logs").insert({ task_id: taskId, level: "info", message: "Task securely queued for processing" });
+    return json(req, { status: "queued", task_id: taskId }, 202);
+  } catch (error) {
+    console.error("Queue request failed", error instanceof Error ? error.message : "Unknown error");
+    return json(req, { error: "Unable to queue processing task" }, 500);
   }
 });

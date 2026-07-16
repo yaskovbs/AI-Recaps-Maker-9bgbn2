@@ -1,7 +1,7 @@
 import { supabase, getSessionOnce } from './supabase';
 
-// AES-256-GCM encryption for secure API key storage
-// Keys are encrypted so that nobody (including the site owner) can see the real keys
+// AES-GCM encryption prevents plaintext-at-rest storage in the browser/database.
+// This is client-side protection, not a zero-knowledge vault.
 const ENCRYPTION_SALT = 'airm-secure-salt-2026';
 const ENCRYPTION_ITERATIONS = 100000;
 const OLD_XOR_KEY = 'airm-local-encryption-key-2026'; // For backward compatibility
@@ -30,6 +30,18 @@ export interface SaveKeysResult {
   error?: string;
   dbSynced: boolean;
   dbError?: string;
+  validations?: APIKeyValidationResult[];
+}
+
+export type APIKeyProvider = 'youtube' | 'google_search' | 'search_engine_id' | 'gemini';
+export type APIKeyValidationCode = 'valid' | 'missing' | 'invalid' | 'forbidden' | 'quota_exceeded' | 'network_error' | 'pair_required';
+
+export interface APIKeyValidationResult {
+  provider: APIKeyProvider;
+  valid: boolean;
+  code: APIKeyValidationCode;
+  message: string;
+  checkedAt: string;
 }
 
 // Map between provider names and APIKeysData field names
@@ -79,6 +91,9 @@ class APIKeysService {
 
   // AES-256-GCM encryption - produces a different ciphertext each time (random IV)
   private async encryptAES(text: string): Promise<string> {
+    if (!globalThis.crypto?.subtle) {
+      throw new Error('Secure browser encryption is unavailable. API keys were not saved.');
+    }
     try {
       const key = await this.deriveKey(ENCRYPTION_SALT);
       const encoder = new TextEncoder();
@@ -96,9 +111,8 @@ class APIKeysService {
       combined.set(new Uint8Array(encrypted), iv.length);
 
       return 'aes:' + btoa(String.fromCharCode(...combined));
-    } catch {
-      // Fallback to XOR if Web Crypto not available
-      return this.encryptXOR(text);
+    } catch (error) {
+      throw new Error('Unable to encrypt API keys securely.', { cause: error });
     }
   }
 
@@ -127,19 +141,7 @@ class APIKeysService {
     }
   }
 
-  // Legacy XOR encryption (for backward compatibility only)
-  private encryptXOR(text: string): string {
-    return btoa(
-      text
-        .split('')
-        .map((char, i) =>
-          String.fromCharCode(char.charCodeAt(0) ^ OLD_XOR_KEY.charCodeAt(i % OLD_XOR_KEY.length))
-        )
-        .join('')
-    );
-  }
-
-  // Legacy XOR decryption
+  // Read-only legacy migration path. New data is never encrypted with XOR.
   private decryptXOR(encrypted: string): string {
     try {
       const [salt, encoded] = encrypted.split('.');
@@ -342,6 +344,13 @@ class APIKeysService {
               );
 
             if (error) throw error;
+          } else {
+            const { error } = await supabase
+              .from('api_keys')
+              .delete()
+              .eq('user_id', userId)
+              .eq('provider', provider);
+            if (error) throw error;
           }
         }
 
@@ -381,17 +390,35 @@ class APIKeysService {
         }
       }
 
-      // 2. Save to localStorage FIRST (primary, always works)
-      await this.saveToLocalStorage(keys);
-      this.saveHintsToLocalStorage(keys);
+      const validationResults = await this.validateKeys(keys);
+      const failed = validationResults.find(result => !result.valid);
+      if (failed) {
+        return { success: false, dbSynced: false, error: `${failed.provider}: ${failed.message}`, validations: validationResults };
+      }
 
-      // 3. Try DB save with retry and proper error reporting
+      // Store keys only in the authenticated database. Persistent browser
+      // storage is intentionally avoided because XSS can read client storage.
       const dbResult = await this.saveToDbWithRetry(userId, providers);
+      if (!dbResult.success) {
+        return { success: false, dbSynced: false, dbError: dbResult.error, error: dbResult.error || 'Secure cloud storage failed.', validations: validationResults };
+      }
+      if (dbResult.success) {
+        await Promise.all(validationResults.map(result => supabase
+          .from('api_keys')
+          .update({
+            validation_status: result.code,
+            validation_message: result.message,
+            last_validated_at: result.checkedAt,
+          })
+          .eq('user_id', userId)
+          .eq('provider', result.provider)));
+      }
 
       return {
         success: true,
         dbSynced: dbResult.success,
         dbError: dbResult.error,
+        validations: validationResults,
       };
     } catch (error: any) {
       console.error('Error saving API keys:', error);
@@ -444,9 +471,6 @@ class APIKeysService {
             }
           }
 
-          // Refresh localStorage backup from DB data
-          await this.saveToLocalStorage(keys);
-          this.saveHintsToLocalStorage(keys);
           this.dbAvailable = true;
           return { keys, fromDb: true };
         }
@@ -459,9 +483,7 @@ class APIKeysService {
       }
     }
 
-    // Fallback: localStorage
-    const keys = await this.loadFromLocalStorage();
-    return { keys, fromDb: false };
+    return { keys: {}, fromDb: false, error: sessionValid ? 'API keys could not be loaded from secure storage.' : 'Sign in again to load API keys.' };
   }
 
   // Get key hints (for display purposes)
@@ -524,18 +546,80 @@ class APIKeysService {
       if (error) throw error;
     } catch (dbError) {
       console.warn('DB delete failed:', dbError);
+      return false;
     }
 
     return true;
   }
 
-  // Validate API key by making a test request
-  async validateKey(provider: string, key: string): Promise<{ valid: boolean; error?: string }> {
-    const formatValidation = this.validateKeyFormat(provider, key);
+  private validationError(provider: APIKeyProvider, status: number, payload: unknown): APIKeyValidationResult {
+    const serialized = JSON.stringify(payload).toLowerCase();
+    const quota = status === 429 || serialized.includes('quota') || serialized.includes('dailylimitexceeded');
+    const forbidden = status === 403 && !quota;
+    return {
+      provider,
+      valid: false,
+      code: quota ? 'quota_exceeded' : forbidden ? 'forbidden' : 'invalid',
+      message: quota ? 'The key is valid but its quota is exhausted.' : forbidden ? 'The API is disabled or this key is not allowed to use it.' : 'The key or provider configuration is invalid.',
+      checkedAt: new Date().toISOString(),
+    };
+  }
+
+  async validateKey(provider: APIKeyProvider, key: string, companionKey?: string): Promise<APIKeyValidationResult> {
+    const checkedAt = new Date().toISOString();
+    const formatValidation = this.validateKeyFormat(provider, key.trim());
     if (!formatValidation.valid) {
-      return formatValidation;
+      return { provider, valid: false, code: 'invalid', message: formatValidation.error || 'Invalid key format.', checkedAt };
     }
-    return { valid: true };
+
+    if (provider === 'search_engine_id' && !companionKey) {
+      return { provider, valid: false, code: 'pair_required', message: 'A Google Search API key is required with the Search Engine ID.', checkedAt };
+    }
+
+    try {
+      let response: Response;
+      if (provider === 'gemini') {
+        response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${encodeURIComponent(key.trim())}`);
+      } else if (provider === 'youtube') {
+        response = await fetch(`https://www.googleapis.com/youtube/v3/i18nLanguages?part=snippet&key=${encodeURIComponent(key.trim())}`);
+      } else {
+        const apiKey = provider === 'google_search' ? key.trim() : companionKey!;
+        const cx = provider === 'search_engine_id' ? key.trim() : companionKey;
+        if (!cx) {
+          return { provider, valid: false, code: 'pair_required', message: 'A Search Engine ID is required with the Google Search API key.', checkedAt };
+        }
+        response = await fetch(`https://www.googleapis.com/customsearch/v1?key=${encodeURIComponent(apiKey)}&cx=${encodeURIComponent(cx)}&q=${encodeURIComponent('API validation')}&num=1`);
+      }
+
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}));
+        return this.validationError(provider, response.status, payload);
+      }
+      return { provider, valid: true, code: 'valid', message: 'Validated successfully.', checkedAt };
+    } catch {
+      return { provider, valid: false, code: 'network_error', message: 'The provider could not be reached. Check the connection and try again.', checkedAt };
+    }
+  }
+
+  async validateKeys(keys: APIKeysData): Promise<APIKeyValidationResult[]> {
+    const checks: Promise<APIKeyValidationResult>[] = [];
+    if (keys.youtube?.trim()) checks.push(this.validateKey('youtube', keys.youtube));
+    if (keys.gemini?.trim()) checks.push(this.validateKey('gemini', keys.gemini));
+    if (keys.googleSearch?.trim() || keys.searchEngineId?.trim()) {
+      if (!keys.googleSearch?.trim()) {
+        checks.push(Promise.resolve({ provider: 'google_search', valid: false, code: 'pair_required', message: 'A Google Search API key is required with the Search Engine ID.', checkedAt: new Date().toISOString() }));
+      } else if (!keys.searchEngineId?.trim()) {
+        checks.push(Promise.resolve({ provider: 'search_engine_id', valid: false, code: 'pair_required', message: 'A Search Engine ID is required with the Google Search API key.', checkedAt: new Date().toISOString() }));
+      } else {
+        checks.push(this.validateKey('google_search', keys.googleSearch, keys.searchEngineId));
+      }
+    }
+    const results = await Promise.all(checks);
+    const searchResult = results.find(result => result.provider === 'google_search');
+    if (searchResult && keys.searchEngineId?.trim()) {
+      results.push({ ...searchResult, provider: 'search_engine_id' });
+    }
+    return results;
   }
 
   subscribeToSync(userId: string, callback: (keys: APIKeysData) => void): () => void {
@@ -553,7 +637,6 @@ class APIKeysService {
             filter: `user_id=eq.${userId}`,
           },
           async (payload) => {
-            console.log('API keys changed:', payload);
             const { keys } = await this.loadKeys(userId);
             this.syncCallbacks.forEach(cb => cb(keys));
           }

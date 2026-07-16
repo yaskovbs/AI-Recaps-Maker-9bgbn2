@@ -4,6 +4,7 @@ import { useAuth } from '@/lib/AuthContext';
 import { useVideoTasks } from '@/hooks/useVideoTasks';
 import type { VideoTask, TaskFilterOptions } from '@/lib/videoTaskTypes';
 import { TASK_STATUS_LABELS, TASK_PRIORITY_LABELS, PROCESSING_STATUSES } from '@/lib/videoTaskTypes';
+import { getTaskDownloadUrl } from '@/lib/videoTaskService';
 import VideoTaskCard from '@/components/video/VideoTaskCard';
 import BatchActionsBar from '@/components/video/BatchActionsBar';
 import DeleteConfirmModal from '@/components/video/DeleteConfirmModal';
@@ -91,16 +92,16 @@ export default function MyVideos() {
     deselectAll();
   };
 
-  const handlePlay = (task: VideoTask) => {
-    if (task.processed_file_url) {
-      window.open(task.processed_file_url, '_blank');
-    }
+  const handlePlay = async (task: VideoTask) => {
+    const url = await getTaskDownloadUrl(task);
+    if (url) window.open(url, '_blank', 'noopener,noreferrer');
   };
 
-  const handleDownload = (task: VideoTask) => {
-    if (task.processed_file_url) {
+  const handleDownload = async (task: VideoTask) => {
+    const url = await getTaskDownloadUrl(task);
+    if (url) {
       const link = document.createElement('a');
-      link.href = task.processed_file_url;
+      link.href = url;
       link.download = `${task.title}.mp4`;
       document.body.appendChild(link);
       link.click();

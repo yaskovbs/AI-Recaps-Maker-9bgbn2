@@ -1,4 +1,6 @@
 import { useState } from 'react';
+import { useAuth } from '@/lib/AuthContext';
+import { apiKeysService } from '@/lib/apiKeysService';
 
 export interface ChatMessage {
   id: string;
@@ -14,6 +16,7 @@ export interface Suggestion {
 }
 
 export function useChatbot() {
+  const { user } = useAuth();
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
       id: '1',
@@ -42,22 +45,52 @@ export function useChatbot() {
     setMessages(prev => [...prev, userMessage]);
     setIsLoading(true);
 
-    // Simulate AI response (in production, call Gemini API)
-    setTimeout(() => {
-      const response = generateResponse(content);
+    try {
+      if (!user) throw new Error('Sign in to use the AI assistant.');
+      const { keys } = await apiKeysService.loadKeys(user.id);
+      if (!keys.gemini) throw new Error('Add and validate a Gemini API key in Settings first.');
+
+      const conversation = [...messages, userMessage].slice(-12).map(message => ({
+        role: message.role === 'assistant' ? 'model' : 'user',
+        parts: [{ text: message.content }],
+      }));
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${encodeURIComponent(keys.gemini)}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          systemInstruction: { parts: [{ text: 'You are the concise AI assistant for a video recap creation application. Help with scripts, recap structure, editing settings, and workflow. Never claim an operation was performed when it was not.' }] },
+          contents: conversation,
+          generationConfig: { temperature: 0.6, maxOutputTokens: 1024 },
+        }),
+      });
+      const payload = await response.json();
+      if (!response.ok) {
+        const message = payload?.error?.message || 'Gemini request failed.';
+        if (response.status === 429) throw new Error('Gemini quota is exhausted. Check the key quota and try again later.');
+        throw new Error(message);
+      }
+      const responseText = payload?.candidates?.[0]?.content?.parts?.map((part: { text?: string }) => part.text || '').join('').trim();
+      if (!responseText) throw new Error('Gemini returned no response.');
       const assistantMessage: ChatMessage = {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
-        content: response,
+        content: responseText,
         timestamp: new Date().toISOString(),
       };
 
       setMessages(prev => [...prev, assistantMessage]);
-      setIsLoading(false);
-
-      // Update suggestions based on context
       updateSuggestions(content);
-    }, 1000);
+    } catch (error) {
+      const assistantMessage: ChatMessage = {
+        id: (Date.now() + 1).toString(),
+        role: 'assistant',
+        content: error instanceof Error ? error.message : 'The AI assistant is unavailable.',
+        timestamp: new Date().toISOString(),
+      };
+      setMessages(prev => [...prev, assistantMessage]);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const generateResponse = (userInput: string): string => {
