@@ -6,10 +6,44 @@ import { BarChart3, CheckCircle, Clock, Coins, Flame, Target, TrendingUp, XCircl
 interface AnalyticsData { total_recaps:number; completed_recaps:number; failed_recaps:number; success_rate:number; average_duration_seconds:number; time_saved_seconds:number; topics:{topic:string;count:number}[]; }
 const EMPTY: AnalyticsData={total_recaps:0,completed_recaps:0,failed_recaps:0,success_rate:0,average_duration_seconds:0,time_saved_seconds:0,topics:[]};
 
+interface AnalyticsTask { status:string; duration_seconds:number|null; clip_plan:unknown; key_topics:unknown; }
+
+function analyticsFromTasks(tasks:AnalyticsTask[]):AnalyticsData {
+  const completed=tasks.filter(task=>task.status==='completed');
+  const failed=tasks.filter(task=>task.status==='error');
+  const topicCounts=new Map<string,number>();
+  let outputSeconds=0;
+  for(const task of completed){
+    if(Array.isArray(task.clip_plan)) for(const clip of task.clip_plan){
+      if(clip&&typeof clip==='object'){
+        const value=clip as {start?:unknown;end?:unknown};
+        const start=Number(value.start); const end=Number(value.end);
+        if(Number.isFinite(start)&&Number.isFinite(end)&&end>start) outputSeconds+=end-start;
+      }
+    }
+    if(Array.isArray(task.key_topics)) for(const topic of task.key_topics){
+      if(typeof topic==='string'&&topic.trim()) topicCounts.set(topic,(topicCounts.get(topic)||0)+1);
+    }
+  }
+  const durationTotal=completed.reduce((sum,task)=>sum+(task.duration_seconds||0),0);
+  return {total_recaps:tasks.length,completed_recaps:completed.length,failed_recaps:failed.length,
+    success_rate:tasks.length?Math.round(1000*completed.length/tasks.length)/10:0,
+    average_duration_seconds:completed.length?Math.round(durationTotal/completed.length):0,
+    time_saved_seconds:Math.max(0,Math.round(durationTotal-outputSeconds)),
+    topics:[...topicCounts].sort((a,b)=>b[1]-a[1]).slice(0,10).map(([topic,count])=>({topic,count}))};
+}
+
 export default function Analytics() {
   const [data,setData]=useState(EMPTY); const [loading,setLoading]=useState(true); const [error,setError]=useState<string|null>(null);
   const { wallet }=useWallet();
-  useEffect(()=>{ (async()=>{ const {data:result,error:rpcError}=await supabase.rpc('get_my_analytics'); setLoading(false); if(rpcError){setError(rpcError.message);return;} setData({...EMPTY,...result}); })(); },[]);
+  useEffect(()=>{ (async()=>{
+    const {data:result,error:rpcError}=await supabase.rpc('get_my_analytics');
+    if(!rpcError){setData({...EMPTY,...result});setLoading(false);return;}
+    const {data:tasks,error:queryError}=await supabase.from('video_tasks').select('status,duration_seconds,clip_plan,key_topics');
+    setLoading(false);
+    if(queryError){setError(rpcError.message);return;}
+    setData(analyticsFromTasks((tasks||[]) as AnalyticsTask[]));
+  })(); },[]);
   const format=(seconds:number)=>`${Math.floor(seconds/60)}m ${Math.round(seconds%60)}s`;
   const cards=[
     {label:'Total recaps',value:data.total_recaps,icon:BarChart3}, {label:'Completed',value:data.completed_recaps,icon:CheckCircle},
