@@ -17,7 +17,7 @@ export default function Dashboard() {
   const { t } = useLanguage();
   const { user } = useAuth();
   const { wallet } = useWallet();
-  const jobs = getJobs();
+  const jobs = getJobs(user?.id);
   const { tasks: videoTasks, stats: videoStats } = useVideoTasks();
 
   const recapStats = {

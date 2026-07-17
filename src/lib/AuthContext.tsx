@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { supabase } from './supabase';
+import { getSessionOnce, supabase } from './supabase';
 import type { User as SupabaseUser } from '@supabase/supabase-js';
 
 interface User {
@@ -37,15 +37,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     // Safety timeout — if INITIAL_SESSION never fires, stop loading after 5s
     const timeout = setTimeout(() => {
-      if (mounted) {
-        setUser(null);
-        localStorage.removeItem('airm_user');
-        setIsLoading(false);
-      }
+      if (!mounted) return;
+      void getSessionOnce().then(({ data, error }) => {
+        if (!mounted) return;
+        if (error) console.error('Session restore error:', error);
+        if (data.session?.user) void handleAuthUser(data.session.user);
+        else {
+          setUser(null);
+          localStorage.removeItem('airm_user');
+          setIsLoading(false);
+        }
+      });
     }, 5000);
 
-    // Single listener handles ALL auth events — no separate getSession() call
-    // This prevents the race condition between checkAuth() and onAuthStateChange
+    // The listener handles normal auth events. If the initial event is missed,
+    // the timeout below verifies the persisted Supabase session before clearing UI state.
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, session) => {
         if (!mounted) return;
@@ -130,21 +136,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
       }
 
-      if (profile) {
-        const userData: User = {
-          id: profile.id,
-          email: profile.email,
-          username: profile.username,
-          avatar: profile.avatar_url || authUser.user_metadata?.avatar_url || authUser.user_metadata?.picture,
-          createdAt: profile.created_at,
-        };
-        setUser(userData);
-        localStorage.setItem('airm_user', JSON.stringify(userData));
-      }
+      const userData: User = {
+        id: authUser.id,
+        email: profile?.email || authUser.email || '',
+        username: profile?.username || authUser.user_metadata?.full_name || authUser.user_metadata?.name || authUser.email?.split('@')[0] || 'User',
+        avatar: profile?.avatar_url || authUser.user_metadata?.avatar_url || authUser.user_metadata?.picture,
+        createdAt: profile?.created_at || authUser.created_at,
+      };
+      setUser(userData);
+      localStorage.setItem('airm_user', JSON.stringify(userData));
     } catch (error) {
       console.error('Error handling auth user:', error);
-      setUser(null);
-      localStorage.removeItem('airm_user');
+      const fallbackUser: User = {
+        id: authUser.id,
+        email: authUser.email || '',
+        username: authUser.user_metadata?.full_name || authUser.user_metadata?.name || authUser.email?.split('@')[0] || 'User',
+        avatar: authUser.user_metadata?.avatar_url || authUser.user_metadata?.picture,
+        createdAt: authUser.created_at,
+      };
+      setUser(fallbackUser);
+      localStorage.setItem('airm_user', JSON.stringify(fallbackUser));
     } finally {
       setIsLoading(false);
     }
@@ -277,6 +288,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Clear local state
       setUser(null);
       localStorage.removeItem('airm_user');
+      localStorage.removeItem('recap_draft');
+      localStorage.removeItem('last_job_id');
       
       console.log('✅ Logout successful');
     } catch (error) {
@@ -284,6 +297,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Force logout even if Supabase fails
       setUser(null);
       localStorage.removeItem('airm_user');
+      localStorage.removeItem('recap_draft');
+      localStorage.removeItem('last_job_id');
     } finally {
       setIsLoading(false);
     }

@@ -22,6 +22,7 @@ const FAQ = lazy(() => import('@/pages/FAQ'));
 const Contact = lazy(() => import('@/pages/Contact'));
 const Gallery = lazy(() => import('@/pages/Gallery'));
 const MyVideos = lazy(() => import('@/pages/MyVideos'));
+const RecapView = lazy(() => import('@/pages/RecapView'));
 const Disclaimer = lazy(() => import('@/pages/Disclaimer'));
 const NotFound = lazy(() => import('@/pages/NotFound'));
 
@@ -53,6 +54,7 @@ function App() {
             <Route path="/signup" element={<Signup />} />
             <Route path="/leaderboard" element={<Leaderboard />} />
             <Route path="/gallery" element={<Gallery />} />
+            <Route path="/recap/:id" element={<RecapView />} />
             <Route path="/disclaimer" element={<Disclaimer />} />
             <Route path="/faq" element={<FAQ />} />
             <Route path="/contact" element={<Contact />} />

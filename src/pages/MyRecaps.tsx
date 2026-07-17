@@ -86,7 +86,8 @@ export default function MyRecaps() {
       const { error: jobError } = await supabase
         .from('jobs')
         .delete()
-        .eq('id', recapId);
+        .eq('id', recapId)
+        .eq('user_id', user.id);
 
       if (jobError) throw jobError;
 
@@ -94,7 +95,8 @@ export default function MyRecaps() {
       await supabase
         .from('public_recaps')
         .delete()
-        .eq('id', recapId);
+        .eq('id', recapId)
+        .eq('user_id', user.id);
 
       setRecaps(recaps.filter(r => r.id !== recapId));
     } catch (error) {
@@ -133,7 +135,8 @@ export default function MyRecaps() {
         const { error } = await supabase
           .from('public_recaps')
           .update({ is_public: false })
-          .eq('id', recap.id);
+          .eq('id', recap.id)
+          .eq('user_id', user.id);
 
         if (error) throw error;
       }

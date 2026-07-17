@@ -97,10 +97,16 @@ export function saveJob(job: RecapJob) {
   localStorage.setItem(LAST_JOB_KEY, job.id);
 }
 
-export function getJobs(): RecapJob[] {
+export function getJobs(userId?: string): RecapJob[] {
   const saved = localStorage.getItem(JOBS_KEY);
   if (!saved) return [];
-  return JSON.parse(saved);
+  try {
+    const jobs = JSON.parse(saved) as RecapJob[];
+    return userId ? jobs.filter(job => job.userId === userId) : jobs;
+  } catch {
+    localStorage.removeItem(JOBS_KEY);
+    return [];
+  }
 }
 
 export function getJobById(id: string): RecapJob | null {

@@ -183,8 +183,11 @@ export default function Settings() {
       }
 
       if (result.success) {
+        const validationWarnings = result.validations?.filter(validation => !validation.valid) || [];
         if (result.dbSynced) {
-          setSaveMessage({ type: 'success', text: 'מפתחות נשמרו וסונכרנו לענן בהצלחה! זמינים בכל מכשיר.' });
+          setSaveMessage(validationWarnings.length > 0
+            ? { type: 'warning', text: `Keys were saved securely. ${validationWarnings.map(validation => `${validation.provider}: ${validation.message}`).join(' ')}` }
+            : { type: 'success', text: 'מפתחות נשמרו וסונכרנו לענן בהצלחה! זמינים בכל מכשיר.' });
           setDbSyncStatus('connected');
         } else {
           setSaveMessage({ type: 'warning', text: `מפתחות נשמרו מקומית בלבד. ${result.dbError || 'סנכרון לענן נכשל - המפתחות לא יהיו זמינים במכשירים אחרים.'}` });
@@ -562,7 +565,7 @@ export default function Settings() {
               <div className="flex gap-2">
                 <button
                   onClick={handleSaveKeys}
-                  disabled={isSaving || !user}
+                  disabled={isSaving}
                   className="flex-1 steampunk-button flex items-center justify-center gap-2"
                 >
                   {isSaving ? (

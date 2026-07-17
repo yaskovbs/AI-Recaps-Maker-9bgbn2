@@ -31,12 +31,12 @@ jobs:
           SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD || secrets.PRODUCTION_DB_PASSWORD }}
           SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL || secrets.SUPABASE_DATABASE_URL || secrets.DATABASE_URL }}
         run: |
-          if [ -n "$SUPABASE_DB_URL" ]; then
-            echo "SUPABASE_DEPLOY_MODE=postgres" >> "$GITHUB_ENV"
-            echo "Using direct Postgres URL for database migrations."
-          elif [ -n "$SUPABASE_ACCESS_TOKEN" ] && [ -n "$SUPABASE_PROJECT_ID" ] && [ -n "$SUPABASE_DB_PASSWORD" ]; then
+          if [ -n "$SUPABASE_ACCESS_TOKEN" ] && [ -n "$SUPABASE_PROJECT_ID" ] && [ -n "$SUPABASE_DB_PASSWORD" ]; then
             echo "SUPABASE_DEPLOY_MODE=supabase_cli" >> "$GITHUB_ENV"
             echo "Using Supabase CLI for database migrations."
+          elif [ -n "$SUPABASE_DB_URL" ]; then
+            echo "SUPABASE_DEPLOY_MODE=postgres" >> "$GITHUB_ENV"
+            echo "Using direct Postgres URL for database migrations."
           else
             echo "SUPABASE_DEPLOY_MODE=skip" >> "$GITHUB_ENV"
             echo "::warning::Database migrations skipped. Add SUPABASE_DB_URL, or add SUPABASE_ACCESS_TOKEN, SUPABASE_PROJECT_ID, and SUPABASE_DB_PASSWORD."

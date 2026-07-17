@@ -390,11 +390,11 @@ class APIKeysService {
         }
       }
 
+      // Provider validation is advisory. A validly-shaped key may return 403
+      // because its API is not enabled yet or because it has referrer/IP
+      // restrictions. Users must still be able to store it and fix the Google
+      // configuration later.
       const validationResults = await this.validateKeys(keys);
-      const failed = validationResults.find(result => !result.valid);
-      if (failed) {
-        return { success: false, dbSynced: false, error: `${failed.provider}: ${failed.message}`, validations: validationResults };
-      }
 
       // Store keys only in the authenticated database. Persistent browser
       // storage is intentionally avoided because XSS can read client storage.
@@ -576,19 +576,21 @@ class APIKeysService {
       return { provider, valid: false, code: 'pair_required', message: 'A Google Search API key is required with the Search Engine ID.', checkedAt };
     }
 
+    const controller = new AbortController();
+    const timeout = window.setTimeout(() => controller.abort(), 10000);
     try {
       let response: Response;
       if (provider === 'gemini') {
-        response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${encodeURIComponent(key.trim())}`);
+        response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${encodeURIComponent(key.trim())}`, { signal: controller.signal });
       } else if (provider === 'youtube') {
-        response = await fetch(`https://www.googleapis.com/youtube/v3/i18nLanguages?part=snippet&key=${encodeURIComponent(key.trim())}`);
+        response = await fetch(`https://www.googleapis.com/youtube/v3/i18nLanguages?part=snippet&key=${encodeURIComponent(key.trim())}`, { signal: controller.signal });
       } else {
         const apiKey = provider === 'google_search' ? key.trim() : companionKey!;
         const cx = provider === 'search_engine_id' ? key.trim() : companionKey;
         if (!cx) {
           return { provider, valid: false, code: 'pair_required', message: 'A Search Engine ID is required with the Google Search API key.', checkedAt };
         }
-        response = await fetch(`https://www.googleapis.com/customsearch/v1?key=${encodeURIComponent(apiKey)}&cx=${encodeURIComponent(cx)}&q=${encodeURIComponent('API validation')}&num=1`);
+        response = await fetch(`https://www.googleapis.com/customsearch/v1?key=${encodeURIComponent(apiKey)}&cx=${encodeURIComponent(cx)}&q=${encodeURIComponent('API validation')}&num=1`, { signal: controller.signal });
       }
 
       if (!response.ok) {
@@ -598,6 +600,8 @@ class APIKeysService {
       return { provider, valid: true, code: 'valid', message: 'Validated successfully.', checkedAt };
     } catch {
       return { provider, valid: false, code: 'network_error', message: 'The provider could not be reached. Check the connection and try again.', checkedAt };
+    } finally {
+      window.clearTimeout(timeout);
     }
   }
 
