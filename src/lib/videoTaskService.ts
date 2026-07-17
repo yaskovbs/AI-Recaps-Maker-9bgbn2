@@ -74,7 +74,7 @@ export async function fetchVideoTasks(
 
   if (error) {
     console.error('Error fetching video tasks:', error);
-    return [];
+    throw new Error(error.message || 'Unable to load video tasks.');
   }
 
   return data || [];
@@ -205,7 +205,7 @@ export async function getTaskStats(userId: string): Promise<{
     .eq('user_id', userId);
 
   if (error || !data) {
-    return { total: 0, pending: 0, processing: 0, completed: 0, error: 0, storageUsedMb: 0 };
+    throw new Error(error?.message || 'Unable to load video task statistics.');
   }
 
   const activeStatuses: TaskStatus[] = ['downloading', 'processing', 'summarizing', 'converting_3d'];

@@ -24,7 +24,7 @@ export default function MyVideos() {
     sortOrder: 'desc',
   });
 
-  const { tasks, isLoading, stats, refresh, removeTask, removeTasks, cancelTask } = useVideoTasks(filters);
+  const { tasks, isLoading, error, stats, refresh, removeTask, removeTasks, cancelTask } = useVideoTasks(filters);
 
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [detailTask, setDetailTask] = useState<VideoTask | null>(null);
@@ -126,6 +126,12 @@ export default function MyVideos() {
       <div className="container mx-auto px-4 max-w-5xl">
         {/* Header */}
         <div className="mb-8">
+          {error && (
+            <div role="alert" className="mb-5 flex items-center justify-between gap-4 rounded-lg border border-red-700/40 bg-red-950/40 p-4 text-red-200">
+              <span>{error}</span>
+              <button onClick={() => void refresh()} className="underline hover:text-white">Retry</button>
+            </div>
+          )}
           <div className="flex items-center justify-between mb-4">
             <div>
               <h1 className="text-3xl font-serif font-bold text-brass-200 mb-1">

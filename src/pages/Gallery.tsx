@@ -20,6 +20,7 @@ export default function Gallery() {
   const { t } = useLanguage();
   const [recaps, setRecaps] = useState<PublicRecap[]>([]);
   const [loading, setLoading] = useState(true);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedGenre, setSelectedGenre] = useState('all');
   const [sortBy, setSortBy] = useState<'recent' | 'rating' | 'views'>('recent');
@@ -38,6 +39,7 @@ export default function Gallery() {
   const loadRecaps = async () => {
     try {
       setLoading(true);
+      setErrorMessage(null);
 
       let query = supabase
         .from('public_recaps')
@@ -65,6 +67,7 @@ export default function Gallery() {
       setRecaps(data || []);
     } catch (error) {
       console.error('Failed to load recaps:', error);
+      setErrorMessage(error instanceof Error ? error.message : 'Unable to load the public gallery.');
     } finally {
       setLoading(false);
     }
@@ -104,6 +107,13 @@ export default function Gallery() {
           </h1>
           <p className="text-brass-300">{t?.gallery?.subtitle || 'Discover amazing recaps'}</p>
         </div>
+
+        {errorMessage && (
+          <div role="alert" className="mb-6 flex items-center justify-between gap-4 rounded-lg border border-red-700/40 bg-red-950/40 p-4 text-red-200">
+            <span>Gallery is unavailable: {errorMessage}</span>
+            <button onClick={() => void loadRecaps()} className="underline hover:text-white">Retry</button>
+          </div>
+        )}
 
         {/* Filters & Search */}
         <div className="steampunk-card p-6 mb-6">

@@ -18,7 +18,7 @@ export default function Dashboard() {
   const { user } = useAuth();
   const { wallet } = useWallet();
   const jobs = getJobs(user?.id);
-  const { tasks: videoTasks, stats: videoStats } = useVideoTasks();
+  const { tasks: videoTasks, stats: videoStats, error: videoTasksError, refresh: refreshVideoTasks } = useVideoTasks();
 
   const recapStats = {
     total: jobs.length,
@@ -52,6 +52,13 @@ export default function Dashboard() {
   return (
     <div className="min-h-screen py-8" style={{ background: '#0a0a14' }}>
       <div className="container mx-auto px-4 max-w-6xl">
+
+        {videoTasksError && (
+          <div role="alert" className="mb-6 flex items-center justify-between gap-4 rounded-xl border border-red-500/30 bg-red-950/30 p-4 text-sm text-red-200">
+            <span>Video processing data is unavailable: {videoTasksError}</span>
+            <button onClick={() => void refreshVideoTasks()} className="underline hover:text-white">Retry</button>
+          </div>
+        )}
 
         {/* Page Header */}
         <div className="mb-8 flex flex-col sm:flex-row sm:items-end justify-between gap-4">

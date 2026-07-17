@@ -17,6 +17,7 @@ export function useVideoTasks(filters: TaskFilterOptions = {}) {
   const { user } = useAuth();
   const [tasks, setTasks] = useState<VideoTask[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [stats, setStats] = useState({
     total: 0,
     pending: 0,
@@ -42,7 +43,12 @@ export function useVideoTasks(filters: TaskFilterOptions = {}) {
   }, [user]);
 
   const refresh = useCallback(async () => {
-    await Promise.all([loadTasks(), loadStats()]);
+    setError(null);
+    try {
+      await Promise.all([loadTasks(), loadStats()]);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Unable to load video tasks.');
+    }
   }, [loadTasks, loadStats]);
 
   useEffect(() => {
@@ -58,7 +64,9 @@ export function useVideoTasks(filters: TaskFilterOptions = {}) {
 
   useEffect(() => {
     if (!user) return;
-    loadTasks();
+    loadTasks().catch(cause => {
+      setError(cause instanceof Error ? cause.message : 'Unable to load video tasks.');
+    });
   }, [filters.status, filters.priority, filters.search, filters.sortBy, filters.sortOrder]);
 
   useEffect(() => {
@@ -68,7 +76,9 @@ export function useVideoTasks(filters: TaskFilterOptions = {}) {
 
     if (hasProcessing) {
       intervalRef.current = setInterval(() => {
-        loadTasks();
+        loadTasks().catch(cause => {
+          setError(cause instanceof Error ? cause.message : 'Unable to refresh video tasks.');
+        });
       }, AUTO_REFRESH_INTERVAL);
     }
 
@@ -133,6 +143,7 @@ export function useVideoTasks(filters: TaskFilterOptions = {}) {
   return {
     tasks,
     isLoading,
+    error,
     stats,
     refresh,
     removeTask,

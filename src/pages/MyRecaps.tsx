@@ -27,6 +27,7 @@ export default function MyRecaps() {
   const navigate = useNavigate();
   const [recaps, setRecaps] = useState<Recap[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedRecap, setSelectedRecap] = useState<Recap | null>(null);
   const [showShareDialog, setShowShareDialog] = useState(false);
@@ -45,6 +46,7 @@ export default function MyRecaps() {
 
     try {
       setIsLoading(true);
+      setErrorMessage(null);
 
       // Load jobs
       const { data: jobsData, error: jobsError } = await supabase
@@ -73,6 +75,7 @@ export default function MyRecaps() {
       setRecaps(mergedData);
     } catch (error) {
       console.error('Error loading recaps:', error);
+      setErrorMessage(error instanceof Error ? error.message : 'Unable to load your recaps.');
     } finally {
       setIsLoading(false);
     }
@@ -195,6 +198,12 @@ export default function MyRecaps() {
 
   return (
     <div className="container mx-auto px-4 py-8">
+      {errorMessage && (
+        <div role="alert" className="mb-6 flex items-center justify-between gap-4 rounded-lg border border-red-700/40 bg-red-950/40 p-4 text-red-200">
+          <span>Your recaps are unavailable: {errorMessage}</span>
+          <button onClick={() => void loadRecaps()} className="underline hover:text-white">Retry</button>
+        </div>
+      )}
       {/* Header */}
       <div className="mb-8">
         <div className="flex items-center justify-between mb-4">
