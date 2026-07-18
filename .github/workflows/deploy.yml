@@ -31,12 +31,12 @@ jobs:
           SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD || secrets.PRODUCTION_DB_PASSWORD }}
           SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL || secrets.SUPABASE_DATABASE_URL || secrets.DATABASE_URL }}
         run: |
-          if [ -n "$SUPABASE_ACCESS_TOKEN" ] && [ -n "$SUPABASE_PROJECT_ID" ] && [ -n "$SUPABASE_DB_PASSWORD" ]; then
+          if [ -n "$SUPABASE_DB_URL" ]; then
+            echo "SUPABASE_DEPLOY_MODE=postgres" >> "$GITHUB_ENV"
+            echo "Using the explicit production Postgres URL for database migrations."
+          elif [ -n "$SUPABASE_ACCESS_TOKEN" ] && [ -n "$SUPABASE_PROJECT_ID" ] && [ -n "$SUPABASE_DB_PASSWORD" ]; then
             echo "SUPABASE_DEPLOY_MODE=supabase_cli" >> "$GITHUB_ENV"
             echo "Using Supabase CLI for database migrations."
-          elif [ -n "$SUPABASE_DB_URL" ]; then
-            echo "SUPABASE_DEPLOY_MODE=postgres" >> "$GITHUB_ENV"
-            echo "Using direct Postgres URL for database migrations."
           else
             echo "::error::Database deployment credentials are missing. Refusing to deploy a frontend against an unknown schema."
             echo "Add SUPABASE_DB_URL, or SUPABASE_ACCESS_TOKEN + SUPABASE_PROJECT_ID + SUPABASE_DB_PASSWORD."
@@ -71,6 +71,41 @@ jobs:
             echo "Applying $migration"
             psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -f "$migration"
           done
+
+      - name: Verify deployed application schema
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+        run: |
+          node <<'NODE'
+          const baseUrl = process.env.VITE_SUPABASE_URL;
+          const anonKey = process.env.VITE_SUPABASE_ANON_KEY;
+          if (!baseUrl || !anonKey) {
+            console.error('VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY are required for schema verification.');
+            process.exit(1);
+          }
+
+          const requiredTables = [
+            'video_tasks', 'task_logs', 'jobs', 'credits_wallet',
+            'credits_transactions', 'youtube_learning_settings',
+          ];
+          const headers = { apikey: anonKey, Authorization: `Bearer ${anonKey}` };
+          const failures = [];
+
+          for (const table of requiredTables) {
+            const response = await fetch(`${baseUrl}/rest/v1/${table}?select=*&limit=0`, { headers });
+            if (!response.ok) {
+              failures.push(`${table}: HTTP ${response.status} ${(await response.text()).slice(0, 200)}`);
+            }
+          }
+
+          if (failures.length) {
+            console.error('The frontend backend is missing required schema objects. Migration credentials may target a different database:');
+            failures.forEach(failure => console.error(`- ${failure}`));
+            process.exit(1);
+          }
+          console.log('Verified required tables on the backend used by the frontend.');
+          NODE
 
       - name: Deploy Supabase Edge Functions
         if: env.SUPABASE_FUNCTIONS_ENABLED == 'true'
