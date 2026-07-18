@@ -30,7 +30,13 @@ jobs:
           SUPABASE_PROJECT_ID: ${{ secrets.SUPABASE_PROJECT_ID || secrets.SUPABASE_PROJECT_REF || secrets.PRODUCTION_PROJECT_ID || secrets.PRODUCTION_PROJECT_REF }}
           SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD || secrets.PRODUCTION_DB_PASSWORD }}
           SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL || secrets.SUPABASE_DATABASE_URL || secrets.DATABASE_URL }}
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
         run: |
+          if [[ "$VITE_SUPABASE_URL" == *".backend.onspace.ai"* ]] && [ -z "$SUPABASE_DB_URL" ]; then
+            echo "::error::The frontend uses OnSpace, but SUPABASE_DB_URL is missing. Supabase CLI project credentials may target a different database. Add the OnSpace production Postgres connection string as the SUPABASE_DB_URL repository secret."
+            exit 1
+          fi
+
           if [ -n "$SUPABASE_DB_URL" ]; then
             echo "SUPABASE_DEPLOY_MODE=postgres" >> "$GITHUB_ENV"
             echo "Using the explicit production Postgres URL for database migrations."
