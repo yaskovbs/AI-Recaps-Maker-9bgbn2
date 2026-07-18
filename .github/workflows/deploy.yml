@@ -38,6 +38,10 @@ jobs:
           fi
 
           if [ -n "$SUPABASE_DB_URL" ]; then
+            if [[ ! "$SUPABASE_DB_URL" =~ ^postgres(ql)?:// ]]; then
+              echo "::error::SUPABASE_DB_URL is not a PostgreSQL connection URI. It must start with postgres:// or postgresql:// and include user, password, host, port, and database name. Do not use the HTTPS API URL or only the database password."
+              exit 1
+            fi
             echo "SUPABASE_DEPLOY_MODE=postgres" >> "$GITHUB_ENV"
             echo "Using the explicit production Postgres URL for database migrations."
           elif [ -n "$SUPABASE_ACCESS_TOKEN" ] && [ -n "$SUPABASE_PROJECT_ID" ] && [ -n "$SUPABASE_DB_PASSWORD" ]; then
