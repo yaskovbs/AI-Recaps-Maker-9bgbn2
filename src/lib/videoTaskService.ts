@@ -18,7 +18,7 @@ function videoTaskError(error: { code?: string; message?: string }): Error {
 export async function createVideoTask(
   userId: string,
   params: CreateTaskParams
-): Promise<VideoTask | null> {
+): Promise<VideoTask> {
   const initialLog: ProcessingLogEntry = {
     step: 'created',
     status: 'completed',
@@ -43,13 +43,14 @@ export async function createVideoTask(
 
   if (error) {
     console.error('Error creating video task:', error);
-    return null;
+    throw videoTaskError(error);
   }
 
   if (data) {
     await addTaskLog(data.id, 'info', 'Task created and queued for processing');
   }
 
+  if (!data) throw new Error('The server did not return the created processing task.');
   return data;
 }
 
@@ -230,7 +231,7 @@ export async function getTaskStats(userId: string): Promise<{
 
 export async function processVideoTask(
   taskId: string,
-  apiKeys: { youtube?: string; gemini?: string; googleSearch?: string; searchEngineId?: string; webSearchEnabled?: boolean }
+  apiKeys: { youtube?: string; gemini?: string; googleSearch?: string; searchEngineId?: string; webSearchEnabled?: boolean; language?: string; recapDurationSeconds?: number; narrationAudioUrl?: string }
 ): Promise<{ success: boolean; error?: string }> {
   try {
     const { data: { session } } = await supabase.auth.getSession();
@@ -253,6 +254,9 @@ export async function processVideoTask(
         google_search_api_key: apiKeys.googleSearch || '',
         search_engine_id: apiKeys.searchEngineId || '',
         web_search_enabled: apiKeys.webSearchEnabled === true,
+        language: apiKeys.language || 'en',
+        recap_duration_seconds: Math.max(1, Math.round(apiKeys.recapDurationSeconds || 60)),
+        narration_audio_url: apiKeys.narrationAudioUrl || '',
       }),
     });
 

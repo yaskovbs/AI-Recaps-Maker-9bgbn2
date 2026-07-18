@@ -5,8 +5,9 @@ import { useWallet } from '@/hooks/useWallet';
 import { supabase } from '@/lib/supabase';
 import { loadFFmpeg, isFFmpegLoaded } from '@/lib/ffmpegService';
 import { apiKeysService } from '@/lib/apiKeysService';
+import type { APIKeysData } from '@/lib/apiKeysService';
 import { generateGeminiText, searchWeb } from '@/lib/byokProviderService';
-import { createVideoTask, processVideoTask } from '@/lib/videoTaskService';
+import { createVideoTask, processVideoTask, updateVideoTask } from '@/lib/videoTaskService';
 import { useNavigate } from 'react-router-dom';
 import type { FFmpegLogLine } from '@/lib/ffmpegService';
 import {
@@ -125,6 +126,7 @@ export default function Create() {
   const [ffmpegLoading, setFfmpegLoading] = useState(false);
   const [processingStage, setProcessingStage] = useState<string>('');
   const [processingError, setProcessingError] = useState<string | null>(null);
+  const [wizardError, setWizardError] = useState<string | null>(null);
   const [localVideoFile, setLocalVideoFile] = useState<File | null>(null);
   const logsEndRef = useRef<HTMLDivElement>(null);
 
@@ -218,7 +220,7 @@ export default function Create() {
     }
   }, [currentStep]);
 
-  const MAX_VIDEO_SIZE = 2.2 * 1024 * 1024 * 1024;
+  const MAX_VIDEO_SIZE = 2 * 1024 * 1024 * 1024;
   const MAX_AUDIO_SIZE = 200 * 1024 * 1024;
   const MAX_TXT_SIZE = 10 * 1024 * 1024;
 
@@ -556,6 +558,7 @@ export default function Create() {
 
         xhr.open('POST', endpoint, true);
         xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+        xhr.setRequestHeader('apikey', supabaseKey);
         xhr.setRequestHeader('Content-Type', mimeType);
         xhr.setRequestHeader('x-upsert', 'true');
         xhr.setRequestHeader('Cache-Control', '3600');
@@ -626,6 +629,21 @@ export default function Create() {
 
   // ── Central file handler ──
   const processSelectedFile = async (file: File, type: 'txt' | 'mp3' | 'video') => {
+    setWizardError(null);
+    if (file.size === 0) {
+      setWizardError('The selected file is empty. Choose a file that contains content.');
+      return;
+    }
+    const detectedType = detectFileType(file);
+    if (detectedType !== type) {
+      setWizardError(`Unsupported ${type === 'mp3' ? 'audio' : type} file. Choose one of the formats shown in this step.`);
+      return;
+    }
+    const allowedSize = type === 'video' ? MAX_VIDEO_SIZE : type === 'mp3' ? MAX_AUDIO_SIZE : MAX_TXT_SIZE;
+    if (file.size > allowedSize) {
+      setWizardError(`The file is too large. Maximum size: ${formatBytes(allowedSize)}. Selected file: ${formatBytes(file.size)}.`);
+      return;
+    }
     if (!user) { alert('יש להתחבר כדי להעלות קבצים'); return; }
 
     if (type === 'video') {
@@ -649,6 +667,11 @@ export default function Create() {
       setAnalyzingTxt(true);
       setTxtInfo(null);
       const text = await file.text();
+      if (!text.trim()) {
+        setAnalyzingTxt(false);
+        setWizardError('The TXT file contains no readable text.');
+        return;
+      }
       setTxtInfo(analyzeTxtFile(file, text));
       setAnalyzingTxt(false);
     }
@@ -676,6 +699,12 @@ export default function Create() {
     setUploadProgress(0);
     setUploadFileName(file.name);
     setUploadFileSize(file.size);
+    setDraft(prev => ({
+      ...prev,
+      ...(type === 'txt' ? { txtAssetId: '' } : {}),
+      ...(type === 'mp3' ? { mp3AssetId: '' } : {}),
+      ...(type === 'video' ? { videoAssetId: '', youtubeUrl: '' } : {}),
+    }));
 
     try {
       const fileExt = file.name.split('.').pop();
@@ -702,6 +731,7 @@ export default function Create() {
       }
     } catch (err: any) {
       console.error('Upload error:', err);
+      setWizardError(`Upload failed: ${err.message || 'Please try again.'}`);
       alert(`שגיאת העלאה: ${err.message || 'נסה שוב'}`);
       setUploadProgress(0);
     } finally {
@@ -722,6 +752,60 @@ export default function Create() {
     }
   }, [currentStep]);
 
+  const isValidYouTubeUrl = (value: string) => {
+    try {
+      const url = new URL(value.trim());
+      const host = url.hostname.toLowerCase().replace(/^www\./, '');
+      return host === 'youtu.be' || host === 'youtube.com' || host.endsWith('.youtube.com');
+    } catch {
+      return false;
+    }
+  };
+
+  const handleContinue = () => {
+    setWizardError(null);
+    if (currentStep === 1) {
+      if (draft.inputMode === 'text' && draft.scriptText.trim().length < 10) {
+        setWizardError('Enter at least 10 characters of script text before continuing.');
+        return;
+      }
+      if (draft.inputMode === 'txt' && !draft.txtAssetId) {
+        setWizardError('Upload a non-empty TXT file and wait for the upload to finish.');
+        return;
+      }
+      if (draft.inputMode === 'mp3' && !draft.mp3AssetId) {
+        setWizardError('Upload an audio file and wait for the upload to finish.');
+        return;
+      }
+    }
+    if (currentStep === 3) {
+      const youtubeUrl = draft.youtubeUrl.trim();
+      if (!draft.videoAssetId && !youtubeUrl) {
+        setWizardError('Upload a video or provide a YouTube URL before continuing.');
+        return;
+      }
+      if (youtubeUrl && !isValidYouTubeUrl(youtubeUrl)) {
+        setWizardError('Enter a valid youtube.com or youtu.be URL.');
+        return;
+      }
+    }
+    if (currentStep === 4) {
+      if (!draft.movieTitle.trim()) {
+        setWizardError('Enter a title for the recap.');
+        return;
+      }
+      if (totalSeconds < 1) {
+        setWizardError('The target recap duration must be at least one second.');
+        return;
+      }
+      if (intervalSeconds < 1) {
+        setWizardError('The clip interval must be at least one second.');
+        return;
+      }
+    }
+    setCurrentStep(step => Math.min(totalSteps, step + 1));
+  };
+
   const handleCreate = async () => {
     if (!user) { alert('יש להתחבר'); return; }
     await proceedWithCreation();
@@ -729,21 +813,37 @@ export default function Create() {
 
   const proceedWithCreation = async () => {
     if (!user) return;
+    if (isRendering) return;
     const targetDuration = totalSeconds;
     const cutEvery = intervalSeconds;
     setProcessingError(null);
-    setProcessingStage('Validating your AI configuration...');
-    const { keys } = await apiKeysService.loadKeys(user.id);
-    if (!keys.gemini) {
-      setProcessingError('Add and validate your Gemini API key in Settings before creating a recap.');
+    if (wallet.balance < 1) {
+      setProcessingError('You need at least one credit to create a recap.');
       return;
     }
-    if (draft.youtubeUrl && !keys.youtube) {
+    setIsRendering(true);
+    setProcessingStage('Validating your AI configuration...');
+    let keys: APIKeysData;
+    try {
+      ({ keys } = await apiKeysService.loadKeys(user.id));
+    } catch (error) {
+      setIsRendering(false);
+      setProcessingError(error instanceof Error ? error.message : 'Unable to load your API-key settings.');
+      return;
+    }
+    if (!keys.gemini) {
+      setProcessingError('Add and validate your Gemini API key in Settings before creating a recap.');
+      setIsRendering(false);
+      return;
+    }
+    if (draft.youtubeUrl.trim() && !keys.youtube) {
       setProcessingError('Add and validate your YouTube Data API key in Settings before processing a YouTube video.');
+      setIsRendering(false);
       return;
     }
     if (draft.webSearchEnabled && (!keys.googleSearch || !keys.searchEngineId)) {
       setProcessingError('Add and validate your Google Search API key and Search Engine ID, or disable web search.');
+      setIsRendering(false);
       return;
     }
 
@@ -761,19 +861,34 @@ export default function Create() {
         'You create concise video recap scripts. Preserve factual accuracy, do not invent events, and return only the narration script.'
       );
       setDraft(current => ({ ...current, scriptText: generatedScript }));
-      const sourceUrl = draft.videoAssetId || draft.youtubeUrl;
+      const youtubeUrl = draft.youtubeUrl.trim();
+      const sourceUrl = youtubeUrl || draft.videoAssetId;
       if (!sourceUrl) throw new Error('Upload a video or provide a YouTube URL before starting the real processing job.');
       const task = await createVideoTask(user.id, {
         source_url: sourceUrl,
-        source_type: draft.youtubeUrl ? 'youtube' : 'upload',
+        source_type: youtubeUrl ? 'youtube' : 'upload',
         title: draft.movieTitle || 'Untitled recap',
         description: generatedScript,
         priority: 'medium',
         enable_3d_conversion: false,
       });
-      if (!task) throw new Error('The processing job could not be created.');
-      const queued = await processVideoTask(task.id, { youtube: keys.youtube, gemini: keys.gemini, googleSearch: keys.googleSearch, searchEngineId: keys.searchEngineId, webSearchEnabled: draft.webSearchEnabled });
-      if (!queued.success) throw new Error(queued.error || 'The processing job could not be queued.');
+      const queued = await processVideoTask(task.id, {
+        youtube: keys.youtube,
+        gemini: keys.gemini,
+        googleSearch: keys.googleSearch,
+        searchEngineId: keys.searchEngineId,
+        webSearchEnabled: draft.webSearchEnabled,
+        recapDurationSeconds: targetDuration,
+        narrationAudioUrl: draft.mp3AssetId,
+      });
+      if (!queued.success) {
+        await updateVideoTask(task.id, {
+          status: 'error',
+          error_message: queued.error || 'The processing job could not be queued.',
+          error_action: 'Review the error and retry the task.',
+        });
+        throw new Error(queued.error || 'The processing job could not be queued.');
+      }
       await refreshWallet();
       navigate('/my-videos', { replace: true });
       return;
@@ -1064,6 +1179,12 @@ export default function Create() {
         )}
 
         {/* Step Content */}
+        {wizardError && (
+          <div role="alert" className="mb-4 flex items-start gap-3 rounded-xl border border-red-500/30 bg-red-950/30 p-4 text-sm text-red-200">
+            <AlertCircle className="mt-0.5 h-4 w-4 flex-shrink-0" />
+            <span>{wizardError}</span>
+          </div>
+        )}
         <div className="ai-card p-7 mb-5">
 
           {/* ── STEP 1 ── */}
@@ -1528,7 +1649,7 @@ export default function Create() {
 
                 <div>
                   <label className="block text-sm font-semibold mb-2" style={{ color: 'rgba(200,200,240,0.8)' }}>{t.create.step3.youtubeUrl}</label>
-                  <input type="url" value={draft.youtubeUrl} onChange={(e) => setDraft({ ...draft, youtubeUrl: e.target.value })}
+                  <input type="url" value={draft.youtubeUrl} onChange={(e) => { setWizardError(null); setDraft({ ...draft, youtubeUrl: e.target.value }); }}
                     placeholder={t.create.step3.urlPlaceholder} className="ai-input" />
                 </div>
               </div>
@@ -1860,7 +1981,7 @@ export default function Create() {
             <ChevronRight className="w-4 h-4" /> {t.common.back}
           </button>
           {currentStep < totalSteps && currentStep !== 2 && (
-            <button onClick={() => setCurrentStep(currentStep + 1)} disabled={(currentStep === 4 && !draft.movieTitle) || uploading}
+            <button onClick={handleContinue} disabled={uploading || analyzingTxt || analyzingAudio || analyzingVideo}
               className="btn-neon-cyan flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none">
               {t.common.continue} <ChevronLeft className="w-4 h-4" />
             </button>

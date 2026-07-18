@@ -2,8 +2,8 @@
 // Handles: COI headers (SharedArrayBuffer/FFmpeg), PWA caching, Push Notifications
 
 const APP_NAME = 'AI Recaps Maker';
-const CACHE_NAME = 'ai-recaps-v6';
-const RUNTIME_CACHE = 'ai-recaps-runtime-v6';
+const CACHE_NAME = 'ai-recaps-v7';
+const RUNTIME_CACHE = 'ai-recaps-runtime-v7';
 
 const PRECACHE_URLS = [
   '/',
@@ -96,6 +96,10 @@ self.addEventListener('fetch', (event) => {
   // Skip non-http(s) and chrome-extension requests
   if (!url.protocol.startsWith('http')) return;
 
+  // Do not proxy third-party requests. Opaque responses cannot safely be
+  // rewritten, and external failures must not become application 503 errors.
+  if (url.origin !== self.location.origin) return;
+
   // Skip ALL Supabase Storage requests — pass through completely unmodified
   if (url.hostname.includes('supabase') || url.hostname.includes('onspace')) {
     return; // Native browser fetch, no SW interception
@@ -113,7 +117,9 @@ self.addEventListener('fetch', (event) => {
         .then((response) => {
           const modified = addCoiHeaders(response.clone(), request);
           if (response.status === 200) {
-            caches.open(RUNTIME_CACHE).then((cache) => cache.put(request, modified.clone()));
+            // Clone before the page can consume the returned response body.
+            const cacheCopy = modified.clone();
+            event.waitUntil(caches.open(RUNTIME_CACHE).then((cache) => cache.put(request, cacheCopy)));
           }
           return modified;
         })

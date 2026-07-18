@@ -53,6 +53,10 @@ Deno.serve(async (req: Request) => {
     const geminiKey = typeof body.gemini_api_key === "string" ? body.gemini_api_key.trim() : "";
     const googleSearchKey = typeof body.google_search_api_key === "string" ? body.google_search_api_key.trim() : "";
     const searchEngineId = typeof body.search_engine_id === "string" ? body.search_engine_id.trim().replace(/^cx=/, "") : "";
+    const narrationAudioUrl = typeof body.narration_audio_url === "string" ? body.narration_audio_url.trim() : "";
+    if (narrationAudioUrl && !narrationAudioUrl.startsWith(`storage://recap-assets/${user.id}/`)) {
+      return json(req, { error: "Invalid narration audio path" }, 400);
+    }
     if (task.source_type === "youtube" && !youtubeKey) return json(req, { error: "Add and validate your YouTube API key before processing this source" }, 400);
     if (!geminiKey) return json(req, { error: "Add and validate your Gemini API key before creating a recap" }, 400);
     if (body.web_search_enabled === true && (!googleSearchKey || !searchEngineId)) return json(req, { error: "Add and validate your Google Search API key and Search Engine ID, or disable web search" }, 400);
@@ -66,6 +70,7 @@ Deno.serve(async (req: Request) => {
       web_search_enabled: body.web_search_enabled === true && Boolean(googleSearchKey && searchEngineId),
       language: typeof body.language === "string" ? body.language : "en",
       recap_duration_seconds: Number(body.recap_duration_seconds || 0),
+      narration_audio_url: narrationAudioUrl,
     });
     const { error: secretError } = await service.from("video_task_secrets").upsert({ task_id: taskId, encrypted_payload: encryptedPayload, updated_at: new Date().toISOString() });
     if (secretError) {
