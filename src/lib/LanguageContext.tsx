@@ -20,11 +20,19 @@ function mergeTranslations<T>(fallback: T, selected: unknown): T {
     ? selected as Record<string, unknown>
     : {};
 
+  const fallbackObject = fallback as Record<string, unknown>;
+
+  // Translation files are intentionally allowed to be partial. Build the
+  // result from the union of both objects so a key added to one language is
+  // not discarded just because it is missing from the fallback language.
   return Object.fromEntries(
-    Object.entries(fallback as Record<string, unknown>).map(([key, fallbackValue]) => [
-      key,
-      mergeTranslations(fallbackValue, selectedObject[key]),
-    ])
+    [...new Set([...Object.keys(fallbackObject), ...Object.keys(selectedObject)])]
+      .map((key) => [
+        key,
+        key in fallbackObject
+          ? mergeTranslations(fallbackObject[key], selectedObject[key])
+          : selectedObject[key],
+      ])
   ) as T;
 }
 
@@ -49,10 +57,13 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
 
   // RTL languages: Hebrew, Arabic
   const dir = language === 'he' || language === 'ar' ? 'rtl' : 'ltr';
-  const resolvedTranslations = useMemo(
-    () => mergeTranslations(translations.en, translations[language]),
-    [language]
-  ) as typeof translations.he;
+  const resolvedTranslations = useMemo(() => {
+    // Hebrew currently contains several newer page strings (notifications,
+    // insights, etc.) that English and Arabic do not. Start with a complete
+    // union of the two primary dictionaries, then overlay the selected locale.
+    const completeFallback = mergeTranslations(translations.he, translations.en);
+    return mergeTranslations(completeFallback, translations[language]);
+  }, [language]) as typeof translations.he;
 
   return (
     <LanguageContext.Provider
