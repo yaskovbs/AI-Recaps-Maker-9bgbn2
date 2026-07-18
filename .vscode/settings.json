@@ -10,7 +10,7 @@
     "statusBar.background": "#292f31",
     "statusBar.foreground": "#FFFFFF",
     "statusBar.noFolderBackground": "#455458",
-    "statusBar.debuggingBackground": "#D47C47",
+    "statusBar.debuggingBackground": "#0d0c0b",
     "statusBar.debuggingForeground": "#FFFFFF",
     "titleBar.activeBackground": "#071A21",
     "titleBar.activeForeground": "#E6FAFF",
