@@ -240,7 +240,6 @@ export function useYouTubeChannels(userId: string | undefined) {
           channel_description: details.description,
           subscriber_count: details.subscriberCount,
           video_count: details.videoCount,
-          category: slotInfo.usedSlots === 0 ? 'personal' : 'inspiration',
           slot_type: slotType,
           slot_unlocked_at: unlockMethod ? new Date().toISOString() : null,
         })

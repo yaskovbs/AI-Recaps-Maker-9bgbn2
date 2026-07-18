@@ -7,6 +7,14 @@ import type {
   TaskStatus,
 } from './videoTaskTypes';
 
+export const VIDEO_TASKS_UNAVAILABLE_MESSAGE = 'Video processing is not configured on this server yet.';
+
+function videoTaskError(error: { code?: string; message?: string }): Error {
+  return new Error(error.code === '42P01'
+    ? VIDEO_TASKS_UNAVAILABLE_MESSAGE
+    : error.message || 'Unable to load video tasks.');
+}
+
 export async function createVideoTask(
   userId: string,
   params: CreateTaskParams
@@ -74,7 +82,7 @@ export async function fetchVideoTasks(
 
   if (error) {
     console.error('Error fetching video tasks:', error);
-    throw new Error(error.message || 'Unable to load video tasks.');
+    throw videoTaskError(error);
   }
 
   return data || [];
@@ -205,7 +213,7 @@ export async function getTaskStats(userId: string): Promise<{
     .eq('user_id', userId);
 
   if (error || !data) {
-    throw new Error(error?.message || 'Unable to load video task statistics.');
+    throw error ? videoTaskError(error) : new Error('Unable to load video task statistics.');
   }
 
   const activeStatuses: TaskStatus[] = ['downloading', 'processing', 'summarizing', 'converting_3d'];

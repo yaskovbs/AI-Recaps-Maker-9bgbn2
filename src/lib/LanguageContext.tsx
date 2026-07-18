@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, useMemo, ReactNode } from 'react';
 import { translations, Language } from './i18n';
 
 interface LanguageContextType {
@@ -10,6 +10,23 @@ interface LanguageContextType {
 
 // Create context with undefined default (must be used within Provider)
 const LanguageContext = createContext<LanguageContextType | undefined>(undefined);
+
+function mergeTranslations<T>(fallback: T, selected: unknown): T {
+  if (Array.isArray(fallback) || fallback === null || typeof fallback !== 'object') {
+    return (selected === undefined ? fallback : selected) as T;
+  }
+
+  const selectedObject = selected && typeof selected === 'object'
+    ? selected as Record<string, unknown>
+    : {};
+
+  return Object.fromEntries(
+    Object.entries(fallback as Record<string, unknown>).map(([key, fallbackValue]) => [
+      key,
+      mergeTranslations(fallbackValue, selectedObject[key]),
+    ])
+  ) as T;
+}
 
 export function LanguageProvider({ children }: { children: ReactNode }) {
   const [language, setLanguageState] = useState<Language>('he');
@@ -32,13 +49,17 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
 
   // RTL languages: Hebrew, Arabic
   const dir = language === 'he' || language === 'ar' ? 'rtl' : 'ltr';
+  const resolvedTranslations = useMemo(
+    () => mergeTranslations(translations.en, translations[language]),
+    [language]
+  ) as typeof translations.he;
 
   return (
     <LanguageContext.Provider
       value={{
         language,
         setLanguage,
-        t: translations[language],
+        t: resolvedTranslations,
         dir,
       }}
     >

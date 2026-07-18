@@ -5,7 +5,7 @@ import { Wallet as WalletIcon, Plus, Minus, RefreshCw, TrendingUp, Clock } from 
 
 export default function Wallet() {
   const { t } = useLanguage();
-  const { wallet, refreshWallet, isLoading, error } = useWallet();
+  const { wallet, refreshWallet, isLoading, error, isAvailable } = useWallet();
 
   /* Removed simulated reward flow.
   const legacyHandleWatchAd = () => {
@@ -17,9 +17,9 @@ export default function Wallet() {
   };
 
   */
-  const handleRefresh = () => {
-    refreshWallet();
-    alert('היתרה עודכנה!');
+  const handleRefresh = async () => {
+    const refreshed = await refreshWallet();
+    if (refreshed) alert('היתרה עודכנה!');
   };
 
   return (
@@ -32,6 +32,12 @@ export default function Wallet() {
           </h1>
           <p className="text-brass-300">נהל את הקרדיטים שלך</p>
         </div>
+
+        {error && (
+          <div role="alert" className="mb-6 rounded-lg border border-red-700/40 bg-red-950/40 p-4 text-red-200">
+            {error}
+          </div>
+        )}
 
         {/* Balance Card */}
         <div className="steampunk-card p-8 mb-6 bg-gradient-to-br from-brass-900/40 to-copper-900/40">
@@ -51,7 +57,8 @@ export default function Wallet() {
           <div className="grid grid-cols-1 gap-4">
             <button
               onClick={handleRefresh}
-              className="bg-steam-800 hover:bg-steam-700 text-brass-200 px-4 py-3 rounded-lg font-semibold transition-all flex items-center justify-center gap-2"
+              disabled={isLoading || !isAvailable}
+              className="bg-steam-800 hover:bg-steam-700 disabled:cursor-not-allowed disabled:opacity-50 text-brass-200 px-4 py-3 rounded-lg font-semibold transition-all flex items-center justify-center gap-2"
             >
               <RefreshCw className="w-5 h-5" />
               {t.wallet.refresh}
@@ -101,7 +108,6 @@ export default function Wallet() {
             {t.wallet.history.title}
           </h2>
 
-          {error && <p className="text-red-300 mb-4">{error}</p>}
           {wallet.history.length === 0 ? (
             <div className="text-center py-12">
               <WalletIcon className="w-12 h-12 text-brass-400 mx-auto mb-4" />

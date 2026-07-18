@@ -32,6 +32,7 @@ export function useWallet() {
   const [wallet, setWallet] = useState<WalletData>(EMPTY_WALLET);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isAvailable, setIsAvailable] = useState(true);
 
   const refreshWallet = useCallback(async () => {
     if (!user) {
@@ -46,7 +47,12 @@ export function useWallet() {
     ]);
     setIsLoading(false);
     if (walletResult.error || historyResult.error || !walletResult.data) {
-      setError(walletResult.error?.message || historyResult.error?.message || 'Wallet is unavailable');
+      const requestError = walletResult.error || historyResult.error;
+      const schemaMissing = requestError?.code === '42P01';
+      setIsAvailable(!schemaMissing);
+      setError(schemaMissing
+        ? 'The credit wallet is not configured on this server yet.'
+        : requestError?.message || 'Wallet is unavailable');
       return false;
     }
     const history: WalletTransaction[] = (historyResult.data || []).map(item => ({
@@ -65,6 +71,7 @@ export function useWallet() {
       history,
     });
     setError(null);
+    setIsAvailable(true);
     return true;
   }, [user]);
 
@@ -83,6 +90,7 @@ export function useWallet() {
     wallet,
     isLoading,
     error,
+    isAvailable,
     refresh: refreshWallet,
     refreshWallet,
   };

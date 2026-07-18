@@ -75,7 +75,10 @@ export default function MyRecaps() {
       setRecaps(mergedData);
     } catch (error) {
       console.error('Error loading recaps:', error);
-      setErrorMessage(error instanceof Error ? error.message : 'Unable to load your recaps.');
+      const databaseError = error as { code?: string; message?: string };
+      setErrorMessage(databaseError.code === '42P01'
+        ? 'Recap storage is not configured on this server yet.'
+        : databaseError.message || 'Unable to load your recaps.');
     } finally {
       setIsLoading(false);
     }

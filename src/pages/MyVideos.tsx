@@ -24,7 +24,7 @@ export default function MyVideos() {
     sortOrder: 'desc',
   });
 
-  const { tasks, isLoading, error, stats, refresh, removeTask, removeTasks, cancelTask } = useVideoTasks(filters);
+  const { tasks, isLoading, error, isAvailable, stats, refresh, removeTask, removeTasks, cancelTask } = useVideoTasks(filters);
 
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [detailTask, setDetailTask] = useState<VideoTask | null>(null);
@@ -151,7 +151,8 @@ export default function MyVideos() {
               </button>
               <button
                 onClick={() => setShowNewTaskDialog(true)}
-                className="steampunk-button flex items-center gap-2 px-4 py-2"
+                disabled={!isAvailable}
+                className="steampunk-button disabled:cursor-not-allowed disabled:opacity-50 flex items-center gap-2 px-4 py-2"
               >
                 <Plus className="w-5 h-5" />
                 <span className="hidden sm:inline">New Task</span>
@@ -161,11 +162,11 @@ export default function MyVideos() {
 
           {/* Stats Bar */}
           <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
-            <StatCard icon={<FileVideo className="w-4 h-4" />} label="Total" value={stats.total} color="text-brass-300" />
-            <StatCard icon={<Clock className="w-4 h-4" />} label="Processing" value={stats.processing} color="text-blue-400" />
-            <StatCard icon={<CheckCircle className="w-4 h-4" />} label="Completed" value={stats.completed} color="text-green-400" />
-            <StatCard icon={<AlertTriangle className="w-4 h-4" />} label="Errors" value={stats.error} color="text-red-400" />
-            <StatCard icon={<HardDrive className="w-4 h-4" />} label="Storage" value={`${(stats.storageUsedMb / 1024).toFixed(1)} GB`} color="text-copper-400" />
+            <StatCard icon={<FileVideo className="w-4 h-4" />} label="Total" value={isAvailable ? stats.total : '—'} color="text-brass-300" />
+            <StatCard icon={<Clock className="w-4 h-4" />} label="Processing" value={isAvailable ? stats.processing : '—'} color="text-blue-400" />
+            <StatCard icon={<CheckCircle className="w-4 h-4" />} label="Completed" value={isAvailable ? stats.completed : '—'} color="text-green-400" />
+            <StatCard icon={<AlertTriangle className="w-4 h-4" />} label="Errors" value={isAvailable ? stats.error : '—'} color="text-red-400" />
+            <StatCard icon={<HardDrive className="w-4 h-4" />} label="Storage" value={isAvailable ? `${(stats.storageUsedMb / 1024).toFixed(1)} GB` : '—'} color="text-copper-400" />
           </div>
 
           {/* Search & Filters */}

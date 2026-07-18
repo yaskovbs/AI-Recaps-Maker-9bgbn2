@@ -7,6 +7,7 @@ import {
   deleteVideoTasks,
   cancelVideoTask,
   getTaskStats,
+  VIDEO_TASKS_UNAVAILABLE_MESSAGE,
 } from '@/lib/videoTaskService';
 import type { VideoTask, TaskFilterOptions, TaskStatus } from '@/lib/videoTaskTypes';
 import { PROCESSING_STATUSES } from '@/lib/videoTaskTypes';
@@ -18,6 +19,7 @@ export function useVideoTasks(filters: TaskFilterOptions = {}) {
   const [tasks, setTasks] = useState<VideoTask[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isAvailable, setIsAvailable] = useState(true);
   const [stats, setStats] = useState({
     total: 0,
     pending: 0,
@@ -46,8 +48,11 @@ export function useVideoTasks(filters: TaskFilterOptions = {}) {
     setError(null);
     try {
       await Promise.all([loadTasks(), loadStats()]);
+      setIsAvailable(true);
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'Unable to load video tasks.');
+      const message = cause instanceof Error ? cause.message : 'Unable to load video tasks.';
+      setError(message);
+      setIsAvailable(message !== VIDEO_TASKS_UNAVAILABLE_MESSAGE);
     }
   }, [loadTasks, loadStats]);
 
@@ -144,6 +149,7 @@ export function useVideoTasks(filters: TaskFilterOptions = {}) {
     tasks,
     isLoading,
     error,
+    isAvailable,
     stats,
     refresh,
     removeTask,
