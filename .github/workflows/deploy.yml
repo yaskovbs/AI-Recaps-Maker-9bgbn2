@@ -104,6 +104,12 @@ jobs:
 
           for (const table of requiredTables) {
             const response = await fetch(`${baseUrl}/rest/v1/${table}?select=*&limit=0`, { headers });
+            if (response.status === 401 || response.status === 403) {
+              console.error(`Schema verification could not authenticate to ${new URL(baseUrl).host}.`);
+              console.error('VITE_SUPABASE_ANON_KEY must be copied from the same project as VITE_SUPABASE_URL, without quotes or surrounding whitespace.');
+              console.error(`Backend response: HTTP ${response.status} ${(await response.text()).slice(0, 200)}`);
+              process.exit(1);
+            }
             if (!response.ok) {
               failures.push(`${table}: HTTP ${response.status} ${(await response.text()).slice(0, 200)}`);
             }
