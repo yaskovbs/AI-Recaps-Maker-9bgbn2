@@ -62,7 +62,7 @@ export default function SentimentAnalysis({ ratings, className = '' }: Sentiment
       </div>
 
       {/* Detailed Stats */}
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         {/* Positive */}
         <div className="text-center">
           <div className="w-12 h-12 rounded-full bg-green-900/30 border border-green-600/30 flex items-center justify-center mx-auto mb-2">

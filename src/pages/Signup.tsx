@@ -13,6 +13,7 @@ export default function Signup() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [username, setUsername] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [error, setError] = useState('');
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -43,7 +44,7 @@ export default function Signup() {
     { key: 'username', icon: User, type: 'text', label: t.auth.fields.username, placeholder: t.auth.placeholders.username, value: username, setter: setUsername, autoComplete: 'username' },
     { key: 'email', icon: Mail, type: 'email', label: t.auth.fields.email, placeholder: t.auth.placeholders.email, value: email, setter: setEmail, autoComplete: 'email' },
     { key: 'password', icon: Lock, type: showPassword ? 'text' : 'password', label: t.auth.fields.password, placeholder: t.auth.placeholders.password, value: password, setter: setPassword, autoComplete: 'new-password' },
-    { key: 'confirm', icon: Lock, type: 'password', label: t.auth.fields.confirmPassword, placeholder: t.auth.placeholders.confirmPassword, value: confirmPassword, setter: setConfirmPassword, autoComplete: 'new-password' },
+    { key: 'confirm', icon: Lock, type: showConfirmPassword ? 'text' : 'password', label: t.auth.fields.confirmPassword, placeholder: t.auth.placeholders.confirmPassword, value: confirmPassword, setter: setConfirmPassword, autoComplete: 'new-password' },
   ];
 
   return (
@@ -53,7 +54,7 @@ export default function Signup() {
       <div className="absolute inset-0 grid-bg opacity-20" />
 
       <div className="w-full max-w-md relative z-10">
-        <div className="ai-card p-8">
+        <div className="ai-card p-5 sm:p-8">
           {/* Logo */}
           <div className="text-center mb-7">
             <div className="w-16 h-16 rounded-2xl mx-auto mb-4 flex items-center justify-center" style={{ background: 'linear-gradient(135deg, #B24BF3, #00D4FF)', boxShadow: '0 0 30px rgba(178,75,243,0.35)' }}>
@@ -80,26 +81,31 @@ export default function Signup() {
           <form onSubmit={handleSubmit} className="space-y-4">
             {fields.map(field => {
               const Icon = field.icon;
-              const isPasswordField = field.key === 'password';
+              const isPasswordField = field.key === 'password' || field.key === 'confirm';
+              const isVisible = field.key === 'password' ? showPassword : showConfirmPassword;
+              const toggleVisibility = field.key === 'password'
+                ? () => setShowPassword(value => !value)
+                : () => setShowConfirmPassword(value => !value);
               return (
                 <div key={field.key}>
-                  <label className="block text-sm font-semibold mb-1.5" style={{ color: 'rgba(200,200,240,0.8)' }}>
+                  <label htmlFor={`signup-${field.key}`} className="block text-sm font-semibold mb-1.5" style={{ color: 'rgba(200,200,240,0.8)' }}>
                     {field.label}
                   </label>
                   <div className="relative">
                     <Icon className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: 'rgba(0,212,255,0.5)' }} />
                     <input
+                      id={`signup-${field.key}`}
                       type={field.type}
                       value={field.value}
                       onChange={e => field.setter(e.target.value)}
                       placeholder={field.placeholder}
-                      className="ai-input pr-11"
+                      className={`ai-input pr-11 ${isPasswordField ? 'pl-11' : ''}`}
                       disabled={isLoading}
                       autoComplete={field.autoComplete}
                     />
                     {isPasswordField && (
-                      <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute left-4 top-1/2 -translate-y-1/2" style={{ color: 'rgba(160,160,210,0.5)' }}>
-                        {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      <button type="button" onClick={toggleVisibility} className="absolute left-2 top-1/2 -translate-y-1/2 rounded-lg p-2 hover:bg-white/5" style={{ color: 'rgba(160,160,210,0.7)' }} aria-label={isVisible ? `Hide ${field.label}` : `Show ${field.label}`} aria-pressed={isVisible}>
+                        {isVisible ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                       </button>
                     )}
                   </div>

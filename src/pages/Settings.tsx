@@ -465,7 +465,7 @@ export default function Settings() {
 
               {/* Disconnected warning with sync button */}
               {dbSyncStatus === 'disconnected' && (
-                <div className="bg-yellow-900/20 border border-yellow-700/30 rounded-lg p-4 flex items-center justify-between gap-4">
+                <div className="bg-yellow-900/20 border border-yellow-700/30 rounded-lg p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                   <div className="flex items-center gap-2 text-sm text-yellow-300">
                     <CloudOff className="w-4 h-4 flex-shrink-0" />
                     <span>המפתחות שמורים רק במכשיר הזה. סנכרן לענן כדי לגשת מכל מכשיר.</span>
@@ -784,7 +784,7 @@ export default function Settings() {
             {t.settings.language.title}
           </h2>
 
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
             {[
               { value: 'he', label: 'עברית', flag: '🇮🇱' },
               { value: 'en', label: 'English', flag: '🇬🇧' },

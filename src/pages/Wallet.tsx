@@ -27,7 +27,7 @@ export default function Wallet() {
       <div className="container mx-auto px-4 max-w-4xl">
         {/* Header */}
         <div className="mb-8">
-          <h1 className="text-4xl font-serif font-bold text-brass-200 mb-2">
+          <h1 className="text-3xl sm:text-4xl font-serif font-bold text-brass-200 mb-2">
             {t.wallet.title}
           </h1>
           <p className="text-brass-300">נהל את הקרדיטים שלך</p>
@@ -41,11 +41,11 @@ export default function Wallet() {
 
         {/* Balance Card */}
         <div className="steampunk-card p-8 mb-6 bg-gradient-to-br from-brass-900/40 to-copper-900/40">
-          <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center justify-between gap-4 mb-6">
             <div>
               <p className="text-brass-300 text-sm mb-2">{t.wallet.balance}</p>
               <div className="flex items-baseline gap-2">
-                <span className="text-5xl font-bold text-brass-100">{isLoading ? '…' : wallet.balance}</span>
+                <span className="text-4xl sm:text-5xl font-bold text-brass-100">{isLoading ? '…' : wallet.balance}</span>
                 <span className="text-brass-300">{t.wallet.credits}</span>
               </div>
             </div>
@@ -67,7 +67,7 @@ export default function Wallet() {
         </div>
 
         {/* Stats */}
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-8">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 mb-8">
           <div className="steampunk-card p-6">
             <div className="flex items-center justify-between mb-2">
               <Plus className="w-5 h-5 text-green-400" />
@@ -121,7 +121,7 @@ export default function Wallet() {
                 .map((transaction, idx) => (
                   <div
                     key={transaction.id || idx}
-                    className="flex items-center justify-between p-4 bg-steam-800/30 border border-brass-700/20 rounded-lg hover:bg-steam-800/50 transition-all"
+                    className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 bg-steam-800/30 border border-brass-700/20 rounded-lg hover:bg-steam-800/50 transition-all"
                   >
                     <div className="flex items-center gap-4">
                       <div
@@ -146,7 +146,7 @@ export default function Wallet() {
                         <p className="text-sm text-brass-400">{transaction.description}</p>
                       </div>
                     </div>
-                    <div className="text-left">
+                    <div className="text-left self-end sm:self-auto">
                       <p
                         className={`text-lg font-bold ${
                           transaction.amount > 0 ? 'text-green-300' : 'text-red-300'

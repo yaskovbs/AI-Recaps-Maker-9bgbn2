@@ -406,7 +406,7 @@ export default function Home() {
 
         <div className="container mx-auto px-4 text-center relative z-10 max-w-2xl">
           <div className="neon-badge neon-badge-cyan mx-auto mb-6 inline-flex">Get Started</div>
-          <h2 className="text-5xl font-bold mb-5 text-white">
+          <h2 className="text-3xl sm:text-5xl font-bold mb-5 text-white">
             מוכן להתחיל?
           </h2>
           <p className="mb-10 text-lg" style={{ color: 'rgba(180,180,220,0.7)' }}>

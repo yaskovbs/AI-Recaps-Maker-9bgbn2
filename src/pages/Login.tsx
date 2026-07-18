@@ -45,7 +45,7 @@ export default function Login() {
 
       <div className="w-full max-w-md relative z-10">
         {/* Card */}
-        <div className="ai-card p-8">
+        <div className="ai-card p-5 sm:p-8">
           {/* Logo */}
           <div className="text-center mb-8">
             <div className="w-16 h-16 rounded-2xl mx-auto mb-4 flex items-center justify-center" style={{ background: 'linear-gradient(135deg, #00D4FF, #B24BF3)', boxShadow: '0 0 30px rgba(0,212,255,0.35)' }}>
@@ -67,12 +67,13 @@ export default function Login() {
           {/* Form */}
           <form onSubmit={handleSubmit} className="space-y-5">
             <div>
-              <label className="block text-sm font-semibold mb-2" style={{ color: 'rgba(200,200,240,0.8)' }}>
+              <label htmlFor="login-email" className="block text-sm font-semibold mb-2" style={{ color: 'rgba(200,200,240,0.8)' }}>
                 {t.auth.fields.email}
               </label>
               <div className="relative">
                 <Mail className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: 'rgba(0,212,255,0.5)' }} />
                 <input
+                  id="login-email"
                   type="email"
                   value={email}
                   onChange={e => setEmail(e.target.value)}
@@ -85,12 +86,13 @@ export default function Login() {
             </div>
 
             <div>
-              <label className="block text-sm font-semibold mb-2" style={{ color: 'rgba(200,200,240,0.8)' }}>
+              <label htmlFor="login-password" className="block text-sm font-semibold mb-2" style={{ color: 'rgba(200,200,240,0.8)' }}>
                 {t.auth.fields.password}
               </label>
               <div className="relative">
                 <Lock className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: 'rgba(0,212,255,0.5)' }} />
                 <input
+                  id="login-password"
                   type={showPassword ? 'text' : 'password'}
                   value={password}
                   onChange={e => setPassword(e.target.value)}
@@ -99,7 +101,7 @@ export default function Login() {
                   disabled={isLoading}
                   autoComplete="current-password"
                 />
-                <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute left-4 top-1/2 -translate-y-1/2" style={{ color: 'rgba(160,160,210,0.5)' }}>
+                <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute left-2 top-1/2 -translate-y-1/2 rounded-lg p-2 hover:bg-white/5" style={{ color: 'rgba(160,160,210,0.7)' }} aria-label={showPassword ? 'Hide password' : 'Show password'} aria-pressed={showPassword}>
                   {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
               </div>

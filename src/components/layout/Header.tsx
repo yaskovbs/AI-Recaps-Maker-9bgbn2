@@ -4,8 +4,8 @@ import { useLanguage } from '@/lib/LanguageContext';
 import { useAuth } from '@/lib/AuthContext';
 import {
   Menu, X, Home, LayoutDashboard, Plus, BarChart3, Settings,
-  Wallet, Youtube, Globe, User, LogOut, LogIn, Film, Mail,
-  Grid, Video, ChevronDown, Sparkles, Bell
+  Wallet, Youtube, LogOut, LogIn, Film,
+  Grid, Video, ChevronDown, Sparkles
 } from 'lucide-react';
 
 export default function Header() {
@@ -22,6 +22,12 @@ export default function Header() {
     window.addEventListener('scroll', onScroll);
     return () => window.removeEventListener('scroll', onScroll);
   }, []);
+
+  useEffect(() => {
+    setMobileMenuOpen(false);
+    setLangOpen(false);
+    setUserMenuOpen(false);
+  }, [location.pathname]);
 
   const mainNavItems = [
     { path: '/home', label: t.nav.home, icon: Home },
@@ -65,6 +71,11 @@ export default function Header() {
 
   const currentLang = languages.find(l => l.code === language) || languages[0];
   const isActive = (path: string) => location.pathname === path;
+  const desktopNavItems = user
+    ? mainNavItems.filter(item => ['/dashboard', '/create', '/my-recaps', '/my-videos', '/gallery'].includes(item.path))
+    : mainNavItems.filter(item => ['/home', '/gallery'].includes(item.path));
+  const accountLinks = mainNavItems.filter(item => ['/analytics', '/wallet', '/youtube-learning', '/settings'].includes(item.path));
+  const controlClass = 'h-10 rounded-xl inline-flex items-center justify-center gap-2 px-3 text-sm font-semibold transition-all';
 
   return (
     <header
@@ -78,7 +89,7 @@ export default function Header() {
       }}
     >
       <div className="container mx-auto px-4">
-        <div className="flex h-16 items-center justify-between">
+        <div className="flex h-[72px] items-center justify-between gap-4">
           {/* Logo */}
           <Link to="/home" className="flex items-center gap-3 flex-shrink-0">
             <div
@@ -96,15 +107,15 @@ export default function Header() {
           </Link>
 
           {/* Desktop Nav */}
-          <nav className="hidden lg:flex items-center gap-0.5">
-            {mainNavItems.map(item => {
+          <nav className="hidden lg:flex flex-1 items-center justify-center gap-1" aria-label="Primary navigation">
+            {desktopNavItems.map(item => {
               const Icon = item.icon;
               if (item.highlight) {
                 return (
                   <Link
                     key={item.path}
                     to={item.path}
-                    className="mx-1 btn-neon-cyan py-2 px-4 text-sm flex items-center gap-1.5"
+                    className={`${controlClass} btn-neon-cyan mx-1`}
                   >
                     <Icon className="w-3.5 h-3.5" />
                     {item.label}
@@ -115,7 +126,7 @@ export default function Header() {
                 <Link
                   key={item.path}
                   to={item.path}
-                  className={`px-3 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-1.5 ${
+                  className={`${controlClass} ${
                     isActive(item.path)
                       ? 'text-[#00D4FF]'
                       : 'hover:text-white text-[rgba(180,180,220,0.65)] hover:bg-white/5'
@@ -135,8 +146,10 @@ export default function Header() {
             <div className="hidden md:block relative">
               <button
                 onClick={() => { setLangOpen(!langOpen); setUserMenuOpen(false); }}
-                className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm transition-all hover:bg-white/5"
+                className={`${controlClass} hover:bg-white/5`}
                 style={{ color: 'rgba(180,180,220,0.65)', border: '1px solid rgba(255,255,255,0.08)' }}
+                aria-expanded={langOpen}
+                aria-label="Choose language"
               >
                 <span>{currentLang.flag}</span>
                 <span className="hidden xl:block">{currentLang.label}</span>
@@ -168,8 +181,9 @@ export default function Header() {
                 <div className="relative">
                   <button
                     onClick={() => { setUserMenuOpen(!userMenuOpen); setLangOpen(false); }}
-                    className="flex items-center gap-2 px-3 py-2 rounded-lg transition-all hover:bg-white/5"
+                    className={`${controlClass} hover:bg-white/5`}
                     style={{ border: '1px solid rgba(0,212,255,0.15)', color: 'rgba(200,200,240,0.8)' }}
+                    aria-expanded={userMenuOpen}
                   >
                     <div className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold" style={{ background: 'linear-gradient(135deg, #00D4FF, #B24BF3)', color: '#0a0a14' }}>
                       {user.username?.[0]?.toUpperCase() || 'U'}
@@ -186,9 +200,10 @@ export default function Header() {
                         <div className="text-sm font-semibold" style={{ color: '#f0f0ff' }}>{user.username}</div>
                         <div className="text-xs" style={{ color: 'rgba(150,150,200,0.6)' }}>{user.email}</div>
                       </div>
-                      <Link to="/settings" onClick={() => setUserMenuOpen(false)} className="w-full text-left px-3 py-2 rounded-lg text-sm flex items-center gap-2 transition-all hover:bg-white/5" style={{ color: 'rgba(200,200,240,0.7)' }}>
-                        <Settings className="w-4 h-4" /> {t.nav.settings}
-                      </Link>
+                      {accountLinks.map(item => {
+                        const Icon = item.icon;
+                        return <Link key={item.path} to={item.path} onClick={() => setUserMenuOpen(false)} className="w-full text-left px-3 py-2 rounded-lg text-sm flex items-center gap-2 transition-all hover:bg-white/5" style={{ color: 'rgba(200,200,240,0.7)' }}><Icon className="w-4 h-4" />{item.label}</Link>;
+                      })}
                       <button onClick={() => { logout(); setUserMenuOpen(false); }} className="w-full text-left px-3 py-2 rounded-lg text-sm flex items-center gap-2 transition-all hover:bg-red-500/10" style={{ color: 'rgba(255,80,80,0.8)' }}>
                         <LogOut className="w-4 h-4" /> {t.auth.logout}
                       </button>
@@ -197,11 +212,11 @@ export default function Header() {
                 </div>
               ) : (
                 <div className="flex items-center gap-2">
-                  <Link to="/login" className="btn-ghost py-2 px-4 text-sm flex items-center gap-1.5">
+                  <Link to="/login" className={`${controlClass} btn-ghost`}>
                     <LogIn className="w-4 h-4" /> {t.auth.login.title}
                   </Link>
-                  <Link to="/signup" className="btn-neon-cyan py-2 px-4 text-sm">
-                    {t.auth.signup.title}
+                  <Link to="/signup" className={`${controlClass} btn-neon-cyan`}>
+                    <Sparkles className="w-4 h-4" /> {t.auth.signup.title}
                   </Link>
                 </div>
               )}
@@ -210,8 +225,10 @@ export default function Header() {
             {/* Mobile Toggle */}
             <button
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="lg:hidden p-2 rounded-lg transition-all"
+              className={`${controlClass} lg:hidden w-10 px-0`}
               style={{ color: 'rgba(200,200,240,0.7)', border: '1px solid rgba(255,255,255,0.08)' }}
+              aria-expanded={mobileMenuOpen}
+              aria-label={mobileMenuOpen ? 'Close navigation menu' : 'Open navigation menu'}
             >
               {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
             </button>

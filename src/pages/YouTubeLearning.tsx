@@ -136,8 +136,8 @@ export default function YouTubeLearning() {
       <div className="container mx-auto px-4 max-w-5xl">
         {/* Header */}
         <div className="mb-8">
-          <h1 className="text-4xl font-serif font-bold text-brass-200 mb-2 flex items-center gap-3">
-            <Youtube className="w-10 h-10" />
+          <h1 className="text-3xl sm:text-4xl font-serif font-bold text-brass-200 mb-2 flex items-center gap-3">
+            <Youtube className="w-8 h-8 sm:w-10 sm:h-10 flex-shrink-0" />
             {t.youtube.title}
           </h1>
           <p className="text-brass-300">{t.youtube.description}</p>
@@ -145,7 +145,7 @@ export default function YouTubeLearning() {
 
         {/* Slots Info */}
         <div className="steampunk-card p-6 mb-6">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div>
               <p className="text-brass-300 text-sm mb-1">{t.youtube.channels.slots}</p>
               <p className="text-2xl font-bold text-brass-100">
@@ -198,7 +198,7 @@ export default function YouTubeLearning() {
           <h2 className="text-xl font-serif font-semibold text-brass-200 mb-4">
             {t.youtube.channels.add}
           </h2>
-          <div className="flex gap-3">
+          <div className="flex flex-col sm:flex-row gap-3">
             <input
               type="text"
               value={channelInput}
@@ -209,7 +209,7 @@ export default function YouTubeLearning() {
             <button
               onClick={handleAddChannel}
               disabled={!user || isLoading}
-              className="steampunk-button px-6 flex items-center gap-2 disabled:opacity-50"
+              className="steampunk-button px-6 flex items-center justify-center gap-2 disabled:opacity-50"
             >
               <Plus className="w-5 h-5" />
               {t.youtube.input.add}
@@ -248,17 +248,17 @@ export default function YouTubeLearning() {
                     className="bg-steam-800/30 border border-brass-700/20 rounded-lg overflow-hidden hover:bg-steam-800/50 transition-all"
                   >
                     {/* Channel Header */}
-                    <div className="flex items-center justify-between p-4">
-                      <div className="flex items-center gap-4 flex-1">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4">
+                      <div className="flex items-center gap-3 sm:gap-4 flex-1 min-w-0">
                         <div className="w-10 h-10 rounded-full bg-gradient-to-br from-brass-500 to-copper-600 flex items-center justify-center">
                           <Youtube className="w-5 h-5 text-white" />
                         </div>
-                        <div className="flex-1">
+                        <div className="flex-1 min-w-0">
                           <p className="text-brass-200 font-medium">{channel.channel_name}</p>
                           <p className="text-xs text-brass-400">
                             {channel.channel_handle || channel.channel_id}
                           </p>
-                          <div className="flex items-center gap-3 mt-1">
+                          <div className="flex flex-wrap items-center gap-2 sm:gap-3 mt-1">
                             <span className="text-xs px-2 py-0.5 bg-brass-900/50 rounded text-brass-300">
                               {channel.slot_type === 'free' && 'חינם'}
                               {channel.slot_type === 'premium_12' && 'פרימיום 12'}
@@ -274,7 +274,7 @@ export default function YouTubeLearning() {
                           </div>
                         </div>
                       </div>
-                      <div className="flex gap-2">
+                      <div className="flex gap-2 self-end sm:self-auto">
                         {insights && insights.videos_analyzed > 0 && (
                           <button
                             onClick={() => toggleChannelExpanded(channel.id)}

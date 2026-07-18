@@ -693,3 +693,25 @@
   border: 0;
   opacity: 0;
 }
+
+/* Responsive safety layer shared by every route. */
+html { -webkit-text-size-adjust: 100%; }
+body, #root, main { min-width: 0; max-width: 100%; }
+img, video, canvas, svg { max-width: 100%; }
+
+.steampunk-button, .steampunk-button-secondary, .btn-neon-cyan,
+.btn-neon-purple, .btn-ghost { min-height: 44px; }
+
+.ai-input, .steampunk-input, input, select, textarea { max-width: 100%; }
+
+@media (max-width: 640px) {
+  main .container { padding-inline: 1rem; }
+  main h1.text-4xl, main h1.text-5xl { font-size: 1.875rem !important; line-height: 1.2 !important; }
+  main h2.text-4xl, main h2.text-5xl { font-size: 1.75rem !important; line-height: 1.25 !important; }
+  .steampunk-card, .ai-card { border-radius: 1rem; }
+  main .steampunk-card.p-8, main .ai-card.p-8 { padding: 1.25rem !important; }
+  main .steampunk-card.p-6, main .ai-card.p-6 { padding: 1rem !important; }
+  .ai-input, .steampunk-input, input, select, textarea { font-size: 16px !important; }
+  button, a, input, select, textarea { touch-action: manipulation; }
+  p, a, span, code { overflow-wrap: anywhere; }
+}

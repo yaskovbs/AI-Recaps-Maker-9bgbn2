@@ -875,7 +875,7 @@ export default function Create() {
         {/* Header */}
         <div className="mb-8">
           <div className="neon-badge neon-badge-cyan mb-3 inline-flex">Wizard</div>
-          <h1 className="text-4xl font-bold mb-2" style={{ color: '#f0f0ff', fontFamily: 'Syne, sans-serif' }}>{t.create.title}</h1>
+          <h1 className="text-3xl sm:text-4xl font-bold mb-2" style={{ color: '#f0f0ff', fontFamily: 'Syne, sans-serif' }}>{t.create.title}</h1>
           <p className="text-sm" style={{ color: 'rgba(160,160,210,0.6)' }}>{totalSteps} שלבים ליצירת סיכום AI מושלם</p>
         </div>
 
@@ -928,7 +928,7 @@ export default function Create() {
                 {/* ── Duration ── */}
                 <div>
                   <label className="block text-sm font-semibold mb-3" style={{ color: 'rgba(200,200,240,0.85)' }}>⏱ אורך הסיכום הרצוי</label>
-                  <div className="grid grid-cols-3 gap-3 mb-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-3">
                     {([
                       { label: 'שעות',  max: 3,  val: draft.targetDurationHours,   key: 'targetDurationHours'   as const },
                       { label: 'דקות',  max: 59, val: draft.targetDurationMinutes, key: 'targetDurationMinutes' as const },
@@ -1074,7 +1074,7 @@ export default function Create() {
 
               <div className="mb-6">
                 <label className="block text-sm font-semibold mb-3" style={{ color: 'rgba(200,200,240,0.8)' }}>{t.create.step1.inputMode}</label>
-                <div className="grid grid-cols-3 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   {(['text', 'txt', 'mp3'] as InputMode[]).map((mode) => (
                     <button key={mode} onClick={() => setDraft({ ...draft, inputMode: mode })}
                       className="p-4 rounded-xl transition-all text-center"
@@ -1563,7 +1563,7 @@ export default function Create() {
                 </div>
                 <div>
                   <label className="block text-sm font-semibold mb-3" style={{ color: 'rgba(200,200,240,0.8)' }}>אורך סיכום יעד</label>
-                  <div className="grid grid-cols-3 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                     {[
                       { label: 'שעות', max: 3, val: draft.targetDurationHours, key: 'targetDurationHours' as const },
                       { label: 'דקות', max: 59, val: draft.targetDurationMinutes, key: 'targetDurationMinutes' as const },
@@ -1604,7 +1604,7 @@ export default function Create() {
                   ].map(item => {
                     const Icon = item.icon;
                     return (
-                      <div key={item.key} className="flex items-center justify-between p-4 rounded-xl" style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)' }}>
+                      <div key={item.key} className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-4 rounded-xl" style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)' }}>
                         <div className="flex items-start gap-3">
                           <Icon className="w-4 h-4 mt-0.5 flex-shrink-0" style={{ color: 'rgba(0,212,255,0.5)' }} />
                           <div>
@@ -1632,7 +1632,7 @@ export default function Create() {
               <p className="text-sm mb-7" style={{ color: 'rgba(160,160,210,0.6)' }}>{t.create.step6.description}</p>
 
               {!isRendering && !renderComplete && (
-                <div className="p-4 rounded-xl mb-5 flex items-center justify-between" style={{
+                <div className="p-4 rounded-xl mb-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3" style={{
                   background: ffmpegLoaded ? 'linear-gradient(135deg, rgba(0,212,255,0.08), rgba(178,75,243,0.06))' : 'rgba(255,200,0,0.05)',
                   border: `1px solid ${ffmpegLoaded ? 'rgba(0,212,255,0.25)' : 'rgba(255,200,0,0.2)'}`,
                 }}>
@@ -1692,7 +1692,7 @@ export default function Create() {
                     <div className="h-3 rounded-full overflow-hidden mb-3" style={{ background: 'rgba(0,212,255,0.1)' }}>
                       <div className="h-full rounded-full transition-all duration-300" style={{ width: `${renderProgress}%`, background: 'linear-gradient(90deg, #00D4FF, #B24BF3)', boxShadow: '0 0 12px rgba(0,212,255,0.5)' }} />
                     </div>
-                    <div className="grid grid-cols-3 gap-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                       {[
                         { icon: Gauge,    label: 'מהירות',     val: ffmpegSpeed },
                         { icon: Activity, label: 'זמן עובד',   val: ffmpegTimeProcessed > 0 ? formatDuration(ffmpegTimeProcessed) : '—' },
@@ -1794,7 +1794,7 @@ export default function Create() {
                     <h3 className="text-sm font-semibold mb-4 flex items-center gap-2" style={{ color: 'rgba(200,200,240,0.8)' }}>
                       <Share2 className="w-4 h-4" style={{ color: '#00D4FF' }} /> {t.create.step6.shareTitle}
                     </h3>
-                    <div className="grid grid-cols-3 gap-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                       <button onClick={() => window.open(`https://wa.me/?text=${encodeURIComponent(`🎬 ${draft.movieTitle}\n${window.location.origin}/gallery`)}`, '_blank')} className="flex flex-col items-center gap-2 p-4 rounded-xl transition-all hover:scale-105" style={{ background: 'rgba(37,211,102,0.1)', border: '1px solid rgba(37,211,102,0.25)', color: '#25D366' }}>
                         <MessageCircle className="w-5 h-5" /><span className="text-xs font-medium">WhatsApp</span>
                       </button>
@@ -1828,7 +1828,7 @@ export default function Create() {
                       ))}
                     </div>
                   </div>
-                  <div className="p-5 rounded-xl flex items-center justify-between" style={{ background: wallet.balance < 1 ? 'rgba(255,60,60,0.07)' : 'rgba(255,255,255,0.02)', border: `1px solid ${wallet.balance < 1 ? 'rgba(255,60,60,0.2)' : 'rgba(255,255,255,0.06)'}` }}>
+                  <div className="p-5 rounded-xl flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3" style={{ background: wallet.balance < 1 ? 'rgba(255,60,60,0.07)' : 'rgba(255,255,255,0.02)', border: `1px solid ${wallet.balance < 1 ? 'rgba(255,60,60,0.2)' : 'rgba(255,255,255,0.06)'}` }}>
                     <span className="text-sm font-semibold" style={{ color: 'rgba(200,200,240,0.8)' }}>{t.create.step6.credits}</span>
                     <span className="text-2xl font-bold" style={{ color: wallet.balance < 1 ? '#ff4444' : '#00D4FF' }}>{wallet.balance}</span>
                   </div>
