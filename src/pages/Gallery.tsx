@@ -190,7 +190,7 @@ export default function Gallery() {
                 {/* Thumbnail */}
                 <div className="relative aspect-video bg-steam-800 overflow-hidden">
                   <img
-                    src={recap.thumbnail_url || 'https://via.placeholder.com/320x180/1a1a1a/ffffff?text=No+Thumbnail'}
+                    src={recap.thumbnail_url || '/placeholder.svg'}
                     alt={recap.title}
                     className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                   />

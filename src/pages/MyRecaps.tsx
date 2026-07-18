@@ -115,6 +115,10 @@ export default function MyRecaps() {
       const newPublicState = !recap.is_public;
 
       if (newPublicState) {
+        const videoUrl = recap.metadata?.video_url;
+        if (!videoUrl) {
+          throw new Error('This recap has no processed video yet and cannot be published.');
+        }
         // Make public - insert/update in public_recaps
         const { error } = await supabase
           .from('public_recaps')
@@ -126,7 +130,7 @@ export default function MyRecaps() {
             description: recap.description || '',
             genre: recap.genre || 'action',
             thumbnail_url: recap.metadata?.thumbnail_url || '',
-            video_url: recap.metadata?.video_url || `https://example.com/recaps/${recap.id}.mp4`,
+            video_url: videoUrl,
             is_public: true,
             rating: 0,
             views: 0,
@@ -151,7 +155,7 @@ export default function MyRecaps() {
 
     } catch (error) {
       console.error('Error toggling public state:', error);
-      alert('שגיאה בעדכון מצב הפרטיות');
+      alert(error instanceof Error ? error.message : 'שגיאה בעדכון מצב הפרטיות');
     }
   };
 
