@@ -23,6 +23,10 @@ Supabase deployment:
 Web hosting:
 
 - `HOSTINGER_SSH_KEY`
+- `HOSTINGER_SSH_HOST`
+- `HOSTINGER_SSH_PORT` — use the SSH port shown in Hostinger, which may not be port 22
+- `HOSTINGER_SSH_USER`
+- `HOSTINGER_SSH_KNOWN_HOSTS` — required for a host other than the pinned production server
 
 ## Worker-only secrets
 

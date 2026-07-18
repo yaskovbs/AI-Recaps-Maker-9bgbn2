@@ -10,9 +10,9 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     env:
-      HOSTINGER_SSH_HOST: 72.61.101.138
-      HOSTINGER_SSH_PORT: 22
-      HOSTINGER_SSH_USER: deploy
+      HOSTINGER_SSH_HOST: ${{ secrets.HOSTINGER_SSH_HOST }}
+      HOSTINGER_SSH_PORT: ${{ secrets.HOSTINGER_SSH_PORT }}
+      HOSTINGER_SSH_USER: ${{ secrets.HOSTINGER_SSH_USER }}
       HOSTINGER_DEPLOY_PATH: /var/www/recaps/current/
 
     steps:
@@ -157,19 +157,50 @@ jobs:
           VITE_VAPID_PUBLIC_KEY: ${{ secrets.VAPID_PUBLIC_KEY }}
 
       - name: Configure SSH
+        env:
+          HOSTINGER_SSH_KEY: ${{ secrets.HOSTINGER_SSH_KEY }}
+          HOSTINGER_SSH_KNOWN_HOSTS: ${{ secrets.HOSTINGER_SSH_KNOWN_HOSTS }}
         run: |
+          if [ -z "$HOSTINGER_SSH_HOST" ] || [ -z "$HOSTINGER_SSH_PORT" ] || [ -z "$HOSTINGER_SSH_USER" ] || [ -z "$HOSTINGER_SSH_KEY" ]; then
+            echo "::error::HOSTINGER_SSH_HOST, HOSTINGER_SSH_PORT, HOSTINGER_SSH_USER, and HOSTINGER_SSH_KEY must all be configured."
+            exit 1
+          fi
+          if [[ ! "$HOSTINGER_SSH_PORT" =~ ^[0-9]+$ ]] || [ "$HOSTINGER_SSH_PORT" -lt 1 ] || [ "$HOSTINGER_SSH_PORT" -gt 65535 ]; then
+            echo "::error::HOSTINGER_SSH_PORT must be a number between 1 and 65535."
+            exit 1
+          fi
           mkdir -p ~/.ssh
           chmod 700 ~/.ssh
-          printf '%s\n' "${{ secrets.HOSTINGER_SSH_KEY }}" > ~/.ssh/hostinger_deploy_key
+          printf '%s\n' "$HOSTINGER_SSH_KEY" > ~/.ssh/hostinger_deploy_key
           chmod 600 ~/.ssh/hostinger_deploy_key
-          printf '%s\n' "72.61.101.138 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIMLeR9MQfoNdiEiRRot1wE6novmNpuvNHxaBE26oQj2L" > ~/.ssh/known_hosts
+          if [ -n "$HOSTINGER_SSH_KNOWN_HOSTS" ]; then
+            printf '%s\n' "$HOSTINGER_SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          elif [ "$HOSTINGER_SSH_HOST" = "72.61.101.138" ]; then
+            printf '%s\n' "72.61.101.138 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIMLeR9MQfoNdiEiRRot1wE6novmNpuvNHxaBE26oQj2L" > ~/.ssh/known_hosts
+          else
+            echo "::error::HOSTINGER_SSH_KNOWN_HOSTS is required when deploying to a host other than the pinned production server."
+            exit 1
+          fi
           chmod 600 ~/.ssh/known_hosts
+
+      - name: Check Hostinger SSH connectivity
+        run: |
+          for attempt in 1 2 3; do
+            if timeout 15 bash -c "</dev/tcp/${HOSTINGER_SSH_HOST}/${HOSTINGER_SSH_PORT}"; then
+              echo "Hostinger SSH endpoint is reachable."
+              exit 0
+            fi
+            echo "SSH connectivity attempt ${attempt}/3 failed."
+            sleep 5
+          done
+          echo "::error::Cannot reach ${HOSTINGER_SSH_HOST}:${HOSTINGER_SSH_PORT}. Confirm the Hostinger SSH host and port, enable SSH access, and check whether the server firewall permits GitHub-hosted runners."
+          exit 1
 
       - name: Deploy dist
         run: |
           tar -C dist -czf /tmp/recaps-dist.tar.gz .
-          scp -i ~/.ssh/hostinger_deploy_key -P "${HOSTINGER_SSH_PORT}" /tmp/recaps-dist.tar.gz "${HOSTINGER_SSH_USER}@${HOSTINGER_SSH_HOST}:/tmp/recaps-dist.tar.gz"
-          ssh -i ~/.ssh/hostinger_deploy_key -p "${HOSTINGER_SSH_PORT}" "${HOSTINGER_SSH_USER}@${HOSTINGER_SSH_HOST}" <<'EOF'
+          scp -o ConnectTimeout=20 -o ServerAliveInterval=10 -o ServerAliveCountMax=3 -i ~/.ssh/hostinger_deploy_key -P "${HOSTINGER_SSH_PORT}" /tmp/recaps-dist.tar.gz "${HOSTINGER_SSH_USER}@${HOSTINGER_SSH_HOST}:/tmp/recaps-dist.tar.gz"
+          ssh -o ConnectTimeout=20 -o ServerAliveInterval=10 -o ServerAliveCountMax=3 -i ~/.ssh/hostinger_deploy_key -p "${HOSTINGER_SSH_PORT}" "${HOSTINGER_SSH_USER}@${HOSTINGER_SSH_HOST}" <<'EOF'
           set -euo pipefail
           target=/var/www/recaps/current
           case "$target" in
