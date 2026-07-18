@@ -15,16 +15,22 @@ export default function Signup() {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    setSuccess('');
     if (!email || !password || !confirmPassword || !username) { setError(t.auth.errors.fillAllFields); return; }
     if (password.length < 6) { setError(t.auth.errors.passwordTooShort); return; }
     if (password !== confirmPassword) { setError(t.auth.errors.passwordMismatch); return; }
     if (username.length < 3) { setError(t.auth.errors.usernameTooShort); return; }
     try {
-      await signup(email.trim(), password, username.trim());
+      const result = await signup(email.trim(), password, username.trim());
+      if (result === 'confirmation-required') {
+        setSuccess('Account created. Please check your email and confirm your account, then sign in.');
+        return;
+      }
       navigate('/dashboard', { replace: true });
     } catch (err: any) {
       setError(err.message || t.auth.errors.signupFailed);
@@ -33,6 +39,7 @@ export default function Signup() {
 
   const handleGoogleSignup = async () => {
     setError('');
+    setSuccess('');
     try {
       await loginWithGoogle();
     } catch (err: any) {
@@ -73,8 +80,15 @@ export default function Signup() {
           </div>
 
           {error && (
-            <div className="mb-5 p-4 rounded-xl text-sm whitespace-pre-line" style={{ background: 'rgba(255,60,60,0.1)', border: '1px solid rgba(255,60,60,0.25)', color: '#ff8888' }}>
+            <div role="alert" className="mb-5 p-4 rounded-xl text-sm whitespace-pre-line" style={{ background: 'rgba(255,60,60,0.1)', border: '1px solid rgba(255,60,60,0.25)', color: '#ff8888' }}>
               {error}
+            </div>
+          )}
+
+          {success && (
+            <div role="status" className="mb-5 p-4 rounded-xl text-sm" style={{ background: 'rgba(0,212,255,0.1)', border: '1px solid rgba(0,212,255,0.3)', color: '#8be9ff' }}>
+              {success}{' '}
+              <Link to="/login" className="font-semibold underline hover:text-white">Sign in</Link>
             </div>
           )}
 

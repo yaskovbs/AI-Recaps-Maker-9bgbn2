@@ -15,7 +15,7 @@ interface AuthContextType {
   isLoading: boolean;
   login: (email: string, password: string) => Promise<void>;
   loginWithGoogle: () => Promise<void>;
-  signup: (email: string, password: string, username: string) => Promise<void>;
+  signup: (email: string, password: string, username: string) => Promise<'authenticated' | 'confirmation-required'>;
   logout: () => Promise<void>;
   updateProfile: (data: Partial<User>) => Promise<void>;
 }
@@ -216,16 +216,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (authError) throw authError;
       if (!authData.user) throw new Error('No user returned from signup');
 
-      // This application uses immediate signup without email confirmation.
-      // A missing session means the Supabase project is configured differently
-      // and must be corrected instead of creating a fake local login.
+      // Supabase returns a user without a session when email confirmation is
+      // enabled. That is a successful signup, not an application error.
       if (!authData.session) {
         setUser(null);
         localStorage.removeItem('airm_user');
-        throw new Error('Signup requires email confirmation in Supabase. Disable Confirm email under Authentication settings for immediate account activation.');
+        return 'confirmation-required';
       }
 
       await handleAuthUser(authData.user);
+      return 'authenticated';
 
     } catch (error: any) {
       throw new Error(error.message || 'Signup failed');
