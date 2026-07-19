@@ -21,6 +21,7 @@ from faster_whisper import WhisperModel
 SUPABASE_URL = os.environ["SUPABASE_URL"].rstrip("/")
 SERVICE_KEY = os.environ["SUPABASE_SERVICE_ROLE_KEY"]
 PROCESSING_SECRET = os.environ["PROCESSING_SECRET"]
+YOUTUBE_COOKIES_B64 = os.getenv("YOUTUBE_COOKIES_B64", "").strip()
 WORKER_ID = os.getenv("WORKER_ID", f"worker-{uuid.uuid4().hex[:10]}")
 POLL_SECONDS = float(os.getenv("POLL_SECONDS", "3"))
 MAX_DURATION = int(os.getenv("MAX_VIDEO_DURATION_SECONDS", "14400"))
@@ -153,7 +154,46 @@ def download_source(task: dict[str, Any], destination: Path, secrets: dict[str, 
         if not re.match(r"^https://(www\.)?(youtube\.com|youtu\.be)/", source):
             raise TaskFailure("ERR_INVALID_URL", "Only valid HTTPS YouTube URLs are accepted")
         metadata = youtube_metadata(source, secrets.get("youtube_api_key", ""))
-        run(["yt-dlp", "--no-playlist", "--max-filesize", str(MAX_BYTES), "-f", "bv*+ba/b", "--merge-output-format", "mp4", "-o", str(destination), source])
+        command = [
+            "yt-dlp", "--no-playlist", "--max-filesize", str(MAX_BYTES),
+            "--remote-components", "ejs:github",
+            "-f", "bv*+ba/b", "--merge-output-format", "mp4",
+            "-o", str(destination),
+        ]
+        if YOUTUBE_COOKIES_B64:
+            try:
+                cookie_data = base64.b64decode(YOUTUBE_COOKIES_B64, validate=True)
+                first_line = cookie_data.splitlines()[0].decode("utf-8", errors="replace") if cookie_data else ""
+                if first_line not in {"# HTTP Cookie File", "# Netscape HTTP Cookie File"}:
+                    raise ValueError("not a Netscape cookie file")
+                cookie_path = destination.parent / "youtube-cookies.txt"
+                cookie_path.write_bytes(cookie_data)
+                cookie_path.chmod(0o600)
+                command.extend(["--cookies", str(cookie_path)])
+            except (ValueError, OSError) as error:
+                raise TaskFailure(
+                    "ERR_YOUTUBE_COOKIES",
+                    "The configured YouTube cookies are invalid",
+                    "Replace YOUTUBE_COOKIES_B64 with a base64-encoded Netscape cookies.txt file.",
+                ) from error
+        command.append(source)
+        try:
+            run(command)
+        except TaskFailure as error:
+            diagnostic = str(error).lower()
+            if "sign in to confirm you're not a bot" in diagnostic or "sign in to confirm you’re not a bot" in diagnostic:
+                raise TaskFailure(
+                    "ERR_YOUTUBE_BOT_CHECK",
+                    "YouTube blocked this server and requested browser verification",
+                    "Configure fresh YouTube cookies for the worker, then retry the task.",
+                ) from error
+            if "no supported javascript runtime" in diagnostic:
+                raise TaskFailure(
+                    "ERR_YOUTUBE_RUNTIME",
+                    "The YouTube JavaScript challenge runtime is unavailable",
+                    "Redeploy the processing worker with Deno and yt-dlp EJS support.",
+                ) from error
+            raise
         if not destination.exists():
             candidates = list(destination.parent.glob("source.*"))
             if not candidates: raise TaskFailure("ERR_DOWNLOAD_FAILED", "YouTube download produced no media")

@@ -1,5 +1,5 @@
 import React, { useState, useCallback } from 'react';
-import { X, Link2, Upload, Layers3, Loader as Loader2, CircleAlert as AlertCircle, Youtube } from 'lucide-react';
+import { X, Link2, Upload, Loader as Loader2, CircleAlert as AlertCircle, Youtube } from 'lucide-react';
 import { useAuth } from '@/lib/AuthContext';
 import { apiKeysService } from '@/lib/apiKeysService';
 import { createVideoTask, fetchPlaylistItems, processVideoTask } from '@/lib/videoTaskService';
@@ -27,7 +27,6 @@ export default function NewVideoTaskDialog({ onClose, onCreated }: NewVideoTaskD
   const [youtubeUrl, setYoutubeUrl] = useState('');
   const [title, setTitle] = useState('');
   const [priority, setPriority] = useState<TaskPriority>('medium');
-  const [enable3d, setEnable3d] = useState(false);
 
   const [isFetchingPlaylist, setIsFetchingPlaylist] = useState(false);
   const [playlistItems, setPlaylistItems] = useState<PlaylistItem[]>([]);
@@ -144,7 +143,7 @@ export default function NewVideoTaskDialog({ onClose, onCreated }: NewVideoTaskD
               source_type: 'youtube' as TaskSourceType,
               title: item.title || title,
               priority,
-              enable_3d_conversion: enable3d,
+              enable_3d_conversion: false,
             });
 
             if (!task) throw new Error(`Could not create task for ${item.title}.`);
@@ -160,7 +159,7 @@ export default function NewVideoTaskDialog({ onClose, onCreated }: NewVideoTaskD
             source_type: 'youtube' as TaskSourceType,
             title: title || 'YouTube Video',
             priority,
-            enable_3d_conversion: enable3d,
+            enable_3d_conversion: false,
           });
 
           if (!task) throw new Error('Could not create the YouTube task.');
@@ -176,7 +175,7 @@ export default function NewVideoTaskDialog({ onClose, onCreated }: NewVideoTaskD
           source_type: 'upload' as TaskSourceType,
           title: title || uploadedFileName || 'Uploaded Video',
           priority,
-          enable_3d_conversion: enable3d,
+          enable_3d_conversion: false,
         });
 
         if (!task) throw new Error('Could not create the upload task.');
@@ -325,8 +324,7 @@ export default function NewVideoTaskDialog({ onClose, onCreated }: NewVideoTaskD
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div>
+          <div>
               <label className="block text-sm text-brass-300 mb-1.5">Priority</label>
               <select
                 value={priority}
@@ -337,23 +335,6 @@ export default function NewVideoTaskDialog({ onClose, onCreated }: NewVideoTaskD
                 <option value="medium">Medium</option>
                 <option value="high">High</option>
               </select>
-            </div>
-
-            <div>
-              <label className="block text-sm text-brass-300 mb-1.5">3D Conversion</label>
-              <button
-                type="button"
-                onClick={() => setEnable3d(!enable3d)}
-                className={`w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg border-2 transition-all ${
-                  enable3d
-                    ? 'border-copper-500 bg-copper-900/30 text-copper-300'
-                    : 'border-brass-700/30 text-brass-400 hover:border-brass-600/50'
-                }`}
-              >
-                <Layers3 className="w-4 h-4" />
-                {enable3d ? 'Enabled' : 'Disabled'}
-              </button>
-            </div>
           </div>
 
           {submitError && (

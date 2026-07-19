@@ -29,6 +29,7 @@ Web hosting:
 - `HOSTINGER_SSH_USER`
 - `HOSTINGER_SSH_KNOWN_HOSTS` — required for a host other than the pinned production server
 - `PRODUCTION_URL` — optional post-deployment health-check URL; defaults to `https://making-a-recap-with-ai.com`
+- `YOUTUBE_COOKIES_B64` — optional but commonly required for YouTube downloads from server IPs; base64-encoded Netscape `cookies.txt` from a dedicated account
 
 ## Worker-only secrets
 

@@ -160,6 +160,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Verify application
+        run: npm run verify
+
       - name: Build
         run: npm run build
         env:
@@ -173,6 +176,7 @@ jobs:
           WORKER_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           WORKER_PROCESSING_SECRET: ${{ secrets.PROCESSING_SECRET }}
           WORKER_CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          WORKER_YOUTUBE_COOKIES_B64: ${{ secrets.YOUTUBE_COOKIES_B64 }}
         run: |
           set -euo pipefail
           if [ -z "$WORKER_SUPABASE_URL" ] || [ -z "$WORKER_SERVICE_ROLE_KEY" ] || [ -z "$WORKER_PROCESSING_SECRET" ] || [ -z "$WORKER_CRON_SECRET" ]; then
@@ -193,6 +197,7 @@ jobs:
             printf 'SUPABASE_SERVICE_ROLE_KEY=%s\n' "$WORKER_SERVICE_ROLE_KEY"
             printf 'PROCESSING_SECRET=%s\n' "$WORKER_PROCESSING_SECRET"
             printf 'CRON_SECRET=%s\n' "$WORKER_CRON_SECRET"
+            printf 'YOUTUBE_COOKIES_B64=%s\n' "$WORKER_YOUTUBE_COOKIES_B64"
             printf 'WORKER_ID=recaps-worker-1\n'
             printf 'POLL_SECONDS=3\n'
             printf 'TASK_TIMEOUT_SECONDS=7200\n'

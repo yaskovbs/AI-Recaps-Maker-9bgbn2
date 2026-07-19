@@ -10,7 +10,8 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
-    "typecheck:go": "tsgo -config tsconfig.tsgo.json"
+    "typecheck:go": "tsgo -config tsconfig.tsgo.json",
+    "verify": "npm run typecheck && npm run lint && npm audit --omit=dev --audit-level=high"
   },
   "dependencies": {
     "@ffmpeg/ffmpeg": "^0.12.15",
@@ -64,7 +65,7 @@
     "framer-motion": "^12.23.24",
     "hls.js": "^1.6.13",
     "input-otp": "^1.2.4",
-    "jspdf": "^3.0.3",
+    "jspdf": "^4.2.1",
     "leaflet": "^1.9.4",
     "lucide-react": "^0.462.0",
     "next-themes": "^0.3.0",
@@ -88,7 +89,6 @@
     "uuid": "^13.0.0",
     "vaul": "^0.9.3",
     "web-vitals": "^5.1.0",
-    "xlsx": "^0.18.5",
     "zod": "^3.23.8",
     "zustand": "^5.0.8"
   },

@@ -30,8 +30,7 @@ export default function Contact() {
         });
 
       if (error) {
-        console.error('Error saving contact submission:', error);
-        // Continue even if DB save fails - show success to user
+        throw error;
       }
 
       // In production, also send email notification via Edge Function

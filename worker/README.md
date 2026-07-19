@@ -14,6 +14,8 @@ In the standard Hostinger deployment the worker is installed at `/var/www/recaps
 
 The worker requires enough disk for two copies of the largest permitted source plus temporary audio, and enough CPU/RAM for Whisper and FFmpeg. For production throughput, run multiple replicas with distinct `WORKER_ID` values; database claiming uses `FOR UPDATE SKIP LOCKED`.
 
+YouTube requires an external JavaScript runtime for current player challenges; the image installs Deno and the matching `yt-dlp-ejs` package. If YouTube challenges the server IP with a bot check, configure `YOUTUBE_COOKIES_B64` using a fresh Netscape-format `cookies.txt` exported from a dedicated YouTube account. Treat this value like a password and rotate it if exposed.
+
 ## Pipeline
 
 Queue claim → private/YouTube ingestion → ffprobe validation → Whisper transcript → Gemini summary/clip plan → validated non-overlapping clips → FFmpeg render → private Supabase upload → signed frontend download.

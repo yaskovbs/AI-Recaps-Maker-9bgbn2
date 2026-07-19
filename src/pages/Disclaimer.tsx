@@ -35,7 +35,7 @@ export default function Disclaimer() {
             DimensionDownload For Study
           </h1>
           <p className="text-brass-400 text-lg">
-            AI Research Platform for Video Download, Summary & 3D Conversion
+            AI Research Platform for Video Download &amp; Summary
           </p>
         </div>
 
@@ -114,10 +114,6 @@ export default function Disclaimer() {
               description="Automatic collection of complete playlists with real-time sync to Supabase."
             />
             <FeatureItem
-              title="AI 3D Processing"
-              description="Convert regular 2D video to 3D (Anaglyph) using advanced depth models. Can be disabled."
-            />
-            <FeatureItem
               title="Live Countdown Timer"
               description="Each file shows an exact countdown to its automatic deletion date."
             />
@@ -144,8 +140,6 @@ export default function Disclaimer() {
             <p><span className="text-brass-500"># Google API Keys</span></p>
             <p>YOUTUBE_API_KEY=<span className="text-copper-400">your_youtube_api_key</span></p>
             <p>GEMINI_API_KEY=<span className="text-copper-400">your_gemini_api_key</span></p>
-            <p className="pt-2"><span className="text-brass-500"># App Settings</span></p>
-            <p>ENABLE_3D_PROCESSING=<span className="text-copper-400">true</span></p>
           </div>
         </div>
 
