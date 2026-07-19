@@ -48,12 +48,22 @@ export default function MyRecaps() {
       setIsLoading(true);
       setErrorMessage(null);
 
-      // Load jobs
-      const { data: jobsData, error: jobsError } = await supabase
-        .from('jobs')
-        .select('*')
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: false });
+      // A mobile network/proxy can close an otherwise valid Supabase request.
+      // Retry transient fetch failures once; database errors are not retried.
+      let jobsData = null;
+      let jobsError = null;
+      for (let attempt = 0; attempt < 2; attempt++) {
+        const result = await supabase
+          .from('jobs')
+          .select('*')
+          .eq('user_id', user.id)
+          .order('created_at', { ascending: false });
+        jobsData = result.data;
+        jobsError = result.error;
+        const transient = jobsError?.message?.toLowerCase().includes('failed to fetch');
+        if (!transient || attempt === 1) break;
+        await new Promise(resolve => window.setTimeout(resolve, 750));
+      }
 
       if (jobsError) throw jobsError;
 

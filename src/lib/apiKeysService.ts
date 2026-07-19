@@ -64,6 +64,24 @@ class APIKeysService {
   private realtimeChannel: any = null;
   private syncCallbacks: Array<(keys: APIKeysData) => void> = [];
 
+  private normalizeSearchEngineId(value: string): { value?: string; error?: string } {
+    const input = value.trim();
+    if (!input) return {};
+
+    // Accept either the raw Programmable Search Engine ID or a copied
+    // `cx=...` snippet. Never send labels/multiple IDs to Google's API.
+    const labelled = [...input.matchAll(/(?:^|[?&\s-])cx\s*=\s*([A-Za-z0-9:_-]+)/gi)]
+      .map(match => match[1]);
+    const candidates = [...new Set(labelled.length ? labelled : [input])];
+    if (candidates.length !== 1 || /\s/.test(candidates[0])) {
+      return { error: 'Enter exactly one Search Engine ID (cx), without labels or additional IDs.' };
+    }
+    if (!/^[A-Za-z0-9:_-]{10,}$/.test(candidates[0])) {
+      return { error: 'Invalid Search Engine ID. Copy only the cx value from Programmable Search Engine.' };
+    }
+    return { value: candidates[0] };
+  }
+
   // Derive an AES-256 key from a password using PBKDF2
   private async deriveKey(password: string): Promise<CryptoKey> {
     const encoder = new TextEncoder();
@@ -304,8 +322,9 @@ class APIKeysService {
         }
         break;
       case 'search_engine_id':
-        if (key.length < 10) {
-          return { valid: false, error: 'Invalid Search Engine ID format' };
+        {
+          const normalized = this.normalizeSearchEngineId(key);
+          if (!normalized.value) return { valid: false, error: normalized.error || 'Invalid Search Engine ID format' };
         }
         break;
     }
@@ -373,11 +392,19 @@ class APIKeysService {
   // Save API keys - localStorage first (always works), then DB with retry and reporting
   async saveKeys(userId: string, keys: APIKeysData): Promise<SaveKeysResult> {
     try {
+      const normalizedKeys = { ...keys };
+      if (keys.searchEngineId?.trim()) {
+        const normalized = this.normalizeSearchEngineId(keys.searchEngineId);
+        if (!normalized.value) {
+          return { success: false, dbSynced: false, error: normalized.error || 'Invalid Search Engine ID.' };
+        }
+        normalizedKeys.searchEngineId = normalized.value;
+      }
       const providers = [
-        { provider: 'youtube', key: keys.youtube },
-        { provider: 'google_search', key: keys.googleSearch },
-        { provider: 'search_engine_id', key: keys.searchEngineId },
-        { provider: 'gemini', key: keys.gemini },
+        { provider: 'youtube', key: normalizedKeys.youtube },
+        { provider: 'google_search', key: normalizedKeys.googleSearch },
+        { provider: 'search_engine_id', key: normalizedKeys.searchEngineId },
+        { provider: 'gemini', key: normalizedKeys.gemini },
       ];
 
       // 1. Validate all keys first
@@ -394,7 +421,7 @@ class APIKeysService {
       // because its API is not enabled yet or because it has referrer/IP
       // restrictions. Users must still be able to store it and fix the Google
       // configuration later.
-      const validationResults = await this.validateKeys(keys);
+      const validationResults = await this.validateKeys(normalizedKeys);
 
       // Store keys only in the authenticated database. Persistent browser
       // storage is intentionally avoided because XSS can read client storage.
@@ -567,7 +594,18 @@ class APIKeysService {
 
   async validateKey(provider: APIKeyProvider, key: string, companionKey?: string): Promise<APIKeyValidationResult> {
     const checkedAt = new Date().toISOString();
-    const formatValidation = this.validateKeyFormat(provider, key.trim());
+    let normalizedKey = key.trim();
+    let normalizedCompanion = companionKey?.trim();
+    if (provider === 'search_engine_id') {
+      const normalized = this.normalizeSearchEngineId(normalizedKey);
+      if (!normalized.value) return { provider, valid: false, code: 'invalid', message: normalized.error || 'Invalid Search Engine ID.', checkedAt };
+      normalizedKey = normalized.value;
+    } else if (normalizedCompanion) {
+      const normalized = this.normalizeSearchEngineId(normalizedCompanion);
+      if (!normalized.value) return { provider, valid: false, code: 'invalid', message: normalized.error || 'Invalid Search Engine ID.', checkedAt };
+      normalizedCompanion = normalized.value;
+    }
+    const formatValidation = this.validateKeyFormat(provider, normalizedKey);
     if (!formatValidation.valid) {
       return { provider, valid: false, code: 'invalid', message: formatValidation.error || 'Invalid key format.', checkedAt };
     }
@@ -585,8 +623,8 @@ class APIKeysService {
       } else if (provider === 'youtube') {
         response = await fetch(`https://www.googleapis.com/youtube/v3/i18nLanguages?part=snippet&key=${encodeURIComponent(key.trim())}`, { signal: controller.signal });
       } else {
-        const apiKey = provider === 'google_search' ? key.trim() : companionKey!;
-        const cx = provider === 'search_engine_id' ? key.trim() : companionKey;
+        const apiKey = provider === 'google_search' ? normalizedKey : normalizedCompanion!;
+        const cx = provider === 'search_engine_id' ? normalizedKey : normalizedCompanion;
         if (!cx) {
           return { provider, valid: false, code: 'pair_required', message: 'A Search Engine ID is required with the Google Search API key.', checkedAt };
         }

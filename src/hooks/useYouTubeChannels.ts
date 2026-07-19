@@ -132,9 +132,22 @@ export function useYouTubeChannels(userId: string | undefined) {
     const trimmed = input.trim();
     const channelMatch = trimmed.match(/(?:youtube\.com\/channel\/)?(UC[\w-]{20,})/i);
     const handleMatch = trimmed.match(/(?:youtube\.com\/)?@([\w.-]+)/i);
-    const query = channelMatch ? `id=${encodeURIComponent(channelMatch[1])}` : handleMatch || trimmed.startsWith('@')
-      ? `forHandle=${encodeURIComponent(handleMatch?.[1] || trimmed.slice(1))}` : null;
-    if (!query) throw new Error('Use a YouTube channel URL, @handle, or channel ID.');
+    const userMatch = trimmed.match(/youtube\.com\/user\/([\w.-]+)/i);
+    const customMatch = trimmed.match(/youtube\.com\/(?:c\/)?([\w.-]+)(?:[/?#]|$)/i);
+    let query = channelMatch ? `id=${encodeURIComponent(channelMatch[1])}` : handleMatch || trimmed.startsWith('@')
+      ? `forHandle=${encodeURIComponent(handleMatch?.[1] || trimmed.slice(1))}`
+      : userMatch ? `forUsername=${encodeURIComponent(userMatch[1])}` : null;
+
+    // Legacy /c/name channel URLs cannot be resolved by channels.list. Use a
+    // channel-only search to resolve them, then fetch canonical channel data.
+    if (!query && customMatch && !['watch', 'playlist', 'shorts', 'results'].includes(customMatch[1].toLowerCase())) {
+      const searchResponse = await fetch(`https://www.googleapis.com/youtube/v3/search?part=snippet&type=channel&maxResults=1&q=${encodeURIComponent(customMatch[1])}&key=${encodeURIComponent(keys.youtube)}`);
+      const searchPayload = await searchResponse.json();
+      if (!searchResponse.ok) throw new Error(searchPayload?.error?.message || 'YouTube channel lookup failed.');
+      const resolvedId = searchPayload.items?.[0]?.snippet?.channelId;
+      if (resolvedId) query = `id=${encodeURIComponent(resolvedId)}`;
+    }
+    if (!query) throw new Error('Use a channel URL (youtube.com/@handle), @handle, or a UC… channel ID—not a video or playlist URL.');
     const response = await fetch(`https://www.googleapis.com/youtube/v3/channels?part=snippet,statistics,contentDetails&${query}&key=${encodeURIComponent(keys.youtube)}`);
     const payload = await response.json();
     if (!response.ok) {
