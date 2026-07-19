@@ -14,6 +14,7 @@ Supabase deployment:
 - `SUPABASE_PROJECT_ID`
 - `SUPABASE_DB_PASSWORD`
 - `SUPABASE_DB_URL` — optional alternative for direct PostgreSQL migration deployment
+- `SUPABASE_SERVICE_ROLE_KEY` — required by the private processing worker; never expose it to the frontend
 - `PROCESSING_SECRET` — random value of at least 32 characters; must match the worker
 - `ALLOWED_ORIGINS` — comma-separated production web origins
 - `VAPID_SUBJECT` — normally `mailto:operations@example.com` or the production origin
@@ -27,6 +28,7 @@ Web hosting:
 - `HOSTINGER_SSH_PORT` — use the SSH port shown in Hostinger, which may not be port 22
 - `HOSTINGER_SSH_USER`
 - `HOSTINGER_SSH_KNOWN_HOSTS` — required for a host other than the pinned production server
+- `PRODUCTION_URL` — optional post-deployment health-check URL; defaults to `https://making-a-recap-with-ai.com`
 
 ## Worker-only secrets
 
@@ -36,7 +38,17 @@ Store these in the worker host secret manager, not in the frontend build:
 - `SUPABASE_SERVICE_ROLE_KEY`
 - `PROCESSING_SECRET`
 
-Copy the non-secret limits from `worker/.env.example`. Deploy the worker with `worker/docker-compose.yml` and keep it running continuously.
+The GitHub deployment creates `/var/www/recaps/worker/.env`, installs Docker on a fresh Ubuntu/Debian host when necessary, builds the worker, starts it with `restart: unless-stopped`, and waits for the `recaps-worker-1 ready` log before succeeding. The worker directory is separate from the public frontend at `/var/www/recaps/current`. It also installs `/etc/cron.d/recaps-maintenance` for hourly expired-file cleanup and Monday morning digest delivery.
+
+The SSH deployment user must be root or have passwordless `sudo`; this is required to provision Docker and manage `/var/www/recaps`. The server must provide at least 8 GB RAM plus enough temporary disk for source and rendered video files.
+
+To inspect production worker health manually:
+
+```bash
+cd /var/www/recaps/worker
+sudo docker compose ps
+sudo docker compose logs --tail=200 processor
+```
 
 ## External console setup
 

@@ -14,15 +14,18 @@ jobs:
       HOSTINGER_SSH_PORT: ${{ secrets.HOSTINGER_SSH_PORT }}
       HOSTINGER_SSH_USER: ${{ secrets.HOSTINGER_SSH_USER }}
       HOSTINGER_DEPLOY_PATH: /var/www/recaps/current/
+      HOSTINGER_WORKER_PATH: /var/www/recaps/worker
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
       - name: Setup Supabase CLI
-        uses: supabase/setup-cli@v1
+        uses: supabase/setup-cli@v2
         with:
-          version: latest
+          # Pinning avoids the unauthenticated "latest release" lookup and
+          # makes production deployments reproducible.
+          version: 2.101.0
 
       - name: Detect Supabase deployment mode
         env:
@@ -31,6 +34,12 @@ jobs:
           SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD || secrets.PRODUCTION_DB_PASSWORD }}
           SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL || secrets.SUPABASE_DATABASE_URL || secrets.DATABASE_URL }}
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          PROCESSING_SECRET: ${{ secrets.PROCESSING_SECRET }}
+          ALLOWED_ORIGINS: ${{ secrets.ALLOWED_ORIGINS }}
+          VAPID_SUBJECT: ${{ secrets.VAPID_SUBJECT }}
+          VAPID_PUBLIC_KEY: ${{ secrets.VAPID_PUBLIC_KEY }}
+          VAPID_PRIVATE_KEY: ${{ secrets.VAPID_PRIVATE_KEY }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
         run: |
           if [[ "$VITE_SUPABASE_URL" == *".backend.onspace.ai"* ]] && [ -z "$SUPABASE_DB_URL" ]; then
             echo "::error::The frontend uses OnSpace, but SUPABASE_DB_URL is missing. Supabase CLI project credentials may target a different database. Add the OnSpace production Postgres connection string as the SUPABASE_DB_URL repository secret."
@@ -53,12 +62,19 @@ jobs:
             exit 1
           fi
 
-          if [ -n "$SUPABASE_ACCESS_TOKEN" ] && [ -n "$SUPABASE_PROJECT_ID" ]; then
-            echo "SUPABASE_FUNCTIONS_ENABLED=true" >> "$GITHUB_ENV"
-          else
-            echo "SUPABASE_FUNCTIONS_ENABLED=false" >> "$GITHUB_ENV"
-            echo "::warning::Edge Function deployment skipped. Add SUPABASE_ACCESS_TOKEN and SUPABASE_PROJECT_ID."
+          if [ -z "$SUPABASE_ACCESS_TOKEN" ] || [ -z "$SUPABASE_PROJECT_ID" ]; then
+            echo "::error::SUPABASE_ACCESS_TOKEN and SUPABASE_PROJECT_ID are required to deploy Edge Functions."
+            exit 1
           fi
+          if [ -z "$PROCESSING_SECRET" ] || [ "${#PROCESSING_SECRET}" -lt 32 ] || [ -z "$ALLOWED_ORIGINS" ] || [ -z "$CRON_SECRET" ]; then
+            echo "::error::PROCESSING_SECRET (32+ characters), ALLOWED_ORIGINS, and CRON_SECRET are required."
+            exit 1
+          fi
+          if [ -z "$VAPID_SUBJECT" ] || [ -z "$VAPID_PUBLIC_KEY" ] || [ -z "$VAPID_PRIVATE_KEY" ]; then
+            echo "::error::VAPID_SUBJECT, VAPID_PUBLIC_KEY, and VAPID_PRIVATE_KEY are required for push notifications."
+            exit 1
+          fi
+          echo "SUPABASE_FUNCTIONS_ENABLED=true" >> "$GITHUB_ENV"
 
       - name: Push Supabase migrations with CLI
         if: env.SUPABASE_DEPLOY_MODE == 'supabase_cli'
@@ -75,12 +91,7 @@ jobs:
         env:
           SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL || secrets.SUPABASE_DATABASE_URL || secrets.DATABASE_URL }}
         run: |
-          sudo apt-get update
-          sudo apt-get install -y postgresql-client
-          for migration in supabase/migrations/*.sql; do
-            echo "Applying $migration"
-            psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -f "$migration"
-          done
+          supabase db push --db-url "$SUPABASE_DB_URL"
 
       - name: Verify deployed application schema
         env:
@@ -156,6 +167,42 @@ jobs:
           VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
           VITE_VAPID_PUBLIC_KEY: ${{ secrets.VAPID_PUBLIC_KEY }}
 
+      - name: Prepare processing worker bundle
+        env:
+          WORKER_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          WORKER_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          WORKER_PROCESSING_SECRET: ${{ secrets.PROCESSING_SECRET }}
+          WORKER_CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          set -euo pipefail
+          if [ -z "$WORKER_SUPABASE_URL" ] || [ -z "$WORKER_SERVICE_ROLE_KEY" ] || [ -z "$WORKER_PROCESSING_SECRET" ] || [ -z "$WORKER_CRON_SECRET" ]; then
+            echo "::error::VITE_SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, PROCESSING_SECRET, and CRON_SECRET are required for the production runtime."
+            exit 1
+          fi
+          if [ "${#WORKER_PROCESSING_SECRET}" -lt 32 ]; then
+            echo "::error::PROCESSING_SECRET must contain at least 32 characters."
+            exit 1
+          fi
+
+          tar -czf /tmp/recaps-worker.tar.gz \
+            -C worker Dockerfile docker-compose.yml requirements.txt processor.py \
+            -C ../deploy/server run-maintenance.sh
+          umask 077
+          {
+            printf 'SUPABASE_URL=%s\n' "$WORKER_SUPABASE_URL"
+            printf 'SUPABASE_SERVICE_ROLE_KEY=%s\n' "$WORKER_SERVICE_ROLE_KEY"
+            printf 'PROCESSING_SECRET=%s\n' "$WORKER_PROCESSING_SECRET"
+            printf 'CRON_SECRET=%s\n' "$WORKER_CRON_SECRET"
+            printf 'WORKER_ID=recaps-worker-1\n'
+            printf 'POLL_SECONDS=3\n'
+            printf 'TASK_TIMEOUT_SECONDS=7200\n'
+            printf 'MAX_VIDEO_DURATION_SECONDS=14400\n'
+            printf 'MAX_SOURCE_BYTES=4294967296\n'
+            printf 'WHISPER_MODEL=small\n'
+            printf 'WHISPER_DEVICE=cpu\n'
+            printf 'WHISPER_COMPUTE_TYPE=int8\n'
+          } > /tmp/recaps-worker.env
+
       - name: Configure SSH
         env:
           HOSTINGER_SSH_KEY: ${{ secrets.HOSTINGER_SSH_KEY }}
@@ -196,17 +243,111 @@ jobs:
           echo "::error::Cannot reach ${HOSTINGER_SSH_HOST}:${HOSTINGER_SSH_PORT}. Confirm the Hostinger SSH host and port, enable SSH access, and check whether the server firewall permits GitHub-hosted runners."
           exit 1
 
-      - name: Deploy dist
+      - name: Deploy frontend and processing worker
         run: |
+          set -euo pipefail
           tar -C dist -czf /tmp/recaps-dist.tar.gz .
-          scp -o ConnectTimeout=20 -o ServerAliveInterval=10 -o ServerAliveCountMax=3 -i ~/.ssh/hostinger_deploy_key -P "${HOSTINGER_SSH_PORT}" /tmp/recaps-dist.tar.gz "${HOSTINGER_SSH_USER}@${HOSTINGER_SSH_HOST}:/tmp/recaps-dist.tar.gz"
+          scp -o ConnectTimeout=20 -o ServerAliveInterval=10 -o ServerAliveCountMax=3 -i ~/.ssh/hostinger_deploy_key -P "${HOSTINGER_SSH_PORT}" \
+            /tmp/recaps-dist.tar.gz /tmp/recaps-worker.tar.gz \
+            "${HOSTINGER_SSH_USER}@${HOSTINGER_SSH_HOST}:/tmp/"
+          ssh -o ConnectTimeout=20 -i ~/.ssh/hostinger_deploy_key -p "${HOSTINGER_SSH_PORT}" \
+            "${HOSTINGER_SSH_USER}@${HOSTINGER_SSH_HOST}" \
+            'umask 077; cat > /tmp/recaps-worker.env' < /tmp/recaps-worker.env
           ssh -o ConnectTimeout=20 -o ServerAliveInterval=10 -o ServerAliveCountMax=3 -i ~/.ssh/hostinger_deploy_key -p "${HOSTINGER_SSH_PORT}" "${HOSTINGER_SSH_USER}@${HOSTINGER_SSH_HOST}" <<'EOF'
           set -euo pipefail
-          target=/var/www/recaps/current
-          case "$target" in
-            /var/www/recaps/current) find "$target" -mindepth 1 -maxdepth 1 -exec rm -rf -- {} + ;;
-            *) echo "Refusing unsafe deploy target: $target" >&2; exit 1 ;;
+
+          frontend_target=/var/www/recaps/current
+          worker_target=/var/www/recaps/worker
+          case "$frontend_target:$worker_target" in
+            /var/www/recaps/current:/var/www/recaps/worker) ;;
+            *) echo "Refusing unsafe deployment targets" >&2; exit 1 ;;
           esac
-          tar -xzf /tmp/recaps-dist.tar.gz -C "$target"
-          rm -f /tmp/recaps-dist.tar.gz
+
+          if [ "$(id -u)" -eq 0 ]; then
+            SUDO=""
+          elif command -v sudo >/dev/null 2>&1 && sudo -n true 2>/dev/null; then
+            SUDO="sudo"
+          else
+            echo "The deployment user needs root access or passwordless sudo to provision Docker and /var/www/recaps." >&2
+            exit 1
+          fi
+
+          # Provision the container runtime on a fresh Ubuntu/Debian server.
+          if ! command -v docker >/dev/null 2>&1; then
+            command -v apt-get >/dev/null 2>&1 || { echo "Docker is missing and this server does not use apt-get." >&2; exit 1; }
+            $SUDO apt-get update
+            $SUDO apt-get install -y docker.io
+            $SUDO systemctl enable --now docker
+          fi
+          command -v curl >/dev/null 2>&1 || { $SUDO apt-get update; $SUDO apt-get install -y curl; }
+          if ! command -v cron >/dev/null 2>&1 && ! command -v crond >/dev/null 2>&1; then
+            $SUDO apt-get update
+            $SUDO apt-get install -y cron
+          fi
+          if ! docker compose version >/dev/null 2>&1; then
+            $SUDO apt-get update
+            $SUDO apt-get install -y docker-compose-v2 || $SUDO apt-get install -y docker-compose-plugin
+          fi
+
+          $SUDO install -d -m 0755 "$frontend_target" "$worker_target"
+          $SUDO find "$frontend_target" -mindepth 1 -maxdepth 1 -exec rm -rf -- {} +
+          $SUDO tar -xzf /tmp/recaps-dist.tar.gz -C "$frontend_target"
+
+          # Worker secrets live outside the public web root with root-only
+          # permissions. Compose recreates the service only when required.
+          $SUDO tar -xzf /tmp/recaps-worker.tar.gz -C "$worker_target"
+          $SUDO install -m 0600 /tmp/recaps-worker.env "$worker_target/.env"
+          $SUDO chmod 0755 "$worker_target/run-maintenance.sh"
+          cd "$worker_target"
+          $SUDO docker compose up -d --build --remove-orphans
+
+          container_id="$($SUDO docker compose ps -q processor)"
+          [ -n "$container_id" ] || { echo "Processing worker container was not created." >&2; exit 1; }
+          for attempt in $(seq 1 30); do
+            state="$($SUDO docker inspect --format '{{.State.Status}}' "$container_id")"
+            if [ "$state" = "running" ] && $SUDO docker logs "$container_id" 2>&1 | grep -q 'recaps-worker-1 ready'; then
+              echo "Processing worker is running and polling the queue."
+              break
+            fi
+            if [ "$state" = "exited" ] || [ "$state" = "dead" ]; then
+              $SUDO docker logs --tail 100 "$container_id" >&2 || true
+              exit 1
+            fi
+            if [ "$attempt" -eq 30 ]; then
+              $SUDO docker logs --tail 100 "$container_id" >&2 || true
+              echo "Processing worker did not become ready in time." >&2
+              exit 1
+            fi
+            sleep 2
+          done
+
+          test -s "$frontend_target/index.html" || { echo "Frontend index.html is missing." >&2; exit 1; }
+
+          # Periodic cleanup and weekly digest delivery. The secret remains in
+          # the root-only worker environment rather than the crontab.
+          printf '%s\n' \
+            '17 * * * * root /var/www/recaps/worker/run-maintenance.sh cleanup-expired >> /var/log/recaps-maintenance.log 2>&1' \
+            '30 8 * * 1 root /var/www/recaps/worker/run-maintenance.sh send-digests >> /var/log/recaps-maintenance.log 2>&1' \
+            | $SUDO tee /etc/cron.d/recaps-maintenance >/dev/null
+          $SUDO chmod 0644 /etc/cron.d/recaps-maintenance
+          if command -v systemctl >/dev/null 2>&1; then
+            $SUDO systemctl enable --now cron 2>/dev/null || $SUDO systemctl enable --now crond 2>/dev/null || true
+          fi
+          rm -f /tmp/recaps-dist.tar.gz /tmp/recaps-worker.tar.gz /tmp/recaps-worker.env
           EOF
+
+      - name: Verify production website
+        env:
+          PRODUCTION_URL: ${{ secrets.PRODUCTION_URL }}
+        run: |
+          set -euo pipefail
+          url="${PRODUCTION_URL:-https://making-a-recap-with-ai.com}"
+          for attempt in 1 2 3; do
+            if curl --fail --silent --show-error --location --max-time 20 "$url" | grep -q '<div id="root"></div>'; then
+              echo "Production website is serving the deployed application."
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "::error::Production website verification failed for $url"
+          exit 1
