@@ -17,6 +17,10 @@ dist-ssr
 .env.*
 !.env.example
 
+# Authentication cookies and browser exports
+*cookies.txt
+cookies*.json
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

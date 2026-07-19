@@ -14,6 +14,20 @@ import { PROCESSING_STATUSES } from '@/lib/videoTaskTypes';
 
 const AUTO_REFRESH_INTERVAL = 30_000;
 
+function hasVisibleTaskChange(current: VideoTask, incoming: VideoTask): boolean {
+  const ignoredFields = new Set(['heartbeat_at', 'locked_at', 'worker_id', 'updated_at']);
+  return Object.keys(incoming).some(key => {
+    if (ignoredFields.has(key)) return false;
+    const currentValue = current[key as keyof VideoTask];
+    const incomingValue = incoming[key as keyof VideoTask];
+    if (currentValue === incomingValue) return false;
+    if (typeof currentValue === 'object' && typeof incomingValue === 'object') {
+      return JSON.stringify(currentValue) !== JSON.stringify(incomingValue);
+    }
+    return true;
+  });
+}
+
 export function useVideoTasks(filters: TaskFilterOptions = {}) {
   const { user } = useAuth();
   const [tasks, setTasks] = useState<VideoTask[]>([]);
@@ -29,6 +43,8 @@ export function useVideoTasks(filters: TaskFilterOptions = {}) {
     storageUsedMb: 0,
   });
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const tasksRef = useRef(tasks);
+  tasksRef.current = tasks;
   const filtersRef = useRef(filters);
   filtersRef.current = filters;
 
@@ -99,7 +115,7 @@ export function useVideoTasks(filters: TaskFilterOptions = {}) {
     if (!user) return;
 
     const channel = supabase
-      .channel('video_tasks_changes')
+      .channel(`video_tasks_changes:${user.id}`)
       .on(
         'postgres_changes',
         {
@@ -108,8 +124,26 @@ export function useVideoTasks(filters: TaskFilterOptions = {}) {
           table: 'video_tasks',
           filter: `user_id=eq.${user.id}`,
         },
-        () => {
-          refresh();
+        (payload) => {
+          if (payload.eventType === 'INSERT' || payload.eventType === 'DELETE') {
+            void refresh();
+            return;
+          }
+
+          const incoming = payload.new as VideoTask;
+          const existing = tasksRef.current.find(task => task.id === incoming.id);
+          const statusChanged = !!existing && existing.status !== incoming.status;
+          setTasks(currentTasks => {
+            const current = currentTasks.find(task => task.id === incoming.id);
+            if (!current || !hasVisibleTaskChange(current, incoming)) return currentTasks;
+            return currentTasks.map(task => task.id === incoming.id ? incoming : task);
+          });
+
+          if (statusChanged) {
+            void Promise.all([loadTasks(), loadStats()]).catch(cause => {
+              setError(cause instanceof Error ? cause.message : 'Unable to refresh video tasks.');
+            });
+          }
         }
       )
       .subscribe();
@@ -117,7 +151,7 @@ export function useVideoTasks(filters: TaskFilterOptions = {}) {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [user, refresh]);
+  }, [user, refresh, loadTasks, loadStats]);
 
   const removeTask = useCallback(async (taskId: string) => {
     const success = await deleteVideoTask(taskId);
