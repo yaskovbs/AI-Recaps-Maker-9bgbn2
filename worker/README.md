@@ -14,6 +14,8 @@ In the standard Hostinger deployment the worker is installed at `/var/www/recaps
 
 The worker requires enough disk for two copies of the largest permitted source plus temporary audio, and enough CPU/RAM for Whisper and FFmpeg. For production throughput, run multiple replicas with distinct `WORKER_ID` values; database claiming uses `FOR UPDATE SKIP LOCKED`.
 
+The Whisper/Hugging Face model cache is persisted in the `whisper-cache` Docker volume. The container entrypoint repairs ownership of this dedicated volume at startup and then drops to the unprivileged `worker` user before starting Python.
+
 YouTube requires an external JavaScript runtime for current player challenges; the image installs Deno and the matching `yt-dlp-ejs` package. If YouTube challenges the server IP with a bot check, configure `YOUTUBE_COOKIES_B64` using a fresh Netscape-format `cookies.txt` exported from a dedicated YouTube account. Treat this value like a password and rotate it if exposed.
 
 ## Pipeline

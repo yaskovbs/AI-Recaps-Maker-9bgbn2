@@ -189,7 +189,7 @@ jobs:
           fi
 
           tar -czf /tmp/recaps-worker.tar.gz \
-            -C worker Dockerfile docker-compose.yml requirements.txt processor.py \
+            -C worker Dockerfile docker-compose.yml entrypoint.sh requirements.txt processor.py \
             -C ../deploy/server run-maintenance.sh
           umask 077
           {
@@ -325,6 +325,11 @@ jobs:
             fi
             sleep 2
           done
+
+          $SUDO docker compose exec -T --user worker processor sh -c \
+            'test -w "$HF_HOME" && touch "$HF_HOME/.write-test" && rm "$HF_HOME/.write-test"' \
+            || { echo "Whisper model cache is not writable by the worker user." >&2; exit 1; }
+          echo "Verified that the Whisper model cache is writable."
 
           test -s "$frontend_target/index.html" || { echo "Frontend index.html is missing." >&2; exit 1; }
 
