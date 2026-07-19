@@ -49,7 +49,7 @@ Video information:
 ${prompt}`;
 
   const res = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent?key=${apiKey}`,
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${apiKey}`,
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -167,7 +167,7 @@ Deno.serve(async (req: Request) => {
       task_id,
       level: "info",
       message: "Starting AI summary generation",
-      metadata: { model: "gemini-1.5-pro", language: language || "he" },
+      metadata: { model: "gemini-3.5-flash", language: language || "he" },
     });
 
     const videoInfo = `

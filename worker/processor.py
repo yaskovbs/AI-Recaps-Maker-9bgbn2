@@ -173,7 +173,7 @@ def download_source(task: dict[str, Any], destination: Path, secrets: dict[str, 
 
 def gemini_json(api_key: str, prompt: str) -> dict[str, Any]:
     response = client.post(
-        f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={api_key}",
+        f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key={api_key}",
         json={"contents": [{"parts": [{"text": prompt}]}], "generationConfig": {"responseMimeType": "application/json", "temperature": 0.2, "maxOutputTokens": 8192}},
         timeout=180,
     )
