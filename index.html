@@ -57,7 +57,25 @@
     
   </head>
   <body class="dark">
-    <div id="root"></div>
+    <div id="root">
+      <!-- Crawlable fallback content for OAuth verification and browsers before JavaScript loads. -->
+      <main style="max-width:960px;margin:0 auto;padding:48px 24px;font-family:Arial,sans-serif;color:#f4f4ff;background:#0a0a14;min-height:100vh">
+        <h1>AI Recaps Maker</h1>
+        <p>
+          AI Recaps Maker is an AI-assisted video recap creation application. It helps creators turn video, audio,
+          scripts, and supported links they own or are authorized to use into editable video recaps.
+        </p>
+        <p>
+          Users can upload source material, select a recap style and duration, process the content, review the
+          generated result, and then download or share their recap. Google sign-in is used only to create and
+          authenticate an AI Recaps Maker account using basic profile information authorized by the user.
+        </p>
+        <nav aria-label="Legal information">
+          <a href="/privacy" style="color:#67e8f9;margin-right:20px">Privacy Policy</a>
+          <a href="/terms" style="color:#67e8f9">Terms of Service</a>
+        </nav>
+      </main>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

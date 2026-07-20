@@ -17,12 +17,12 @@ const sections = [
     ),
   },
   {
-    title: '2. Google sign-in data',
+    title: '2. Authentication data',
     content: (
       <p>
-        If you choose Google sign-in, we receive basic account information authorized by you, normally your name,
-        email address, profile image, and Google account identifier. We use it only to create and authenticate your
-        account. We do not receive or store your Google password.
+        When you create an account, we use your email address and authentication identifier to register and
+        authenticate you. Password authentication is handled securely by our authentication provider; we do not store
+        your password in readable form.
       </p>
     ),
   },

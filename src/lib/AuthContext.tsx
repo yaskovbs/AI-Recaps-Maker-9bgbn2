@@ -14,7 +14,6 @@ interface AuthContextType {
   user: User | null;
   isLoading: boolean;
   login: (email: string, password: string) => Promise<void>;
-  loginWithGoogle: () => Promise<void>;
   signup: (email: string, password: string, username: string) => Promise<'authenticated' | 'confirmation-required'>;
   logout: () => Promise<void>;
   updateProfile: (data: Partial<User>) => Promise<void>;
@@ -156,59 +155,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const loginWithGoogle = async () => {
-    try {
-      // Supabase otherwise redirects the browser to a raw JSON 400 response
-      // when the provider is disabled. Check the project's public auth
-      // settings first so the app can show an actionable message instead.
-      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
-      const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
-      const settingsResponse = await fetch(`${supabaseUrl}/auth/v1/settings`, {
-        headers: { apikey: supabaseAnonKey },
-      });
-      if (!settingsResponse.ok) {
-        throw new Error('Unable to verify Google sign-in configuration. Please try again.');
-      }
-      const settings = await settingsResponse.json() as { external?: { google?: boolean } };
-      if (settings.external?.google !== true) {
-        throw new Error('Google sign-in is not enabled for this Supabase project. An administrator must enable Google under Authentication > Sign In / Providers.');
-      }
-
-      const { data, error } = await supabase.auth.signInWithOAuth({
-        provider: 'google',
-        options: {
-          redirectTo: `${window.location.origin}/dashboard`,
-          queryParams: {
-            access_type: 'offline',
-            prompt: 'consent',
-          },
-          skipBrowserRedirect: false,
-        },
-      });
-
-      if (error) {
-        console.error('❌ Google OAuth error:', error);
-
-        // Check if it's a configuration error
-        if (error.message.includes('not enabled') || error.message.includes('provider')) {
-          throw new Error(
-            'Google OAuth is not enabled. Configure Google under Auth > Providers in the OnSpace/Supabase dashboard.'
-          );
-        }
-
-        throw error;
-      }
-
-      console.log('✅ OAuth initiated, redirecting to Google...', data);
-
-      // Don't set loading state - user will be redirected to Google
-      // Auth state will be handled by onAuthStateChange when they return
-    } catch (error: any) {
-      console.error('❌ Google login failed:', error);
-      throw new Error(error.message || 'התחברות עם Google נכשלה. נסה שוב מאוחר יותר.');
-    }
-  };
-
   const signup = async (email: string, password: string, username: string) => {
     try {
       setIsLoading(true);
@@ -344,7 +290,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         user,
         isLoading,
         login,
-        loginWithGoogle,
         signup,
         logout,
         updateProfile,
@@ -364,7 +309,6 @@ export function useAuth() {
       user: null,
       isLoading: false,
       login: async () => {},
-      loginWithGoogle: async () => {},
       signup: async () => {},
       logout: async () => {
         localStorage.clear();
