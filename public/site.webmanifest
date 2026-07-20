@@ -1,7 +1,7 @@
 {
-  "name": "AI Recaps Maker & Auto Post",
-  "short_name": "AI Recaps",
-  "description": "AI-powered movie and TV show recap generator with learning capabilities",
+  "name": "AI Recaps Maker",
+  "short_name": "AI Recaps Maker",
+  "description": "Create editable AI-assisted video recaps from authorized video, audio, scripts, and links.",
   "icons": [
     {
       "src": "/android-chrome-192x192.png",
@@ -29,8 +29,8 @@
   "start_url": "/",
   "scope": "/",
   "id": "/",
-  "dir": "rtl",
-  "lang": "he",
+  "dir": "ltr",
+  "lang": "en",
   "categories": ["entertainment", "productivity", "utilities"],
   "screenshots": [],
   "shortcuts": [

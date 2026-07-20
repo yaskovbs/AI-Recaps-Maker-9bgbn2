@@ -85,11 +85,11 @@ export default function Home() {
   ];
 
   const steps = [
-    { icon: Upload, label: 'העלה תסריט / אודיו', step: '01' },
-    { icon: Cpu, label: 'ניתוח AI ועיבוד', step: '02' },
-    { icon: Video, label: 'העלה וידאו', step: '03' },
-    { icon: Layers, label: 'הגדרות & BYOK', step: '04' },
-    { icon: Eye, label: 'הורד & שתף', step: '05' },
+    { icon: Upload, label: 'Add a script, audio, video, or link', step: '01' },
+    { icon: Cpu, label: 'Analyze content with AI', step: '02' },
+    { icon: Video, label: 'Build the video recap', step: '03' },
+    { icon: Layers, label: 'Review your settings', step: '04' },
+    { icon: Eye, label: 'Download or share', step: '05' },
   ];
 
   return (
@@ -147,8 +147,10 @@ export default function Home() {
           </div>
 
           {/* Description */}
-          <p className="mb-10 mx-auto max-w-2xl leading-relaxed" style={{ color: 'rgba(200,200,230,0.75)', fontSize: '1.1rem' }}>
-            {t.home.hero.description}
+          <p className="mb-10 mx-auto max-w-3xl leading-relaxed" style={{ color: 'rgba(200,200,230,0.82)', fontSize: '1.1rem' }}>
+            AI Recaps Maker helps creators turn video, audio, scripts, and supported links they are authorized to use
+            into editable AI-assisted video recaps. Upload your source, choose the recap style and duration, review the
+            generated result, then download or share it.
           </p>
 
           {/* CTAs */}
@@ -168,7 +170,7 @@ export default function Home() {
 
         {/* Scroll indicator */}
         <div className="absolute bottom-8 left-1/2 -translate-x-1/2 z-10 flex flex-col items-center gap-2 opacity-50">
-          <span className="text-xs" style={{ color: 'rgba(200,200,230,0.5)' }}>גלול מטה</span>
+          <span className="text-xs" style={{ color: 'rgba(200,200,230,0.5)' }}>Explore how it works</span>
           <ChevronDown className="w-5 h-5 animate-bounce" style={{ color: '#00D4FF' }} />
         </div>
       </section>
@@ -180,9 +182,11 @@ export default function Home() {
           <div className="text-center mb-16">
             <div className="neon-badge neon-badge-purple mx-auto mb-4 inline-flex">Workflow</div>
             <h2 className="text-4xl font-bold mb-4 gradient-text-cyan-purple">
-              איך זה עובד?
+              How AI Recaps Maker works
             </h2>
-            <p style={{ color: 'rgba(170,170,210,0.7)', fontSize: '1rem' }}>5 שלבים פשוטים ליצירת סיכום וידאו מקצועי</p>
+            <p style={{ color: 'rgba(170,170,210,0.7)', fontSize: '1rem' }}>
+              Five clear steps from authorized source content to an editable video recap
+            </p>
           </div>
 
           <div className="flex flex-col md:flex-row items-start justify-center gap-4 max-w-5xl mx-auto">

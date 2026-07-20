@@ -99,9 +99,9 @@ export default function Header() {
             </div>
             <div className="hidden sm:block">
               <div className="font-bold text-base leading-tight" style={{ color: '#f0f0ff', fontFamily: 'Syne, sans-serif' }}>
-                AI Recaps
+                AI Recaps Maker
               </div>
-              <div className="text-xs" style={{ color: 'rgba(0,212,255,0.6)', fontSize: '10px' }}>Maker</div>
+              <div className="text-xs" style={{ color: 'rgba(0,212,255,0.6)', fontSize: '10px' }}>AI video recap creation</div>
             </div>
           </Link>
 
