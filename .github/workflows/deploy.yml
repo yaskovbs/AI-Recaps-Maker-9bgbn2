@@ -107,20 +107,30 @@ jobs:
           }
 
           const requiredTables = [
-            'video_tasks', 'task_logs', 'jobs', 'credits_wallet',
-            'credits_transactions', 'youtube_learning_settings',
+            'video_tasks', 'task_logs', 'jobs', 'youtube_learning_settings',
           ];
           const headers = { apikey: anonKey, Authorization: `Bearer ${anonKey}` };
           const failures = [];
 
+          // Validate the project/key pair against Auth first. A table may
+          // intentionally reject anon SELECT through grants or RLS, which is
+          // an authorization result and must not be reported as a bad key.
+          const authResponse = await fetch(`${baseUrl}/auth/v1/settings`, {
+            headers: { apikey: anonKey },
+          });
+          if (authResponse.status === 401 || authResponse.status === 403) {
+            console.error(`Schema verification could not authenticate to ${new URL(baseUrl).host}.`);
+            console.error('VITE_SUPABASE_ANON_KEY must be copied from the same project as VITE_SUPABASE_URL, without quotes or surrounding whitespace.');
+            console.error(`Backend response: HTTP ${authResponse.status} ${(await authResponse.text()).slice(0, 200)}`);
+            process.exit(1);
+          }
+          if (!authResponse.ok) {
+            console.error(`Could not verify Supabase Auth settings: HTTP ${authResponse.status} ${(await authResponse.text()).slice(0, 200)}`);
+            process.exit(1);
+          }
+
           for (const table of requiredTables) {
             const response = await fetch(`${baseUrl}/rest/v1/${table}?select=*&limit=0`, { headers });
-            if (response.status === 401 || response.status === 403) {
-              console.error(`Schema verification could not authenticate to ${new URL(baseUrl).host}.`);
-              console.error('VITE_SUPABASE_ANON_KEY must be copied from the same project as VITE_SUPABASE_URL, without quotes or surrounding whitespace.');
-              console.error(`Backend response: HTTP ${response.status} ${(await response.text()).slice(0, 200)}`);
-              process.exit(1);
-            }
             if (!response.ok) {
               failures.push(`${table}: HTTP ${response.status} ${(await response.text()).slice(0, 200)}`);
             }
