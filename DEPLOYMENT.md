@@ -55,7 +55,7 @@ sudo docker compose logs --tail=200 processor
 
 - Supabase/OnSpace Auth: configure the production site URL, redirect URLs, and Google OAuth provider.
 - Google Cloud OAuth: add the Supabase callback URL.
-- Google AdSense: enable standard display or Auto ads for the production domain. Regular ads never grant credits or unlock features.
+- To enable Google sign-in, open Supabase Dashboard > Authentication > Sign In / Providers > Google, enable it, and enter the Google OAuth Client ID and Client Secret. In Google Cloud Console, add `https://<project-ref>.supabase.co/auth/v1/callback` as an authorized redirect URI. In Supabase URL Configuration, set the production site URL and allow `https://<production-domain>/dashboard` as a redirect URL.
 - Web Push: generate one VAPID key pair and use the same public key in the frontend and Edge Function.
 - Apply every migration and deploy all Edge Functions before deploying the frontend.
 

@@ -2,15 +2,13 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useLanguage } from '@/lib/LanguageContext';
 import { useAuth } from '@/lib/AuthContext';
 import { useYouTubeChannels } from '@/hooks/useYouTubeChannels';
-import { supabase } from '@/lib/supabase';
-import { Youtube, Plus, Trash2, RefreshCw, Lock, ChevronDown, ChevronUp, Sparkles, Film, Clock, Palette, Music, Tag } from 'lucide-react';
+import { Youtube, Plus, Trash2, RefreshCw, ChevronDown, ChevronUp, Sparkles, Film, Clock, Palette, Music, Tag } from 'lucide-react';
 
 export default function YouTubeLearning() {
   const { t } = useLanguage();
   const { user } = useAuth();
   const {
     channels,
-    slotInfo,
     isLoading,
     addChannel,
     removeChannel,
@@ -20,8 +18,6 @@ export default function YouTubeLearning() {
   } = useYouTubeChannels(user?.id);
   
   const [channelInput, setChannelInput] = useState('');
-  const [showAdDialog, setShowAdDialog] = useState(false);
-  const [pendingChannelInput, setPendingChannelInput] = useState('');
   const [expandedChannels, setExpandedChannels] = useState<Set<string>>(new Set());
   const autoSynced = useRef(new Set<string>());
 
@@ -56,15 +52,8 @@ export default function YouTubeLearning() {
       return;
     }
 
-    // Check if slot needs to be unlocked
-    if (slotInfo.needsAdsToUnlock) {
-      setPendingChannelInput(channelInput);
-      setShowAdDialog(true);
-      return;
-    }
-
     // Add channel
-    const result = await addChannel(channelInput, false);
+    const result = await addChannel(channelInput);
     if (result.success) {
       setChannelInput('');
       alert('ערוץ נוסף בהצלחה!');
@@ -92,39 +81,6 @@ export default function YouTubeLearning() {
     }
   };
 
-  /* Rewarded ads were intentionally removed; slots are credit-only.
-  const handleAdReward = async (eventId: string) => {
-    const recorded = await recordAdView('youtube_slot', 'rewarded', eventId);
-    if (!recorded) return;
-    
-    const newCount = adsWatchedForSlot + 1;
-    setAdsWatchedForSlot(newCount);
-
-    if (newCount >= slotInfo.adsRequired) {
-      setShowAdDialog(false);
-      const result = await addChannel(pendingChannelInput, 'ads');
-      if (result.success) {
-        setChannelInput('');
-        setPendingChannelInput('');
-        setAdsWatchedForSlot(0);
-        alert('סלוט נפתח! ערוץ נוסף בהצלחה!');
-      } else {
-        alert(result.error || 'שגיאה בהוספת ערוץ');
-      }
-    } else {
-      alert(`נותרו עוד ${slotInfo.adsRequired - newCount} מודעות`);
-    }
-  };
-
-  */
-  const handleCreditUnlock = async () => {
-    const { data, error } = await supabase.rpc('purchase_youtube_slot_with_credits');
-    if (error || !data) { alert(error?.message || 'Unable to purchase slot.'); return; }
-    const result = await addChannel(pendingChannelInput, 'credits');
-    if (result.success) { setShowAdDialog(false); setPendingChannelInput(''); setChannelInput(''); }
-    else alert(result.error || 'Unable to add channel.');
-  };
-
   const formatDuration = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
@@ -141,56 +97,6 @@ export default function YouTubeLearning() {
             {t.youtube.title}
           </h1>
           <p className="text-brass-300">{t.youtube.description}</p>
-        </div>
-
-        {/* Slots Info */}
-        <div className="steampunk-card p-6 mb-6">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <div>
-              <p className="text-brass-300 text-sm mb-1">{t.youtube.channels.slots}</p>
-              <p className="text-2xl font-bold text-brass-100">
-                {slotInfo.freeSlots} / {slotInfo.totalSlots}
-              </p>
-              <p className="text-xs text-brass-500 mt-1">
-                {slotInfo.usedSlots} ערוצים פעילים
-              </p>
-            </div>
-            
-            {slotInfo.needsAdsToUnlock && (
-              <div className="text-right">
-                <div className="flex items-center gap-2 mb-2">
-                  <Lock className="w-5 h-5 text-brass-400" />
-                  <span className="text-sm text-brass-300">2 credits required for the next 7-day slot</span>
-                  {/* Legacy rewarded-ad label removed.
-                  <span className="text-sm text-brass-300">
-                    נדרשות {slotInfo.adsRequired} מודעות
-                  </span>
-                  */}
-                </div>
-                <p className="text-xs text-brass-500">
-                  שכבה: {slotInfo.nextTier === 'premium_12' && '12 ערוצים'}
-                  {slotInfo.nextTier === 'premium_22' && '22 ערוצים'}
-                  {slotInfo.nextTier === 'unlimited' && 'בלתי מוגבל'}
-                </p>
-              </div>
-            )}
-          </div>
-
-          {/* Rewarded-ad progress removed.
-          {slotInfo.needsAdsToUnlock && adsWatchedForSlot > 0 && (
-            <div className="mt-4">
-              <div className="flex justify-between text-xs text-brass-400 mb-1">
-                <span>התקדמות פתיחת סלוט</span>
-                <span>{adsWatchedForSlot} / {slotInfo.adsRequired}</span>
-              </div>
-              <div className="w-full bg-steam-800 rounded-full h-2 overflow-hidden">
-                <div
-                  className="bg-gradient-to-r from-brass-500 to-copper-500 h-full transition-all"
-                  style={{ width: `${(adsWatchedForSlot / slotInfo.adsRequired) * 100}%` }}
-                ></div>
-              </div>
-            </div>
-          )} */}
         </div>
 
         {/* Add Channel */}
@@ -479,33 +385,6 @@ export default function YouTubeLearning() {
         </div>
       </div>
 
-      {/* Ad Dialog for Slot Unlocking */}
-      {showAdDialog && (
-        <div className="fixed inset-0 bg-black/90 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="steampunk-card max-w-xl w-full p-6">
-            <h3 className="text-xl font-semibold text-brass-200 mb-4">
-              פתיחת סלוט ערוץ נוסף
-            </h3>
-            {/* Rewarded-ad instructions removed.
-            <p className="text-brass-300 mb-4">
-              צפה ב-{slotInfo.adsRequired} מודעות כדי לפתוח סלוט זה ({adsWatchedForSlot} / {slotInfo.adsRequired})
-            </p> */}
-            <p className="text-brass-300 mb-4">Purchase this optional channel slot with 2 credits. Regular ads do not grant credits or unlock slots.</p>
-            <button onClick={handleCreditUnlock} className="steampunk-button-secondary w-full py-3 mb-4">Use 2 credits for a 7-day slot</button>
-            
-            {/* Rewarded ad component removed.
-            <RewardedAd
-              onRewardEarned={handleAdReward}
-              onAdClosed={() => {
-                setShowAdDialog(false);
-                setPendingChannelInput('');
-              }}
-              rewardType="youtube_slot"
-            /> */}
-            <button onClick={() => { setShowAdDialog(false); setPendingChannelInput(''); }} className="steampunk-button-secondary w-full py-2">Cancel</button>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

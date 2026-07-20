@@ -2,21 +2,19 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import { useLanguage } from '@/lib/LanguageContext';
 import { useAuth } from '@/lib/AuthContext';
-import { useWallet } from '@/hooks/useWallet';
 import { getJobs } from '@/lib/recapService';
 import { useVideoTasks } from '@/hooks/useVideoTasks';
 import SocialShare from '@/components/SocialShare';
 import CountdownTimer from '@/components/video/CountdownTimer';
 import { TASK_STATUS_LABELS } from '@/lib/videoTaskTypes';
 import {
-  Plus, BarChart3, Settings, Wallet, Video, Clock, CheckCircle, AlertCircle,
+  Plus, BarChart3, Settings, Video, Clock, CheckCircle, AlertCircle,
   FileVideo, HardDrive, ArrowRight, Timer, TrendingUp, Sparkles, Zap
 } from 'lucide-react';
 
 export default function Dashboard() {
   const { t } = useLanguage();
   const { user } = useAuth();
-  const { wallet } = useWallet();
   const jobs = getJobs(user?.id);
   const { tasks: videoTasks, stats: videoStats, error: videoTasksError, refresh: refreshVideoTasks } = useVideoTasks();
 
@@ -24,7 +22,6 @@ export default function Dashboard() {
     total: jobs.length,
     inProgress: jobs.filter(j => j.status === 'processing').length,
     completed: jobs.filter(j => j.status === 'completed').length,
-    credits: wallet.balance,
   };
 
   const statusBadge = (status: string) => {
@@ -100,12 +97,11 @@ export default function Dashboard() {
         )}
 
         {/* Quick Stats */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
           {[
             { icon: Video, value: recapStats.total, label: t.dashboard.quickStats.totalRecaps, color: '#00D4FF' },
             { icon: Clock, value: recapStats.inProgress, label: t.dashboard.quickStats.inProgress, color: '#B24BF3' },
             { icon: CheckCircle, value: recapStats.completed, label: t.dashboard.quickStats.completed, color: '#00ff80' },
-            { icon: Wallet, value: recapStats.credits, label: t.dashboard.quickStats.credits, color: '#FF3CAC' },
           ].map((stat, i) => {
             const Icon = stat.icon;
             return (
@@ -243,7 +239,6 @@ export default function Dashboard() {
               { to: '/create', icon: Sparkles, label: t.dashboard.quickActions.createNew, color: '#00D4FF', desc: 'Wizard 5 שלבים' },
               { to: '/my-videos', icon: FileVideo, label: 'My Videos', color: '#B24BF3', desc: 'ניהול קבצי וידאו' },
               { to: '/analytics', icon: BarChart3, label: t.dashboard.quickActions.viewAll, color: '#00D4FF', desc: 'נתוני שימוש API' },
-              { to: '/wallet', icon: Wallet, label: t.dashboard.quickActions.earnCredits, color: '#FF3CAC', desc: 'קרדיטים ומודעות' },
               { to: '/youtube-learning', icon: TrendingUp, label: t.nav.youtube, color: '#B24BF3', desc: 'עד 11 ערוצים' },
               { to: '/settings', icon: Settings, label: t.dashboard.quickActions.apiSettings, color: '#00D4FF', desc: 'BYOK & הגדרות' },
             ].map((item, i) => {

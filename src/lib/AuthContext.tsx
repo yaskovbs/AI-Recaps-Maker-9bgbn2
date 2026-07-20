@@ -123,13 +123,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           profile = newProfile;
         }
 
-        // Initialize wallet and learning for new OAuth user
+        // Initialize learning preferences for new OAuth users.
         if (profile) {
-          await supabase.from('credits_wallet').insert({
-            user_id: authUser.id,
-            balance: 5,
-          });
-
           await supabase.from('learning_profiles').insert({
             user_id: authUser.id,
           });
@@ -163,6 +158,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const loginWithGoogle = async () => {
     try {
+      // Supabase otherwise redirects the browser to a raw JSON 400 response
+      // when the provider is disabled. Check the project's public auth
+      // settings first so the app can show an actionable message instead.
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
+      const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
+      const settingsResponse = await fetch(`${supabaseUrl}/auth/v1/settings`, {
+        headers: { apikey: supabaseAnonKey },
+      });
+      if (!settingsResponse.ok) {
+        throw new Error('Unable to verify Google sign-in configuration. Please try again.');
+      }
+      const settings = await settingsResponse.json() as { external?: { google?: boolean } };
+      if (settings.external?.google !== true) {
+        throw new Error('Google sign-in is not enabled for this Supabase project. An administrator must enable Google under Authentication > Sign In / Providers.');
+      }
+
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {

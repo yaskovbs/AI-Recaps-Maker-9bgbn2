@@ -638,11 +638,6 @@
 .from-cog-600 { --tw-gradient-from: rgba(0, 212, 255, 0.3); }
 .to-cog-700 { --tw-gradient-to: rgba(178, 75, 243, 0.3); }
 
-/* AdSense */
-.adsense-container {
-  @apply my-6 flex justify-center;
-}
-
 /* === DRAG & DROP ZONES === */
 @keyframes border-march {
   0%   { background-position: 0% 0%, 100% 0%, 100% 100%, 0% 100%; }

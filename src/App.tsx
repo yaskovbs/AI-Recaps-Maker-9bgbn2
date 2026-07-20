@@ -9,10 +9,8 @@ const Home = lazy(() => import('@/pages/Home'));
 const Dashboard = lazy(() => import('@/pages/Dashboard'));
 const Create = lazy(() => import('@/pages/Create'));
 const Analytics = lazy(() => import('@/pages/Analytics'));
-const Wallet = lazy(() => import('@/pages/Wallet'));
 const YouTubeLearning = lazy(() => import('@/pages/YouTubeLearning'));
 const Settings = lazy(() => import('@/pages/Settings'));
-const Leaderboard = lazy(() => import('@/pages/Leaderboard'));
 const MyRecaps = lazy(() => import('@/pages/MyRecaps'));
 const Login = lazy(() => import('@/pages/Login'));
 const Signup = lazy(() => import('@/pages/Signup'));
@@ -28,7 +26,7 @@ const NotFound = lazy(() => import('@/pages/NotFound'));
 
 const privateRoutes: Array<[string, LazyExoticComponent<ComponentType>]> = [
   ['/dashboard', Dashboard], ['/create', Create], ['/my-recaps', MyRecaps],
-  ['/my-videos', MyVideos], ['/analytics', Analytics], ['/wallet', Wallet],
+  ['/my-videos', MyVideos], ['/analytics', Analytics],
   ['/youtube-learning', YouTubeLearning], ['/settings', Settings],
 ];
 
@@ -52,7 +50,8 @@ function App() {
             <Route path="/home" element={<Home />} />
             <Route path="/login" element={<Login />} />
             <Route path="/signup" element={<Signup />} />
-            <Route path="/leaderboard" element={<Leaderboard />} />
+            <Route path="/leaderboard" element={<Navigate to="/dashboard" replace />} />
+            <Route path="/wallet" element={<Navigate to="/dashboard" replace />} />
             <Route path="/gallery" element={<Gallery />} />
             <Route path="/recap/:id" element={<RecapView />} />
             <Route path="/disclaimer" element={<Disclaimer />} />

@@ -140,7 +140,6 @@ export default function Privacy() {
               <ul className="list-disc list-inside text-brass-300 space-y-2 mr-6">
                 <li>שמירת העדפות שפה וממשק</li>
                 <li>ניתוח שימוש באתר (Google Analytics)</li>
-                <li>מודעות ממומנות (Google AdSense)</li>
               </ul>
               <p className="text-brass-300 leading-relaxed mt-4">
                 ניתן לנהל העדפות Cookies דרך הגדרות הדפדפן שלך.

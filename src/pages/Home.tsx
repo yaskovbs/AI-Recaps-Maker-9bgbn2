@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useLanguage } from '@/lib/LanguageContext';
-import { useWallet } from '@/hooks/useWallet';
 import { useCountUp } from '@/hooks/useCountUp';
 import { useRating } from '@/hooks/useRating';
 import { getJobs } from '@/lib/recapService';
@@ -15,7 +14,6 @@ import {
 
 export default function Home() {
   const { t } = useLanguage();
-  const { wallet } = useWallet();
   const { stats: ratingStats, submitRating, shouldShowPrompt, markAsAsked } = useRating();
   const [isRatingModalOpen, setIsRatingModalOpen] = useState(false);
   const [statsInView, setStatsInView] = useState(false);
@@ -166,17 +164,6 @@ export default function Home() {
             </Link>
           </div>
 
-          {/* Credits widget */}
-          <div className="inline-flex items-center gap-5 px-7 py-4 rounded-2xl" style={{ background: 'rgba(0,212,255,0.05)', border: '1px solid rgba(0,212,255,0.15)' }}>
-            <div>
-              <div className="text-3xl font-bold" style={{ color: '#00D4FF' }}>{wallet.balance}</div>
-              <div className="text-xs" style={{ color: 'rgba(150,150,200,0.7)' }}>{t.wallet.credits}</div>
-            </div>
-            <div className="w-px h-10" style={{ background: 'rgba(0,212,255,0.15)' }} />
-            <Link to="/wallet" className="btn-neon-purple text-sm py-2.5 px-5">
-              {t.wallet.title}
-            </Link>
-          </div>
         </div>
 
         {/* Scroll indicator */}

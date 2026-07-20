@@ -6,7 +6,6 @@ export interface NotificationPreferences {
   recapComplete: boolean;
   weeklyDigest: boolean;
   learningInsights: boolean;
-  creditMilestones: boolean;
 }
 
 class NotificationService {
@@ -148,7 +147,7 @@ class NotificationService {
 
       if (error) throw error;
 
-      return { browserPush:false,email:false,recapComplete:true,weeklyDigest:false,learningInsights:true,creditMilestones:true,...(data?.notifications || {}) } as NotificationPreferences;
+      return { browserPush:false,email:false,recapComplete:true,weeklyDigest:false,learningInsights:true,...(data?.notifications || {}) } as NotificationPreferences;
     } catch (error) {
       console.error('Failed to load notification preferences:', error);
       return {
@@ -157,7 +156,6 @@ class NotificationService {
         recapComplete: true,
         weeklyDigest: false,
         learningInsights: true,
-        creditMilestones: true,
       };
     }
   }

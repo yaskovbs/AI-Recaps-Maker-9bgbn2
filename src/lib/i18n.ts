@@ -208,7 +208,6 @@ export const translations = {
         description: 'יצירת הסיכום הסופי',
         credits: 'קרדיטים זמינים',
         needCredits: 'נדרשים קרדיטים נוספים',
-        watchAd: 'צפה במודעה לקבלת קרדיט',
         createRecap: 'צור סיכום חכם',
         rendering: 'מרנדר וידאו...',
         merging: 'ממזג אודיו ווידאו...',
@@ -268,7 +267,6 @@ export const translations = {
       balance: 'יתרה',
       credits: 'קרדיטים',
       earnCredits: 'הרווח קרדיטים',
-      watchAd: 'צפה במודעה (+1 קרדיט)',
       history: {
         title: 'היסטוריית תנועות',
         empty: 'אין תנועות עדיין',
@@ -656,7 +654,6 @@ export const translations = {
         description: 'Creating the final recap',
         credits: 'Available Credits',
         needCredits: 'Need More Credits',
-        watchAd: 'Watch Ad to Earn Credit',
         createRecap: 'Create Smart Recap',
         rendering: 'Rendering video...',
         merging: 'Merging audio and video...',
@@ -712,7 +709,6 @@ export const translations = {
       balance: 'Balance',
       credits: 'Credits',
       earnCredits: 'Earn Credits',
-      watchAd: 'Watch Ad (+1 Credit)',
       history: {
         title: 'Transaction History',
         empty: 'No transactions yet',

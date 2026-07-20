@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useLanguage } from '@/lib/LanguageContext';
 import { useAuth } from '@/lib/AuthContext';
-import { useWallet } from '@/hooks/useWallet';
 import { supabase } from '@/lib/supabase';
 import { loadFFmpeg, isFFmpegLoaded } from '@/lib/ffmpegService';
 import { apiKeysService } from '@/lib/apiKeysService';
@@ -104,7 +103,6 @@ const GENRES_HE: Record<string, string> = {
 export default function Create() {
   const { t } = useLanguage();
   const { user } = useAuth();
-  const { wallet, refreshWallet } = useWallet();
   const navigate = useNavigate();
   const [currentStep, setCurrentStep] = useState(1);
   const totalSteps = 5;
@@ -117,7 +115,6 @@ export default function Create() {
   const [renderProgress, setRenderProgress] = useState(0);
   const [renderComplete, setRenderComplete] = useState(false);
   const [outputVideoUrl, setOutputVideoUrl] = useState('');
-  const [showRewardAlert, setShowRewardAlert] = useState(false);
 
   // FFmpeg engine state
   const [ffmpegLogs, setFfmpegLogs] = useState<FFmpegLogLine[]>([]);
@@ -890,10 +887,6 @@ export default function Create() {
     const targetDuration = totalSeconds;
     const cutEvery = intervalSeconds;
     setProcessingError(null);
-    if (wallet.balance < 1) {
-      setProcessingError('You need at least one credit to create a recap.');
-      return;
-    }
     setIsRendering(true);
     setProcessingStage('Validating your AI configuration...');
     let keys: APIKeysData;
@@ -962,7 +955,6 @@ export default function Create() {
         });
         throw new Error(queued.error || 'The processing job could not be queued.');
       }
-      await refreshWallet();
       navigate('/my-videos', { replace: true });
       return;
     /* Removed: obsolete browser-side and simulated rendering fallback.
@@ -2022,21 +2014,6 @@ export default function Create() {
                       ))}
                     </div>
                   </div>
-                  <div className="p-5 rounded-xl flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3" style={{ background: wallet.balance < 1 ? 'rgba(255,60,60,0.07)' : 'rgba(255,255,255,0.02)', border: `1px solid ${wallet.balance < 1 ? 'rgba(255,60,60,0.2)' : 'rgba(255,255,255,0.06)'}` }}>
-                    <span className="text-sm font-semibold" style={{ color: 'rgba(200,200,240,0.8)' }}>{t.create.step6.credits}</span>
-                    <span className="text-2xl font-bold" style={{ color: wallet.balance < 1 ? '#ff4444' : '#00D4FF' }}>{wallet.balance}</span>
-                  </div>
-                  {showRewardAlert && (
-                    <div className="p-4 rounded-xl flex items-start gap-3" style={{ background: 'rgba(255,200,0,0.07)', border: '1px solid rgba(255,200,0,0.2)' }}>
-                      <AlertCircle className="w-5 h-5 flex-shrink-0 mt-0.5" style={{ color: '#ffcc00' }} />
-                      <div>
-                        <p className="text-sm font-medium" style={{ color: '#ffdd44' }}>נדרש קרדיט אחד</p>
-                        <button onClick={() => navigate('/wallet')} className="text-xs mt-1.5 underline" style={{ color: '#ffcc00' }}>
-                          צפה במודעה לקבלת קרדיט חינם
-                        </button>
-                      </div>
-                    </div>
-                  )}
                   <button onClick={handleCreate} disabled={!user || !draft.movieTitle}
                     className="btn-neon-cyan w-full py-4 text-base flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none">
                     <Sparkles className="w-5 h-5" /> {t.create.step6.createRecap}

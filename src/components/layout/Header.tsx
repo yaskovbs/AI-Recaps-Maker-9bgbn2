@@ -4,7 +4,7 @@ import { useLanguage } from '@/lib/LanguageContext';
 import { useAuth } from '@/lib/AuthContext';
 import {
   Menu, X, Home, LayoutDashboard, Plus, BarChart3, Settings,
-  Wallet, Youtube, LogOut, LogIn, Film,
+  Youtube, LogOut, LogIn, Film,
   Grid, Video, ChevronDown, Sparkles
 } from 'lucide-react';
 
@@ -37,7 +37,6 @@ export default function Header() {
     { path: '/my-videos', label: 'My Videos', icon: Video },
     { path: '/gallery', label: t.nav.gallery || 'Gallery', icon: Grid },
     { path: '/analytics', label: t.nav.analytics, icon: BarChart3 },
-    { path: '/wallet', label: t.nav.wallet, icon: Wallet },
     { path: '/youtube-learning', label: t.nav.youtube, icon: Youtube },
     { path: '/settings', label: t.nav.settings, icon: Settings },
   ];
@@ -74,7 +73,7 @@ export default function Header() {
   const desktopNavItems = user
     ? mainNavItems.filter(item => ['/dashboard', '/create', '/my-recaps', '/my-videos', '/gallery'].includes(item.path))
     : mainNavItems.filter(item => ['/home', '/gallery'].includes(item.path));
-  const accountLinks = mainNavItems.filter(item => ['/analytics', '/wallet', '/youtube-learning', '/settings'].includes(item.path));
+  const accountLinks = mainNavItems.filter(item => ['/analytics', '/youtube-learning', '/settings'].includes(item.path));
   const controlClass = 'h-10 rounded-xl inline-flex items-center justify-center gap-2 px-3 text-sm font-semibold transition-all';
 
   return (

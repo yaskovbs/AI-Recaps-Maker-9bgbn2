@@ -26,7 +26,7 @@ Deno.serve(async req => {
     const type = String(body.type || "recap_complete");
     const { data: preferences } = await service.from("user_preferences").select("notifications").eq("user_id",userId).maybeSingle();
     const prefs = preferences?.notifications || {};
-    const enabled = prefs.browserPush && ({ recap_complete:prefs.recapComplete, weekly_digest:prefs.weeklyDigest, learning_insight:prefs.learningInsights !== false, credit_milestone:prefs.creditMilestones !== false, achievement:true }[type] ?? false);
+    const enabled = prefs.browserPush && ({ recap_complete:prefs.recapComplete, weekly_digest:prefs.weeklyDigest, learning_insight:prefs.learningInsights !== false }[type] ?? false);
     if (!enabled && !body.test) return response({ delivered: 0, skipped: "disabled" });
     webpush.setVapidDetails(Deno.env.get("VAPID_SUBJECT")!, Deno.env.get("VAPID_PUBLIC_KEY")!, Deno.env.get("VAPID_PRIVATE_KEY")!);
     const { data: subscriptions } = await service.from("push_subscriptions").select("id,endpoint,p256dh,auth").eq("user_id",userId);

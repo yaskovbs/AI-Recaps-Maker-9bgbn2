@@ -32,26 +32,10 @@ export interface YouTubeChannel {
   updated_at: string;
 }
 
-export interface SlotInfo {
-  totalSlots: number;
-  usedSlots: number;
-  freeSlots: number;
-  needsAdsToUnlock: boolean;
-  adsRequired: number; // 0 or 2
-  nextTier: 'premium_12' | 'premium_22' | 'unlimited' | null;
-}
 export interface YouTubeLearningSettings { refresh_interval_seconds:number;include_public:boolean;include_shorts:boolean;include_live:boolean;recent_90_days:boolean; }
 
 export function useYouTubeChannels(userId: string | undefined) {
   const [channels, setChannels] = useState<YouTubeChannel[]>([]);
-  const [slotInfo, setSlotInfo] = useState<SlotInfo>({
-    totalSlots: 11,
-    usedSlots: 0,
-    freeSlots: 11,
-    needsAdsToUnlock: false,
-    adsRequired: 0,
-    nextTier: 'premium_12',
-  });
   const [isLoading, setIsLoading] = useState(false);
   const [settings,setSettings]=useState<YouTubeLearningSettings>({refresh_interval_seconds:86400,include_public:true,include_shorts:true,include_live:true,recent_90_days:true});
 
@@ -77,49 +61,11 @@ export function useYouTubeChannels(userId: string | undefined) {
       if (error) throw error;
 
       setChannels(data || []);
-      calculateSlotInfo(data || []);
     } catch (error) {
       console.error('Error loading YouTube channels:', error);
     } finally {
       setIsLoading(false);
     }
-  };
-
-  const calculateSlotInfo = (currentChannels: YouTubeChannel[]) => {
-    const usedSlots = currentChannels.length;
-    let totalSlots = 11; // Base free slots
-    let needsAdsToUnlock = false;
-    let adsRequired = 0;
-    let nextTier: SlotInfo['nextTier'] = 'premium_12';
-
-    if (usedSlots >= 11 && usedSlots < 12) {
-      // Need to unlock slot 12
-      totalSlots = 11;
-      needsAdsToUnlock = true;
-      adsRequired = 2;
-      nextTier = 'premium_12';
-    } else if (usedSlots >= 12 && usedSlots < 22) {
-      // In premium_12 tier, can go up to 22
-      totalSlots = usedSlots < 22 ? usedSlots + 1 : 22;
-      needsAdsToUnlock = usedSlots < 22;
-      adsRequired = needsAdsToUnlock ? 2 : 0;
-      nextTier = usedSlots < 22 ? 'premium_22' : 'unlimited';
-    } else if (usedSlots >= 22) {
-      // In unlimited tier, always need 2 ads per new channel
-      totalSlots = usedSlots + 1;
-      needsAdsToUnlock = true;
-      adsRequired = 2;
-      nextTier = 'unlimited';
-    }
-
-    setSlotInfo({
-      totalSlots,
-      usedSlots,
-      freeSlots: totalSlots - usedSlots,
-      needsAdsToUnlock,
-      adsRequired,
-      nextTier,
-    });
   };
 
   const loadSettings=async()=>{if(!userId)return;const{data}=await supabase.from('youtube_learning_settings').select('*').eq('user_id',userId).maybeSingle();if(data)setSettings(data);};
@@ -188,19 +134,8 @@ export function useYouTubeChannels(userId: string | undefined) {
       topics: [...words.entries()].sort((a,b)=>b[1]-a[1]).slice(0,20).map(([word])=>word), editing_style: '', color_palette: [], music_style: '', last_learning_at: new Date().toISOString() };
   };
 
-  const addChannel = async (
-    channelInput: string,
-    unlockMethod: 'credits' | false = false
-  ): Promise<{ success: boolean; error?: string }> => {
+  const addChannel = async (channelInput: string): Promise<{ success: boolean; error?: string }> => {
     if (!userId) return { success: false, error: 'User not authenticated' };
-
-    // Check if user needs to watch ads first
-    if (slotInfo.needsAdsToUnlock && !unlockMethod) {
-      return {
-        success: false,
-        error: `צריך לצפות ב-${slotInfo.adsRequired} מודעות כדי לפתוח סלוט זה`,
-      };
-    }
 
     try {
       const details = await fetchChannelDetails(channelInput);
@@ -232,15 +167,7 @@ export function useYouTubeChannels(userId: string | undefined) {
       const { data: existingChannel } = await supabase.from('youtube_channels').select('id').eq('user_id', userId).eq('channel_id', finalChannelId).maybeSingle();
       if (existingChannel) return { success: false, error: 'This channel is already connected.' };
 
-      // Determine slot type
-      let slotType: YouTubeChannel['slot_type'] = 'free';
-      if (slotInfo.usedSlots >= 22) {
-        slotType = 'unlimited';
-      } else if (slotInfo.usedSlots >= 12) {
-        slotType = 'premium_22';
-      } else if (slotInfo.usedSlots >= 11) {
-        slotType = 'premium_12';
-      }
+      const slotType: YouTubeChannel['slot_type'] = 'unlimited';
 
       const { data, error } = await supabase
         .from('youtube_channels')
@@ -326,7 +253,6 @@ export function useYouTubeChannels(userId: string | undefined) {
 
   return {
     channels,
-    slotInfo,
     isLoading,
     loadChannels,
     addChannel,

@@ -73,11 +73,6 @@ export default function Signup() {
             <p className="text-sm" style={{ color: 'rgba(160,160,210,0.6)' }}>{t.auth.signup.subtitle}</p>
           </div>
 
-          {/* 5 free credits badge */}
-          <div className="mb-5 p-3 rounded-xl flex items-center gap-2 justify-center" style={{ background: 'rgba(0,255,128,0.06)', border: '1px solid rgba(0,255,128,0.2)' }}>
-            <Sparkles className="w-4 h-4" style={{ color: '#00ff80' }} />
-            <span className="text-sm font-medium" style={{ color: '#00ff80' }}>5 קרדיטים חינם עם ההרשמה!</span>
-          </div>
 
           {error && (
             <div role="alert" className="mb-5 p-4 rounded-xl text-sm whitespace-pre-line" style={{ background: 'rgba(255,60,60,0.1)', border: '1px solid rgba(255,60,60,0.25)', color: '#ff8888' }}>
