@@ -1,212 +1,148 @@
-import React from 'react';
-import { useLanguage } from '@/lib/LanguageContext';
-import { Shield, Calendar, Lock, Eye, Database, AlertCircle } from 'lucide-react';
+import { Calendar, Shield } from 'lucide-react';
+import { Link } from 'react-router-dom';
+
+const sections = [
+  {
+    title: '1. Information we collect',
+    content: (
+      <>
+        <p>We collect information needed to provide and secure AI Recaps Maker, including:</p>
+        <ul>
+          <li>Account information, such as your name, email address, profile image, and authentication identifier.</li>
+          <li>Content you submit, including uploaded video or audio, links, recap instructions, and generated results.</li>
+          <li>Settings and activity, such as language, recap preferences, processing status, and feature usage.</li>
+          <li>Technical information, such as device, browser, IP address, diagnostic logs, and security events.</li>
+        </ul>
+      </>
+    ),
+  },
+  {
+    title: '2. Google sign-in data',
+    content: (
+      <p>
+        If you choose Google sign-in, we receive basic account information authorized by you, normally your name,
+        email address, profile image, and Google account identifier. We use it only to create and authenticate your
+        account. We do not receive or store your Google password.
+      </p>
+    ),
+  },
+  {
+    title: '3. How we use information',
+    content: (
+      <ul>
+        <li>Provide authentication, uploads, AI-assisted processing, recap creation, and account features.</li>
+        <li>Maintain, troubleshoot, secure, and improve the service.</li>
+        <li>Respond to support requests and send essential service notices.</li>
+        <li>Prevent fraud, abuse, copyright violations, and unauthorized access.</li>
+        <li>Comply with applicable legal obligations.</li>
+      </ul>
+    ),
+  },
+  {
+    title: '4. Processing and service providers',
+    content: (
+      <p>
+        We may process information through infrastructure, authentication, storage, AI, and hosting providers such
+        as Supabase, Google, and our hosting providers. These providers receive information only as reasonably needed
+        to operate their services for us. We do not sell your personal information.
+      </p>
+    ),
+  },
+  {
+    title: '5. Uploaded content and AI processing',
+    content: (
+      <p>
+        Content submitted for a recap may be stored and transmitted to service providers for processing. AI-generated
+        results can be inaccurate and should be reviewed before publication. Do not upload confidential information
+        or content you are not authorized to use.
+      </p>
+    ),
+  },
+  {
+    title: '6. Retention and deletion',
+    content: (
+      <p>
+        We retain account information and submitted content while your account is active and as needed to provide the
+        service. Processing logs and backups may remain for a limited period for security, recovery, and legal
+        compliance. You may request deletion through the account settings or by contacting us.
+      </p>
+    ),
+  },
+  {
+    title: '7. Security',
+    content: (
+      <p>
+        We use reasonable technical and organizational safeguards, including encrypted network connections and access
+        controls. No internet service is completely secure, so we cannot guarantee absolute security.
+      </p>
+    ),
+  },
+  {
+    title: '8. Cookies and local storage',
+    content: (
+      <p>
+        We use cookies or browser storage required for authentication, security, preferences, and core functionality.
+        You can restrict these through your browser, but doing so may prevent the service from working correctly.
+      </p>
+    ),
+  },
+  {
+    title: '9. Your choices and rights',
+    content: (
+      <p>
+        Depending on your location, you may have rights to access, correct, export, restrict, object to, or delete your
+        personal information. Contact us to exercise a right. We may verify your identity before completing a request.
+      </p>
+    ),
+  },
+  {
+    title: "10. Children's privacy",
+    content: (
+      <p>
+        The service is not directed to children under 13, or the minimum digital-consent age required where they live.
+        We do not knowingly collect personal information from such children.
+      </p>
+    ),
+  },
+  {
+    title: '11. Changes and contact',
+    content: (
+      <p>
+        We may update this policy and will change the effective date when we do. For privacy questions or requests,
+        email <a href="mailto:contact-us@y-l-b-s-ai-studio-apps.com">contact-us@y-l-b-s-ai-studio-apps.com</a>. You
+        can also use our <Link to="/contact">contact page</Link>.
+      </p>
+    ),
+  },
+];
 
 export default function Privacy() {
-  const { t } = useLanguage();
-
   return (
-    <div className="min-h-screen py-8">
-      <div className="container mx-auto px-4 max-w-4xl">
-        <div className="steampunk-card p-8">
-          <div className="mb-8">
-            <h1 className="text-4xl font-serif font-bold text-brass-200 mb-4 flex items-center gap-3">
-              <Shield className="w-10 h-10" />
-              מדיניות פרטיות
-            </h1>
-            <div className="flex items-center gap-2 text-brass-400">
-              <Calendar className="w-4 h-4" />
-              <span className="text-sm">עדכון אחרון: 21 במרץ 2026</span>
-            </div>
-          </div>
+    <main className="min-h-screen px-4 py-8 sm:py-12">
+      <article className="steampunk-card mx-auto max-w-4xl p-5 sm:p-8 lg:p-10">
+        <header className="mb-10 border-b border-white/10 pb-7">
+          <h1 className="flex items-center gap-3 text-3xl font-bold text-brass-200 sm:text-4xl">
+            <Shield className="h-9 w-9 shrink-0" aria-hidden="true" />
+            Privacy Policy
+          </h1>
+          <p className="mt-4 flex items-center gap-2 text-sm text-brass-400">
+            <Calendar className="h-4 w-4" aria-hidden="true" /> Effective July 20, 2026
+          </p>
+          <p className="mt-5 leading-relaxed text-brass-300">
+            This policy explains how AI Recaps Maker collects, uses, shares, and protects information when you use
+            making-a-recap-with-ai.com and its recap-processing features.
+          </p>
+        </header>
 
-          <div className="prose prose-invert max-w-none">
-            <section className="mb-8">
-              <h2 className="text-2xl font-serif font-semibold text-brass-200 mb-4 flex items-center gap-2">
-                <Database className="w-6 h-6" />
-                1. איזה מידע אנחנו אוספים
-              </h2>
-              <p className="text-brass-300 leading-relaxed mb-4">
-                אנו אוספים מידע כדי לספק ולשפר את השירות שלנו:
-              </p>
-              <ul className="list-disc list-inside text-brass-300 space-y-2 mr-6">
-                <li>
-                  <strong>מידע חשבון:</strong> שם משתמש, אימייל, מזהה משתמש
-                </li>
-                <li>
-                  <strong>תוכן שנוצר:</strong> סיכומים, סרטונים, קבצי אודיו שהעלת
-                </li>
-                <li>
-                  <strong>שימוש:</strong> היסטוריית שימוש, העדפות, הגדרות
-                </li>
-                <li>
-                  <strong>טכני:</strong> כתובת IP, סוג דפדפן, מערכת הפעלה
-                </li>
-              </ul>
+        <div className="space-y-8 text-brass-300 [&_a]:text-cyan-300 [&_a]:underline [&_a]:underline-offset-4 [&_h2]:mb-3 [&_h2]:text-xl [&_h2]:font-semibold [&_h2]:text-brass-200 [&_li]:ml-5 [&_li]:list-disc [&_li]:leading-relaxed [&_p]:leading-relaxed [&_ul]:space-y-2">
+          {sections.map((section) => (
+            <section key={section.title}>
+              <h2>{section.title}</h2>
+              {section.content}
             </section>
-
-            <section className="mb-8">
-              <h2 className="text-2xl font-serif font-semibold text-brass-200 mb-4 flex items-center gap-2">
-                <Eye className="w-6 h-6" />
-                2. איך אנחנו משתמשים במידע
-              </h2>
-              <p className="text-brass-300 leading-relaxed mb-4">
-                אנו משתמשים במידע שנאסף למטרות הבאות:
-              </p>
-              <ul className="list-disc list-inside text-brass-300 space-y-2 mr-6">
-                <li>אספקת ותפעול השירות</li>
-                <li>שיפור איכות ההמלצות והסיכומים</li>
-                <li>ניתוח שימוש ופיתוח תכונות חדשות</li>
-                <li>שליחת עדכונים והודעות חשובות</li>
-                <li>אבטחת המערכת ומניעת שימוש לרעה</li>
-              </ul>
-            </section>
-
-            <section className="mb-8">
-              <h2 className="text-2xl font-serif font-semibold text-brass-200 mb-4 flex items-center gap-2">
-                <Lock className="w-6 h-6" />
-                3. אבטחת מידע
-              </h2>
-              <p className="text-brass-300 leading-relaxed mb-4">
-                אנו נוקטים אמצעים טכניים וארגוניים להגנה על המידע שלך:
-              </p>
-              <ul className="list-disc list-inside text-brass-300 space-y-2 mr-6">
-                <li>
-                  <strong>הצפנה:</strong> כל המידע מוצפן בתעבורה ובאחסון
-                </li>
-                <li>
-                  <strong>BYOK:</strong> מפתחות API שלך מוצפנים באופן מאובטח
-                </li>
-                <li>
-                  <strong>גישה מוגבלת:</strong> רק צוות מורשה יכול לגשת למידע
-                </li>
-                <li>
-                  <strong>ניטור:</strong> מערכות ניטור וזיהוי פריצות פעילות 24/7
-                </li>
-              </ul>
-            </section>
-
-            <section className="mb-8">
-              <h2 className="text-2xl font-serif font-semibold text-brass-200 mb-4">
-                4. למידה מתמשכת ופרטיות
-              </h2>
-              <p className="text-brass-300 leading-relaxed mb-4">
-                מערכת הלמידה המתמשכת שלנו:
-              </p>
-              <ul className="list-disc list-inside text-brass-300 space-y-2 mr-6">
-                <li>
-                  <strong>למידה אישית:</strong> שומרת העדפות אישיות בחשבון שלך בלבד
-                </li>
-                <li>
-                  <strong>למידה גלובלית:</strong> רק עם הסכמה מפורשת, מידע מאונם לחלוטין
-                </li>
-                <li>
-                  <strong>אנונימיזציה:</strong> שמות משתמש ומזהים אישיים מוסרים לפני שמירה גלובלית
-                </li>
-                <li>
-                  <strong>שליטה מלאה:</strong> ניתן לכבות או לאפס את פרופיל הלמידה בכל עת
-                </li>
-              </ul>
-            </section>
-
-            <section className="mb-8">
-              <h2 className="text-2xl font-serif font-semibold text-brass-200 mb-4">
-                5. שיתוף מידע עם צדדים שלישיים
-              </h2>
-              <p className="text-brass-300 leading-relaxed mb-4">
-                אנו <strong className="text-brass-100">לא</strong> מוכרים את המידע האישי שלך. אנו עשויים
-                לשתף מידע רק במקרים הבאים:
-              </p>
-              <ul className="list-disc list-inside text-brass-300 space-y-2 mr-6">
-                <li>
-                  <strong>ספקי שירות:</strong> Google Gemini, Supabase, Cloudflare לצורך אספקת השירות
-                </li>
-                <li>
-                  <strong>חובה חוקית:</strong> כאשר נדרש על פי חוק או צו שיפוטי
-                </li>
-                <li>
-                  <strong>הסכמתך:</strong> כאשר אתה מאשר במפורש שיתוף
-                </li>
-              </ul>
-            </section>
-
-            <section className="mb-8">
-              <h2 className="text-2xl font-serif font-semibold text-brass-200 mb-4">
-                6. Cookies וטכנולוגיות מעקב
-              </h2>
-              <p className="text-brass-300 leading-relaxed mb-4">
-                אנו משתמשים ב-Cookies ל:
-              </p>
-              <ul className="list-disc list-inside text-brass-300 space-y-2 mr-6">
-                <li>שמירת העדפות שפה וממשק</li>
-                <li>ניתוח שימוש באתר (Google Analytics)</li>
-              </ul>
-              <p className="text-brass-300 leading-relaxed mt-4">
-                ניתן לנהל העדפות Cookies דרך הגדרות הדפדפן שלך.
-              </p>
-            </section>
-
-            <section className="mb-8">
-              <h2 className="text-2xl font-serif font-semibold text-brass-200 mb-4">
-                7. הזכויות שלך
-              </h2>
-              <p className="text-brass-300 leading-relaxed mb-4">
-                יש לך זכות:
-              </p>
-              <ul className="list-disc list-inside text-brass-300 space-y-2 mr-6">
-                <li>לגשת למידע האישי שלך</li>
-                <li>לתקן מידע לא מדויק</li>
-                <li>למחוק את החשבון והמידע שלך</li>
-                <li>להקפיא את החשבון זמנית</li>
-                <li>לייצא את הנתונים שלך</li>
-                <li>להתנגד לעיבוד מידע מסוים</li>
-              </ul>
-            </section>
-
-            <section className="mb-8">
-              <h2 className="text-2xl font-serif font-semibold text-brass-200 mb-4">
-                8. שימוש על ידי קטינים
-              </h2>
-              <p className="text-brass-300 leading-relaxed mb-4">
-                השירות מיועד למשתמשים מעל גיל 13. אנו לא אוספים במודע מידע מקטינים מתחת לגיל 13
-                ללא הסכמת הורים.
-              </p>
-            </section>
-
-            <section className="mb-8">
-              <h2 className="text-2xl font-serif font-semibold text-brass-200 mb-4">
-                9. שינויים במדיניות
-              </h2>
-              <p className="text-brass-300 leading-relaxed mb-4">
-                אנו עשויים לעדכן מדיניות פרטיות זו מעת לעת. נודיע על שינויים משמעותיים באמצעות:
-              </p>
-              <ul className="list-disc list-inside text-brass-300 space-y-2 mr-6">
-                <li>הודעה באתר</li>
-                <li>אימייל למשתמשים רשומים</li>
-                <li>עדכון תאריך "עדכון אחרון" בראש המדיניות</li>
-              </ul>
-            </section>
-
-            <section className="mb-8 bg-brass-900/20 border border-brass-600/30 rounded-lg p-6">
-              <h2 className="text-2xl font-serif font-semibold text-brass-200 mb-4 flex items-center gap-2">
-                <AlertCircle className="w-6 h-6" />
-                10. יצירת קשר
-              </h2>
-              <p className="text-brass-300 leading-relaxed mb-4">
-                לשאלות או בקשות הנוגעות לפרטיות, ניתן ליצור קשר:
-              </p>
-              <ul className="list-none text-brass-300 space-y-2">
-                <li className="flex items-center gap-2">
-                  📧 <strong>Email:</strong> contact-us@y-l-b-s-ai-studio-apps.com
-                </li>
-                <li className="flex items-center gap-2">
-                  📞 <strong>Phone:</strong> 050-818-1948
-                </li>
-              </ul>
-            </section>
-          </div>
+          ))}
         </div>
-      </div>
-    </div>
+      </article>
+    </main>
   );
 }
