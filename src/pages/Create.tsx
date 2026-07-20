@@ -6,6 +6,7 @@ import { supabase } from '@/lib/supabase';
 import { loadFFmpeg, isFFmpegLoaded } from '@/lib/ffmpegService';
 import { apiKeysService } from '@/lib/apiKeysService';
 import type { APIKeysData } from '@/lib/apiKeysService';
+import * as tus from 'tus-js-client';
 import { generateGeminiText, searchWeb } from '@/lib/byokProviderService';
 import { createVideoTask, processVideoTask, updateVideoTask } from '@/lib/videoTaskService';
 import { useNavigate } from 'react-router-dom';
@@ -149,6 +150,7 @@ export default function Create() {
   const audioElemRef = useRef<HTMLAudioElement | null>(null);
   const waveformCanvasRef = useRef<HTMLCanvasElement>(null);
   const animFrameRef = useRef<number>(0);
+  const resumableUploadRef = useRef<tus.Upload | null>(null);
 
   // IDs for label-based file inputs
   const TXT_INPUT_ID   = 'file-input-txt';
@@ -375,6 +377,8 @@ export default function Create() {
     return () => {
       cancelAnimationFrame(animFrameRef.current);
       if (audioElemRef.current) { audioElemRef.current.pause(); audioElemRef.current = null; }
+      // Pause rather than terminate so a later attempt can resume the upload.
+      void resumableUploadRef.current?.abort(false);
     };
   }, []);
 
@@ -536,6 +540,66 @@ export default function Create() {
 
   // ── Upload via XHR directly to Supabase Storage REST API ──
   // Uses the live session token to bypass COEP restrictions.
+  const resumableUpload = async (
+    file: File,
+    fileName: string,
+    mimeType: string,
+    onProgress: (pct: number) => void,
+    supabaseUrl: string,
+    supabaseKey: string,
+    token: string
+  ): Promise<void> => {
+    const projectUrl = new URL(supabaseUrl);
+    if (projectUrl.hostname.endsWith('.supabase.co')) {
+      projectUrl.hostname = projectUrl.hostname.replace(/\.supabase\.co$/, '.storage.supabase.co');
+    }
+    const endpoint = `${projectUrl.origin}/storage/v1/upload/resumable`;
+
+    return new Promise((resolve, reject) => {
+      const upload = new tus.Upload(file, {
+        endpoint,
+        chunkSize: 6 * 1024 * 1024,
+        retryDelays: [0, 1000, 3000, 5000, 10000, 20000],
+        removeFingerprintOnSuccess: true,
+        headers: {
+          authorization: `Bearer ${token}`,
+          apikey: supabaseKey,
+          'x-upsert': 'true',
+        },
+        metadata: {
+          bucketName: 'recap-assets',
+          objectName: fileName,
+          contentType: mimeType,
+          cacheControl: '3600',
+        },
+        onBeforeRequest: async (request) => {
+          const { data: { session } } = await supabase.auth.getSession();
+          if (session?.access_token) request.setHeader('authorization', `Bearer ${session.access_token}`);
+        },
+        onProgress: (bytesUploaded, bytesTotal) => {
+          if (bytesTotal > 0) onProgress(Math.min(99, Math.round((bytesUploaded / bytesTotal) * 100)));
+        },
+        onError: (error) => {
+          resumableUploadRef.current = null;
+          reject(new Error(`Resumable upload failed: ${error.message}`));
+        },
+        onSuccess: () => {
+          resumableUploadRef.current = null;
+          onProgress(100);
+          resolve();
+        },
+      });
+
+      resumableUploadRef.current = upload;
+      upload.findPreviousUploads()
+        .then((previousUploads) => {
+          if (previousUploads.length > 0) upload.resumeFromPreviousUpload(previousUploads[0]);
+          upload.start();
+        })
+        .catch(reject);
+    });
+  };
+
   const uploadWithProgress = async (
     file: File,
     fileName: string,
@@ -549,6 +613,14 @@ export default function Create() {
     const token = session?.access_token;
     const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
     const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
+
+    if (!token || !supabaseUrl || !supabaseKey) {
+      throw new Error('Your session or Supabase upload configuration is missing. Sign in again and retry.');
+    }
+
+    if (file.size > 6 * 1024 * 1024) {
+      return resumableUpload(file, fileName, mimeType, onProgress, supabaseUrl, supabaseKey, token);
+    }
 
     if (token && supabaseUrl) {
       // Primary: XHR with real progress + Bearer token
@@ -708,7 +780,8 @@ export default function Create() {
 
     try {
       const fileExt = file.name.split('.').pop();
-      const fileName = `${user.id}/${type}-${Date.now()}.${fileExt}`;
+      const uploadId = type === 'video' ? `${file.lastModified}-${file.size}` : String(Date.now());
+      const fileName = `${user.id}/${type}-${uploadId}.${fileExt}`;
       const mimeType = type === 'txt'
         ? 'text/plain'
         : type === 'mp3'
