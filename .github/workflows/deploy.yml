@@ -221,10 +221,12 @@ jobs:
       - name: Configure SSH
         env:
           HOSTINGER_SSH_KEY: ${{ secrets.HOSTINGER_SSH_KEY }}
+          HOSTINGER_SSH_KEY_B64: ${{ secrets.HOSTINGER_SSH_KEY_B64 }}
           HOSTINGER_SSH_KNOWN_HOSTS: ${{ secrets.HOSTINGER_SSH_KNOWN_HOSTS }}
         run: |
-          if [ -z "$HOSTINGER_SSH_HOST" ] || [ -z "$HOSTINGER_SSH_PORT" ] || [ -z "$HOSTINGER_SSH_USER" ] || [ -z "$HOSTINGER_SSH_KEY" ]; then
-            echo "::error::HOSTINGER_SSH_HOST, HOSTINGER_SSH_PORT, HOSTINGER_SSH_USER, and HOSTINGER_SSH_KEY must all be configured."
+          set -euo pipefail
+          if [ -z "$HOSTINGER_SSH_HOST" ] || [ -z "$HOSTINGER_SSH_PORT" ] || [ -z "$HOSTINGER_SSH_USER" ] || { [ -z "$HOSTINGER_SSH_KEY" ] && [ -z "$HOSTINGER_SSH_KEY_B64" ]; }; then
+            echo "::error::HOSTINGER_SSH_HOST, HOSTINGER_SSH_PORT, HOSTINGER_SSH_USER, and either HOSTINGER_SSH_KEY or HOSTINGER_SSH_KEY_B64 must be configured."
             exit 1
           fi
           if [[ ! "$HOSTINGER_SSH_PORT" =~ ^[0-9]+$ ]] || [ "$HOSTINGER_SSH_PORT" -lt 1 ] || [ "$HOSTINGER_SSH_PORT" -gt 65535 ]; then
@@ -233,8 +235,37 @@ jobs:
           fi
           mkdir -p ~/.ssh
           chmod 700 ~/.ssh
-          printf '%s\n' "$HOSTINGER_SSH_KEY" > ~/.ssh/hostinger_deploy_key
+
+          # GitHub secrets are often pasted with Windows CRLF endings. A
+          # base64 secret is also supported because it avoids multiline
+          # formatting damage in repository settings.
+          if [ -n "$HOSTINGER_SSH_KEY_B64" ]; then
+            if ! printf '%s' "$HOSTINGER_SSH_KEY_B64" | tr -d '[:space:]' | base64 --decode > ~/.ssh/hostinger_deploy_key; then
+              echo "::error::HOSTINGER_SSH_KEY_B64 is not valid base64. Recreate it from the complete unencrypted private key."
+              exit 1
+            fi
+          else
+            printf '%s\n' "$HOSTINGER_SSH_KEY" | tr -d '\r' > ~/.ssh/hostinger_deploy_key
+          fi
           chmod 600 ~/.ssh/hostinger_deploy_key
+
+          first_line="$(head -n 1 ~/.ssh/hostinger_deploy_key)"
+          case "$first_line" in
+            "-----BEGIN OPENSSH PRIVATE KEY-----"|"-----BEGIN RSA PRIVATE KEY-----"|"-----BEGIN EC PRIVATE KEY-----") ;;
+            "ssh-"*)
+              echo "::error::The configured SSH key is a public key. Store the complete private key in HOSTINGER_SSH_KEY (or its base64 form in HOSTINGER_SSH_KEY_B64)."
+              exit 1
+              ;;
+            *)
+              echo "::error::The configured SSH key has an invalid or damaged private-key header."
+              exit 1
+              ;;
+          esac
+          if ! ssh-keygen -y -P '' -f ~/.ssh/hostinger_deploy_key >/dev/null 2>&1; then
+            echo "::error::The SSH private key cannot be parsed without a passphrase. Use the complete unencrypted deployment private key and preserve all BEGIN/END lines."
+            exit 1
+          fi
+
           if [ -n "$HOSTINGER_SSH_KNOWN_HOSTS" ]; then
             printf '%s\n' "$HOSTINGER_SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
           elif [ "$HOSTINGER_SSH_HOST" = "72.61.101.138" ]; then
@@ -263,12 +294,13 @@ jobs:
           set -euo pipefail
           tar -C dist -czf /tmp/recaps-dist.tar.gz .
           scp -o ConnectTimeout=20 -o ServerAliveInterval=10 -o ServerAliveCountMax=3 -i ~/.ssh/hostinger_deploy_key -P "${HOSTINGER_SSH_PORT}" \
+            -o BatchMode=yes -o IdentitiesOnly=yes \
             /tmp/recaps-dist.tar.gz /tmp/recaps-worker.tar.gz \
             "${HOSTINGER_SSH_USER}@${HOSTINGER_SSH_HOST}:/tmp/"
-          ssh -o ConnectTimeout=20 -i ~/.ssh/hostinger_deploy_key -p "${HOSTINGER_SSH_PORT}" \
+          ssh -o ConnectTimeout=20 -o BatchMode=yes -o IdentitiesOnly=yes -i ~/.ssh/hostinger_deploy_key -p "${HOSTINGER_SSH_PORT}" \
             "${HOSTINGER_SSH_USER}@${HOSTINGER_SSH_HOST}" \
             'umask 077; cat > /tmp/recaps-worker.env' < /tmp/recaps-worker.env
-          ssh -o ConnectTimeout=20 -o ServerAliveInterval=10 -o ServerAliveCountMax=3 -i ~/.ssh/hostinger_deploy_key -p "${HOSTINGER_SSH_PORT}" "${HOSTINGER_SSH_USER}@${HOSTINGER_SSH_HOST}" <<'EOF'
+          ssh -o ConnectTimeout=20 -o ServerAliveInterval=10 -o ServerAliveCountMax=3 -o BatchMode=yes -o IdentitiesOnly=yes -i ~/.ssh/hostinger_deploy_key -p "${HOSTINGER_SSH_PORT}" "${HOSTINGER_SSH_USER}@${HOSTINGER_SSH_HOST}" <<'EOF'
           set -euo pipefail
 
           frontend_target=/var/www/recaps/current
