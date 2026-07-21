@@ -10,8 +10,10 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     env:
-      HOSTINGER_SSH_HOST: ${{ secrets.HOSTINGER_SSH_HOST }}
-      HOSTINGER_SSH_PORT: ${{ secrets.HOSTINGER_SSH_PORT }}
+      # Public production endpoint. Pinning it here prevents stale Hostinger
+      # shared-hosting ports (such as 65002) from breaking VPS deployments.
+      HOSTINGER_SSH_HOST: 72.61.101.138
+      HOSTINGER_SSH_PORT: "22"
       HOSTINGER_SSH_USER: ${{ secrets.HOSTINGER_SSH_USER }}
       HOSTINGER_DEPLOY_PATH: /var/www/recaps/current/
       HOSTINGER_WORKER_PATH: /var/www/recaps/worker
@@ -278,15 +280,16 @@ jobs:
 
       - name: Check Hostinger SSH connectivity
         run: |
-          for attempt in 1 2 3; do
-            if timeout 15 bash -c "</dev/tcp/${HOSTINGER_SSH_HOST}/${HOSTINGER_SSH_PORT}"; then
+          set -euo pipefail
+          for attempt in 1 2 3 4 5; do
+            if timeout 20 bash -c "</dev/tcp/${HOSTINGER_SSH_HOST}/${HOSTINGER_SSH_PORT}"; then
               echo "Hostinger SSH endpoint is reachable."
               exit 0
             fi
-            echo "SSH connectivity attempt ${attempt}/3 failed."
-            sleep 5
+            echo "SSH connectivity attempt ${attempt}/5 failed."
+            sleep $((attempt * 5))
           done
-          echo "::error::Cannot reach ${HOSTINGER_SSH_HOST}:${HOSTINGER_SSH_PORT}. Confirm the Hostinger SSH host and port, enable SSH access, and check whether the server firewall permits GitHub-hosted runners."
+          echo "::error::Cannot reach the pinned production SSH endpoint after five attempts. The VPS firewall or Hostinger network is blocking GitHub-hosted runners."
           exit 1
 
       - name: Deploy frontend and processing worker
