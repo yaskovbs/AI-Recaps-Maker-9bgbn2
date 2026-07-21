@@ -362,12 +362,23 @@ jobs:
         run: |
           set -euo pipefail
           url="${PRODUCTION_URL:-https://making-a-recap-with-ai.com}"
+          response_file="$(mktemp)"
+          trap 'rm -f "$response_file"' EXIT
           for attempt in 1 2 3; do
-            if curl --fail --silent --show-error --location --max-time 20 "$url" | grep -q '<div id="root"></div>'; then
+            http_code="$(curl --silent --show-error --location \
+              --connect-timeout 10 --max-time 30 \
+              --output "$response_file" --write-out '%{http_code}' "$url" || true)"
+
+            if [ "$http_code" = "200" ] \
+              && grep -Fq '<title>AI Recaps Maker' "$response_file" \
+              && grep -Fq 'id="root"' "$response_file" \
+              && grep -Fq 'AI Recaps Maker is an AI-assisted video recap creation application.' "$response_file"; then
               echo "Production website is serving the deployed application."
               exit 0
             fi
+
+            echo "Production verification attempt ${attempt}/3 failed (HTTP ${http_code:-unavailable})."
             sleep 5
           done
-          echo "::error::Production website verification failed for $url"
+          echo "::error::Production website verification failed for $url. Expected HTTP 200 and the current AI Recaps Maker homepage markers."
           exit 1
