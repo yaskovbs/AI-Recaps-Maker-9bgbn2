@@ -15,7 +15,7 @@
     "titleBar.activeBackground": "#000000",
     "titleBar.activeForeground": "#E6FAFF",
     "titleBar.inactiveBackground": "#071A21CC",
-    "titleBar.inactiveForeground": "#8BA7AE",
+    "titleBar.inactiveForeground": "#6c8388",
     "sash.hoverBorder": "#262f31"
   },
   "editor.formatOnSave": true,
