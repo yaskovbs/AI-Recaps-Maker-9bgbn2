@@ -13,7 +13,7 @@
     "statusBar.debuggingBackground": "#0d0c0b",
     "statusBar.debuggingForeground": "#1c1515",
     "titleBar.activeBackground": "#000000",
-    "titleBar.activeForeground": "#E6FAFF",
+    "titleBar.activeForeground": "#536def",
     "titleBar.inactiveBackground": "#071A21CC",
     "titleBar.inactiveForeground": "#6c8388",
     "sash.hoverBorder": "#262f31"
