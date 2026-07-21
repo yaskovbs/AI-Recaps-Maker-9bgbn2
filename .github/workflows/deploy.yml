@@ -261,7 +261,7 @@ jobs:
               exit 1
               ;;
           esac
-          if ! ssh-keygen -y -P '' -f ~/.ssh/hostinger_deploy_key >/dev/null 2>&1; then
+          if ! ssh-keygen -y -f ~/.ssh/hostinger_deploy_key >/dev/null 2>&1; then
             echo "::error::The SSH private key cannot be parsed without a passphrase. Use the complete unencrypted deployment private key and preserve all BEGIN/END lines."
             exit 1
           fi
