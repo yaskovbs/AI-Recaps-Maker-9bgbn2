@@ -142,6 +142,14 @@ export default function Create() {
   const waveformCanvasRef = useRef<HTMLCanvasElement>(null);
   const animFrameRef = useRef<number>(0);
   const resumableUploadRef = useRef<tus.Upload | null>(null);
+  const lastUploadProgressRef = useRef(-1);
+
+  const reportUploadProgress = useCallback((percentage: number) => {
+    const next = Math.max(0, Math.min(100, Math.round(percentage)));
+    if (next === lastUploadProgressRef.current) return;
+    lastUploadProgressRef.current = next;
+    setUploadProgress(next);
+  }, []);
 
   // IDs for label-based file inputs
   const TXT_INPUT_ID   = 'file-input-txt';
@@ -758,6 +766,7 @@ export default function Create() {
     }
 
     setUploading(true);
+    lastUploadProgressRef.current = 0;
     setUploadProgress(0);
     setUploadFileName(file.name);
     setUploadFileSize(file.size);
@@ -778,7 +787,7 @@ export default function Create() {
           ? (file.type || 'audio/mpeg')
           : (file.type || 'video/mp4');
 
-      await uploadWithProgress(file, fileName, mimeType, (pct) => setUploadProgress(pct));
+      await uploadWithProgress(file, fileName, mimeType, reportUploadProgress);
 
       const { data: { publicUrl } } = supabase.storage.from('recap-assets').getPublicUrl(fileName);
 
@@ -1040,7 +1049,7 @@ export default function Create() {
   ];
 
   return (
-    <div className="min-h-screen py-8" style={{ background: '#0a0a14' }}>
+    <div className="notranslate min-h-screen py-8" translate="no" style={{ background: '#0a0a14' }}>
       {hiddenInputs}
       <div className="container mx-auto px-4 max-w-3xl">
         {/* Header */}

@@ -13,6 +13,11 @@ if (!rootElement) {
   throw new Error('Failed to find root element');
 }
 
+// Browser translation tools rewrite text nodes outside React and can crash
+// frequently updating interfaces (notably resumable upload progress).
+rootElement.setAttribute('translate', 'no');
+rootElement.classList.add('notranslate');
+
 ReactDOM.createRoot(rootElement).render(
   <React.StrictMode>
     <BrowserRouter>
