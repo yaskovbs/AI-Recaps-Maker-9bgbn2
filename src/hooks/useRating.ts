@@ -1,8 +1,99 @@
-import { useCallback,useEffect,useState } from 'react';
-import { useAuth } from '@/lib/AuthContext';
-import { supabase } from '@/lib/supabase';
-interface Rating{score:number;comment?:string;timestamp:string} interface RatingStats{totalRatings:number;averageRating:number;ratings:Rating[]}
-export function useRating(){const{user}=useAuth();const[stats,setStats]=useState<RatingStats>({totalRatings:0,averageRating:0,ratings:[]});const[hasAsked,setHasAsked]=useState(false);const[hasCompleted,setHasCompleted]=useState(false);
- const load=useCallback(async()=>{if(!user)return;const[{data:rows},{count}]=await Promise.all([supabase.from('ratings').select('rating,feedback,created_at').eq('user_id',user.id).order('created_at',{ascending:false}),supabase.from('video_tasks').select('id',{count:'exact',head:true}).eq('user_id',user.id).eq('status','completed')]);const ratings=(rows||[]).map(r=>({score:r.rating,comment:r.feedback||undefined,timestamp:r.created_at}));setStats({totalRatings:ratings.length,averageRating:ratings.length?Math.round(10*ratings.reduce((s,r)=>s+r.score,0)/ratings.length)/10:0,ratings});setHasAsked(ratings.length>0);setHasCompleted((count||0)>0);},[user]);
- useEffect(()=>{void load();},[load]);const submitRating=async(score:number,comment?:string)=>{if(!user||score<1||score>5)return false;const{error}=await supabase.from('ratings').insert({user_id:user.id,rating:score,feedback:comment?.slice(0,2000)||null});if(!error){setHasAsked(true);await load();}return !error;};
- const markAsAsked=()=>setHasAsked(true);return{stats,submitRating,markAsAsked,shouldShowPrompt:()=>!hasAsked&&hasCompleted,hasAsked};}
+import { useState, useEffect } from 'react';
+
+interface Rating {
+  score: number;
+  comment?: string;
+  timestamp: string;
+}
+
+interface RatingStats {
+  totalRatings: number;
+  averageRating: number;
+  ratings: Rating[];
+}
+
+const STORAGE_KEY = 'airm_ratings';
+const RATING_ASKED_KEY = 'airm_rating_asked';
+
+export function useRating() {
+  const [stats, setStats] = useState<RatingStats>({
+    totalRatings: 0,
+    averageRating: 0,
+    ratings: [],
+  });
+  const [hasAsked, setHasAsked] = useState(false);
+
+  useEffect(() => {
+    loadRatings();
+    checkIfAsked();
+  }, []);
+
+  const loadRatings = () => {
+    try {
+      const stored = localStorage.getItem(STORAGE_KEY);
+      if (stored) {
+        const ratings: Rating[] = JSON.parse(stored);
+        const totalRatings = ratings.length;
+        const averageRating = totalRatings > 0
+          ? ratings.reduce((sum, r) => sum + r.score, 0) / totalRatings
+          : 0;
+        
+        setStats({
+          totalRatings,
+          averageRating: Math.round(averageRating * 10) / 10,
+          ratings,
+        });
+      }
+    } catch (err) {
+      console.error('Failed to load ratings:', err);
+    }
+  };
+
+  const checkIfAsked = () => {
+    const asked = localStorage.getItem(RATING_ASKED_KEY) === 'true';
+    setHasAsked(asked);
+  };
+
+  const submitRating = (score: number, comment?: string) => {
+    const newRating: Rating = {
+      score,
+      comment,
+      timestamp: new Date().toISOString(),
+    };
+
+    try {
+      const stored = localStorage.getItem(STORAGE_KEY);
+      const ratings: Rating[] = stored ? JSON.parse(stored) : [];
+      ratings.push(newRating);
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(ratings));
+      localStorage.setItem(RATING_ASKED_KEY, 'true');
+      
+      loadRatings();
+      setHasAsked(true);
+    } catch (err) {
+      console.error('Failed to save rating:', err);
+    }
+  };
+
+  const markAsAsked = () => {
+    localStorage.setItem(RATING_ASKED_KEY, 'true');
+    setHasAsked(true);
+  };
+
+  const shouldShowPrompt = (): boolean => {
+    // Show rating prompt if:
+    // 1. User hasn't been asked before
+    // 2. User has created at least 1 recap
+    const jobs = localStorage.getItem('airm_jobs');
+    const hasJobs = jobs ? JSON.parse(jobs).length > 0 : false;
+    return !hasAsked && hasJobs;
+  };
+
+  return {
+    stats,
+    submitRating,
+    markAsAsked,
+    shouldShowPrompt,
+    hasAsked,
+  };
+}

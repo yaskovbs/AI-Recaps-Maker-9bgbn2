@@ -4,7 +4,7 @@ import { useAuth } from '@/lib/AuthContext';
 import { supabase } from '@/lib/supabase';
 import { apiKeysService } from '@/lib/apiKeysService';
 import type { APIKeysData } from '@/lib/apiKeysService';
-import * as tus from 'tus-js-client';
+
 import { generateGeminiText, searchWeb } from '@/lib/byokProviderService';
 import { createVideoTask, processVideoTask, updateVideoTask } from '@/lib/videoTaskService';
 import { useNavigate } from 'react-router-dom';
@@ -141,7 +141,7 @@ export default function Create() {
   const audioElemRef = useRef<HTMLAudioElement | null>(null);
   const waveformCanvasRef = useRef<HTMLCanvasElement>(null);
   const animFrameRef = useRef<number>(0);
-  const resumableUploadRef = useRef<tus.Upload | null>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
   const lastUploadProgressRef = useRef(-1);
 
   const reportUploadProgress = useCallback((percentage: number) => {
@@ -376,8 +376,7 @@ export default function Create() {
     return () => {
       cancelAnimationFrame(animFrameRef.current);
       if (audioElemRef.current) { audioElemRef.current.pause(); audioElemRef.current = null; }
-      // Pause rather than terminate so a later attempt can resume the upload.
-      void resumableUploadRef.current?.abort(false);
+      abortControllerRef.current?.abort();
     };
   }, []);
 
@@ -537,9 +536,8 @@ export default function Create() {
     });
   };
 
-  // ── Upload via XHR directly to Supabase Storage REST API ──
-  // Uses the live session token to bypass COEP restrictions.
-  const resumableUpload = async (
+  // ── Chunked upload for large files via XHR ──
+  const chunkedUpload = async (
     file: File,
     fileName: string,
     mimeType: string,
@@ -548,55 +546,51 @@ export default function Create() {
     supabaseKey: string,
     token: string
   ): Promise<void> => {
-    const projectUrl = new URL(supabaseUrl);
-    if (projectUrl.hostname.endsWith('.supabase.co')) {
-      projectUrl.hostname = projectUrl.hostname.replace(/\.supabase\.co$/, '.storage.supabase.co');
-    }
-    const endpoint = `${projectUrl.origin}/storage/v1/upload/resumable`;
+    const CHUNK_SIZE = 6 * 1024 * 1024; // 6 MB
+    const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
 
-    return new Promise((resolve, reject) => {
-      const upload = new tus.Upload(file, {
-        endpoint,
-        chunkSize: 6 * 1024 * 1024,
-        retryDelays: [0, 1000, 3000, 5000, 10000, 20000],
-        removeFingerprintOnSuccess: true,
-        headers: {
-          authorization: `Bearer ${token}`,
-          apikey: supabaseKey,
-          'x-upsert': 'true',
-        },
-        metadata: {
-          bucketName: 'recap-assets',
-          objectName: fileName,
-          contentType: mimeType,
-          cacheControl: '3600',
-        },
-        onBeforeRequest: async (request) => {
-          const { data: { session } } = await supabase.auth.getSession();
-          if (session?.access_token) request.setHeader('authorization', `Bearer ${session.access_token}`);
-        },
-        onProgress: (bytesUploaded, bytesTotal) => {
-          if (bytesTotal > 0) onProgress(Math.min(99, Math.round((bytesUploaded / bytesTotal) * 100)));
-        },
-        onError: (error) => {
-          resumableUploadRef.current = null;
-          reject(new Error(`Resumable upload failed: ${error.message}`));
-        },
-        onSuccess: () => {
-          resumableUploadRef.current = null;
-          onProgress(100);
-          resolve();
-        },
+    for (let i = 0; i < totalChunks; i++) {
+      const start = i * CHUNK_SIZE;
+      const end = Math.min(start + CHUNK_SIZE, file.size);
+      const chunk = file.slice(start, end);
+      const isLast = i === totalChunks - 1;
+
+      const endpoint = `${supabaseUrl}/storage/v1/object/recap-assets/${fileName}`;
+      const method = i === 0 ? 'POST' : 'PUT';
+
+      await new Promise<void>((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.open(method, endpoint, true);
+        xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+        xhr.setRequestHeader('apikey', supabaseKey);
+        xhr.setRequestHeader('Content-Type', mimeType);
+        xhr.setRequestHeader('x-upsert', 'true');
+        xhr.setRequestHeader('Cache-Control', '3600');
+        if (totalChunks > 1) {
+          xhr.setRequestHeader('Content-Range', `bytes ${start}-${end - 1}/${file.size}`);
+        }
+
+        xhr.upload.onprogress = (e) => {
+          if (e.lengthComputable) {
+            const chunkPct = (i + e.loaded / e.total) / totalChunks;
+            onProgress(Math.min(isLast ? 99 : 98, Math.round(chunkPct * 100)));
+          }
+        };
+
+        xhr.onload = () => {
+          if (xhr.status >= 200 && xhr.status < 300) {
+            if (isLast) onProgress(100);
+            resolve();
+          } else {
+            reject(new Error(`Upload chunk ${i + 1}/${totalChunks} failed: HTTP ${xhr.status} — ${xhr.responseText.slice(0, 200)}`));
+          }
+        };
+        xhr.onerror = () => reject(new Error('Network error during upload'));
+        xhr.ontimeout = () => reject(new Error('Upload timed out'));
+        xhr.timeout = 10 * 60 * 1000;
+        xhr.send(chunk);
       });
-
-      resumableUploadRef.current = upload;
-      upload.findPreviousUploads()
-        .then((previousUploads) => {
-          if (previousUploads.length > 0) upload.resumeFromPreviousUpload(previousUploads[0]);
-          upload.start();
-        })
-        .catch(reject);
-    });
+    }
   };
 
   const uploadWithProgress = async (
@@ -618,7 +612,7 @@ export default function Create() {
     }
 
     if (file.size > 6 * 1024 * 1024) {
-      return resumableUpload(file, fileName, mimeType, onProgress, supabaseUrl, supabaseKey, token);
+      return chunkedUpload(file, fileName, mimeType, onProgress, supabaseUrl, supabaseKey, token);
     }
 
     if (token && supabaseUrl) {

@@ -1,17 +1,123 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2.51.0";
 
-Deno.serve(async req => {
-  if (req.method !== "POST") return new Response("Method not allowed",{status:405});
-  if (!Deno.env.get("CRON_SECRET") || req.headers.get("x-cron-secret") !== Deno.env.get("CRON_SECRET")) return new Response("Unauthorized",{status:401});
-  const service=createClient(Deno.env.get("SUPABASE_URL")!,Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!); const now=new Date().toISOString(); let cleaned=0;
-  const {data:tasks,error}=await service.from("video_tasks").select("id,source_url,output_storage_path").lt("expires_at",now).neq("status","expired");
-  if(error)return Response.json({error:error.message},{status:500});
-  for(const task of tasks||[]){
-    if(task.source_url?.startsWith("storage://")){const location=task.source_url.slice(10);const slash=location.indexOf("/");await service.storage.from(location.slice(0,slash)).remove([location.slice(slash+1)]);}
-    if(task.output_storage_path)await service.storage.from("video-processed").remove([task.output_storage_path]);
-    await service.from("video_tasks").update({status:"expired",current_step:"Files expired and deleted",processed_file_url:null,output_storage_path:null}).eq("id",task.id);cleaned++;
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+  "Access-Control-Allow-Headers":
+    "Content-Type, Authorization, X-Client-Info, Apikey",
+};
+
+Deno.serve(async (req: Request) => {
+  if (req.method === "OPTIONS") {
+    return new Response(null, { status: 200, headers: corsHeaders });
   }
-  const {data:expiredChannels}=await service.from("youtube_channels").update({is_active:false}).not("slot_unlocked_at","is",null).lt("slot_unlocked_at",new Date(Date.now()-7*86400000).toISOString()).select("id");
-  return Response.json({cleaned_tasks:cleaned,expired_channel_slots:expiredChannels?.length||0});
+
+  try {
+    const serviceClient = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
+    );
+
+    const { data: expiredTasks, error: queryError } = await serviceClient
+      .from("video_tasks")
+      .select("id, user_id, original_file_url, processed_file_url")
+      .lt("expires_at", new Date().toISOString())
+      .neq("status", "expired");
+
+    if (queryError) {
+      throw new Error(`Query error: ${queryError.message}`);
+    }
+
+    if (!expiredTasks || expiredTasks.length === 0) {
+      return new Response(
+        JSON.stringify({ message: "No expired tasks found", cleaned: 0 }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    let cleaned = 0;
+    const errors: string[] = [];
+
+    for (const task of expiredTasks) {
+      try {
+        const filePaths: string[] = [];
+
+        if (
+          task.original_file_url &&
+          task.original_file_url.includes("supabase")
+        ) {
+          const path = extractStoragePath(task.original_file_url);
+          if (path) filePaths.push(path);
+        }
+
+        if (
+          task.processed_file_url &&
+          task.processed_file_url.includes("supabase")
+        ) {
+          const path = extractStoragePath(task.processed_file_url);
+          if (path) filePaths.push(path);
+        }
+
+        for (const filePath of filePaths) {
+          const bucket = filePath.startsWith("video-originals")
+            ? "video-originals"
+            : "video-processed";
+          const objectPath = filePath.replace(`${bucket}/`, "");
+
+          await serviceClient.storage.from(bucket).remove([objectPath]);
+        }
+
+        await serviceClient
+          .from("task_logs")
+          .delete()
+          .eq("task_id", task.id);
+
+        await serviceClient
+          .from("playlist_items")
+          .delete()
+          .eq("task_id", task.id);
+
+        await serviceClient
+          .from("video_tasks")
+          .update({ status: "expired", current_step: "Files cleaned up" })
+          .eq("id", task.id);
+
+        cleaned++;
+      } catch (taskErr) {
+        errors.push(
+          `Task ${task.id}: ${taskErr instanceof Error ? taskErr.message : "Unknown error"}`
+        );
+      }
+    }
+
+    return new Response(
+      JSON.stringify({
+        message: `Cleanup complete`,
+        total_expired: expiredTasks.length,
+        cleaned,
+        errors: errors.length > 0 ? errors : undefined,
+      }),
+      { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Internal error";
+    return new Response(
+      JSON.stringify({ error: message }),
+      {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      }
+    );
+  }
 });
+
+function extractStoragePath(url: string): string | null {
+  try {
+    const parsed = new URL(url);
+    const match = parsed.pathname.match(/\/storage\/v1\/object\/(?:public\/)?(.+)/);
+    return match ? match[1] : null;
+  } catch {
+    return null;
+  }
+}
