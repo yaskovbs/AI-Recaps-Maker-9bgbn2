@@ -572,15 +572,26 @@ export default function Create() {
           cacheControl: '3600',
         },
         onBeforeRequest: async (request) => {
-          const { data: { session } } = await supabase.auth.getSession();
-          if (session?.access_token) request.setHeader('authorization', `Bearer ${session.access_token}`);
+          let { data: { session } } = await supabase.auth.getSession();
+          const expiresSoon = !session?.expires_at || session.expires_at * 1000 < Date.now() + 120_000;
+          if (expiresSoon) {
+            const refreshed = await supabase.auth.refreshSession();
+            session = refreshed.data.session;
+          }
+          if (!session?.access_token) {
+            throw new Error('Your session expired during the upload. Sign in again and resume the file.');
+          }
+          request.setHeader('authorization', `Bearer ${session.access_token}`);
         },
         onProgress: (bytesUploaded, bytesTotal) => {
           if (bytesTotal > 0) onProgress(Math.min(99, Math.round((bytesUploaded / bytesTotal) * 100)));
         },
         onError: (error) => {
           resumableUploadRef.current = null;
-          reject(new Error(`Resumable upload failed: ${error.message}`));
+          const policyFailure = /row-level security|unauthorized|statusCode.?403/i.test(error.message);
+          reject(new Error(policyFailure
+            ? 'Upload authorization was rejected by storage. Sign in again; if it continues, deploy the latest storage migration.'
+            : `Resumable upload failed: ${error.message}`));
         },
         onSuccess: () => {
           resumableUploadRef.current = null;
