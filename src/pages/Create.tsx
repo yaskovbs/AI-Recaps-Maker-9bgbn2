@@ -539,6 +539,26 @@ export default function Create() {
 
   // ── Upload via XHR directly to Supabase Storage REST API ──
   // Uses the live session token to bypass COEP restrictions.
+  const getUploadAccessToken = async (forceRefresh = false): Promise<string> => {
+    let session = (await supabase.auth.getSession()).data.session;
+
+    if (forceRefresh || !session?.expires_at || session.expires_at * 1000 < Date.now() + 120_000) {
+      const { data, error } = await supabase.auth.refreshSession();
+      if (error) {
+        throw new Error(`Your sign-in session could not be refreshed: ${error.message}. Sign out and sign in again.`);
+      }
+      session = data.session;
+    }
+
+    const token = session?.access_token?.trim().replace(/^Bearer\s+/i, '') || '';
+    const isCompactJws = /^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/.test(token);
+    if (!isCompactJws) {
+      throw new Error('Your saved sign-in session contains an invalid access token. Sign out, clear this site’s stored data, and sign in again.');
+    }
+
+    return token;
+  };
+
   const resumableUpload = async (
     file: File,
     fileName: string,
@@ -572,16 +592,8 @@ export default function Create() {
           cacheControl: '3600',
         },
         onBeforeRequest: async (request) => {
-          let { data: { session } } = await supabase.auth.getSession();
-          const expiresSoon = !session?.expires_at || session.expires_at * 1000 < Date.now() + 120_000;
-          if (expiresSoon) {
-            const refreshed = await supabase.auth.refreshSession();
-            session = refreshed.data.session;
-          }
-          if (!session?.access_token) {
-            throw new Error('Your session expired during the upload. Sign in again and resume the file.');
-          }
-          request.setHeader('authorization', `Bearer ${session.access_token}`);
+          const currentToken = await getUploadAccessToken();
+          request.setHeader('authorization', `Bearer ${currentToken}`);
         },
         onProgress: (bytesUploaded, bytesTotal) => {
           if (bytesTotal > 0) onProgress(Math.min(99, Math.round((bytesUploaded / bytesTotal) * 100)));
@@ -623,8 +635,7 @@ export default function Create() {
     console.log('[Upload] Starting:', { fileName, size: file.size, mimeType });
 
     // Get the current session token for Authorization header
-    const { data: { session } } = await supabase.auth.getSession();
-    const token = session?.access_token;
+    const token = await getUploadAccessToken(true);
     const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
     const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
 
