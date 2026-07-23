@@ -588,10 +588,14 @@ export default function Create() {
         },
         onError: (error) => {
           resumableUploadRef.current = null;
-          const policyFailure = /row-level security|unauthorized|statusCode.?403/i.test(error.message);
-          reject(new Error(policyFailure
-            ? 'Upload authorization was rejected by storage. Sign in again; if it continues, deploy the latest storage migration.'
-            : `Resumable upload failed: ${error.message}`));
+          const details = error.message || 'Unknown storage error';
+          const policyFailure = /row-level security|unauthorized|forbidden|statusCode.?40[13]/i.test(details);
+          const sizeFailure = /maximum.*(?:size|limit)|payload too large|entity too large|statusCode.?413/i.test(details);
+          reject(new Error(sizeFailure
+            ? `Storage rejected the file size (${formatBytes(file.size)}). The recap-assets bucket and the Supabase project's global upload limit must both allow this size.`
+            : policyFailure
+              ? `Upload authorization was rejected by storage. Deploy migration 20260723000000_harden_large_resumable_uploads.sql, then sign in again. Storage response: ${details}`
+              : `Resumable upload failed: ${details}`));
         },
         onSuccess: () => {
           resumableUploadRef.current = null;
