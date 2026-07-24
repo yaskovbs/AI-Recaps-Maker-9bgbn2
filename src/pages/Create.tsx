@@ -564,9 +564,15 @@ export default function Create() {
     fileName: string,
     mimeType: string,
     onProgress: (pct: number) => void,
-    supabaseUrl: string,
-    token: string
+    supabaseUrl: string
   ): Promise<void> => {
+    const { data: signedUpload, error: signedUploadError } = await supabase.storage
+      .from('recap-assets')
+      .createSignedUploadUrl(fileName, { upsert: true });
+    if (signedUploadError || !signedUpload?.token) {
+      throw new Error(`Storage could not authorize this upload: ${signedUploadError?.message || 'No signed upload token was returned.'}`);
+    }
+
     const projectUrl = new URL(supabaseUrl);
     if (projectUrl.hostname.endsWith('.supabase.co')) {
       projectUrl.hostname = projectUrl.hostname.replace(/\.supabase\.co$/, '.storage.supabase.co');
@@ -580,7 +586,7 @@ export default function Create() {
         retryDelays: [0, 1000, 3000, 5000, 10000, 20000],
         removeFingerprintOnSuccess: true,
         headers: {
-          authorization: `Bearer ${token}`,
+          'x-signature': signedUpload.token,
           'x-upsert': 'true',
         },
         uploadDataDuringCreation: true,
@@ -589,10 +595,6 @@ export default function Create() {
           objectName: fileName,
           contentType: mimeType,
           cacheControl: '3600',
-        },
-        onBeforeRequest: async (request) => {
-          const currentToken = await getUploadAccessToken();
-          request.setHeader('authorization', `Bearer ${currentToken}`);
         },
         onProgress: (bytesUploaded, bytesTotal) => {
           if (bytesTotal > 0) onProgress(Math.min(99, Math.round((bytesUploaded / bytesTotal) * 100)));
@@ -605,7 +607,7 @@ export default function Create() {
           reject(new Error(sizeFailure
             ? `Storage rejected the file size (${formatBytes(file.size)}). The recap-assets bucket and the Supabase project's global upload limit must both allow this size.`
             : policyFailure
-              ? `Upload authorization was rejected by storage. Deploy migration 20260723000000_harden_large_resumable_uploads.sql, then sign in again. Storage response: ${details}`
+              ? `The signed upload authorization was rejected by Storage. Storage response: ${details}`
               : `Resumable upload failed: ${details}`));
         },
         onSuccess: () => {
@@ -643,7 +645,7 @@ export default function Create() {
     }
 
     if (file.size > 6 * 1024 * 1024) {
-      return resumableUpload(file, fileName, mimeType, onProgress, supabaseUrl, token);
+      return resumableUpload(file, fileName, mimeType, onProgress, supabaseUrl);
     }
 
     if (token && supabaseUrl) {
