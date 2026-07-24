@@ -5,7 +5,81 @@ import { apiKeysService } from '@/lib/apiKeysService';
 import { createVideoTask, fetchPlaylistItems, processVideoTask } from '@/lib/videoTaskService';
 import type { TaskPriority, TaskSourceType } from '@/lib/videoTaskTypes';
 import { supabase } from '@/lib/supabase';
+import * as tus from 'tus-js-client';
 import PlaylistSelector from './PlaylistSelector';
+
+const SLOW_NETWORK_RETRY_DELAYS = [
+  0, 1000, 2000, 3000, 5000, 8000, 13000, 20000, 30000,
+  60000, 60000, 120000, 120000, 180000, 180000, 300000,
+  300000, 300000,
+];
+
+async function uploadVideoResumably(file: File, fileName: string): Promise<void> {
+  const { data, error } = await supabase.auth.refreshSession();
+  if (error || !data.session?.access_token) {
+    throw new Error(error?.message || 'Your session expired. Sign in again and retry.');
+  }
+
+  const projectUrl = new URL(import.meta.env.VITE_SUPABASE_URL || '');
+  if (projectUrl.hostname.endsWith('.supabase.co')) {
+    projectUrl.hostname = projectUrl.hostname.replace(/\.supabase\.co$/, '.storage.supabase.co');
+  }
+
+  return new Promise((resolve, reject) => {
+    let onlineHandler: (() => void) | null = null;
+    const cleanup = () => {
+      if (onlineHandler) window.removeEventListener('online', onlineHandler);
+      onlineHandler = null;
+    };
+    const upload = new tus.Upload(file, {
+      endpoint: `${projectUrl.origin}/storage/v1/upload/resumable`,
+      chunkSize: 6 * 1024 * 1024,
+      retryDelays: SLOW_NETWORK_RETRY_DELAYS,
+      removeFingerprintOnSuccess: true,
+      uploadDataDuringCreation: true,
+      headers: {
+        authorization: `Bearer ${data.session.access_token}`,
+        'x-upsert': 'true',
+      },
+      metadata: {
+        bucketName: 'video-originals',
+        objectName: fileName,
+        contentType: file.type || 'video/mp4',
+        cacheControl: '3600',
+      },
+      onBeforeRequest: async request => {
+        const current = await supabase.auth.getSession();
+        let session = current.data.session;
+        if (!session?.expires_at || session.expires_at * 1000 < Date.now() + 120_000) {
+          session = (await supabase.auth.refreshSession()).data.session;
+        }
+        if (!session?.access_token) throw new Error('Your session expired during upload.');
+        request.setHeader('authorization', `Bearer ${session.access_token}`);
+      },
+      onError: uploadError => {
+        if (!navigator.onLine) return;
+        cleanup();
+        reject(uploadError);
+      },
+      onSuccess: () => {
+        cleanup();
+        resolve();
+      },
+    });
+
+    onlineHandler = () => upload.start();
+    window.addEventListener('online', onlineHandler);
+    upload.findPreviousUploads()
+      .then(previous => {
+        if (previous.length) upload.resumeFromPreviousUpload(previous[0]);
+        upload.start();
+      })
+      .catch(findError => {
+        cleanup();
+        reject(findError);
+      });
+  });
+}
 
 interface NewVideoTaskDialogProps {
   onClose: () => void;
@@ -89,14 +163,11 @@ export default function NewVideoTaskDialog({ onClose, onCreated }: NewVideoTaskD
 
       setUploading(true);
       try {
-        const ext = file.name.split('.').pop();
-        const fileName = `${user.id}/upload-${Date.now()}.${ext}`;
+        const candidateExt = file.name.split('.').pop()?.toLowerCase() || '';
+        const ext = ['mp4', 'webm', 'mov', 'avi', 'mkv'].includes(candidateExt) ? candidateExt : 'mp4';
+        const fileName = `${user.id}/upload-${file.lastModified}-${file.size}.${ext}`;
 
-        const { error } = await supabase.storage
-          .from('video-originals')
-          .upload(fileName, file, { cacheControl: '3600', upsert: false });
-
-        if (error) throw error;
+        await uploadVideoResumably(file, fileName);
 
         // Keep private uploads as storage references. The processing worker
         // downloads them with its service credential; no public URL is exposed.

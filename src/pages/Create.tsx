@@ -142,6 +142,7 @@ export default function Create() {
   const waveformCanvasRef = useRef<HTMLCanvasElement>(null);
   const animFrameRef = useRef<number>(0);
   const resumableUploadRef = useRef<tus.Upload | null>(null);
+  const uploadOnlineHandlerRef = useRef<(() => void) | null>(null);
   const lastUploadProgressRef = useRef(-1);
 
   const reportUploadProgress = useCallback((percentage: number) => {
@@ -381,6 +382,10 @@ export default function Create() {
       if (audioElemRef.current) { audioElemRef.current.pause(); audioElemRef.current = null; }
       // Pause rather than terminate so a later attempt can resume the upload.
       void resumableUploadRef.current?.abort(false);
+      if (uploadOnlineHandlerRef.current) {
+        window.removeEventListener('online', uploadOnlineHandlerRef.current);
+        uploadOnlineHandlerRef.current = null;
+      }
     };
   }, []);
 
@@ -577,10 +582,21 @@ export default function Create() {
     const endpoint = `${projectUrl.origin}/storage/v1/upload/resumable`;
 
     return new Promise((resolve, reject) => {
+      const clearNetworkListener = () => {
+        if (!uploadOnlineHandlerRef.current) return;
+        window.removeEventListener('online', uploadOnlineHandlerRef.current);
+        uploadOnlineHandlerRef.current = null;
+      };
       const upload = new tus.Upload(file, {
         endpoint,
         chunkSize: 6 * 1024 * 1024,
-        retryDelays: [0, 1000, 3000, 5000, 10000, 20000],
+        // Slow transfers have no artificial timeout. After a disconnect,
+        // retry for roughly 30 minutes before surfacing an online failure.
+        retryDelays: [
+          0, 1000, 2000, 3000, 5000, 8000, 13000, 20000, 30000,
+          60000, 60000, 120000, 120000, 180000, 180000, 300000,
+          300000, 300000,
+        ],
         removeFingerprintOnSuccess: true,
         headers: {
           authorization: `Bearer ${token}`,
@@ -601,7 +617,11 @@ export default function Create() {
           if (bytesTotal > 0) onProgress(Math.min(99, Math.round((bytesUploaded / bytesTotal) * 100)));
         },
         onError: (error) => {
+          // Stay paused indefinitely while offline. The listener below
+          // restarts the same upload from its last confirmed chunk.
+          if (!navigator.onLine) return;
           resumableUploadRef.current = null;
+          clearNetworkListener();
           const details = error.message || 'Unknown storage error';
           const policyFailure = /row-level security|unauthorized|forbidden|statusCode.?40[13]/i.test(details);
           const sizeFailure = /maximum.*(?:size|limit)|payload too large|entity too large|statusCode.?413/i.test(details);
@@ -613,12 +633,21 @@ export default function Create() {
         },
         onSuccess: () => {
           resumableUploadRef.current = null;
+          clearNetworkListener();
           onProgress(100);
           resolve();
         },
       });
 
       resumableUploadRef.current = upload;
+      const resumeWhenOnline = () => {
+        if (resumableUploadRef.current === upload) upload.start();
+      };
+      if (uploadOnlineHandlerRef.current) {
+        window.removeEventListener('online', uploadOnlineHandlerRef.current);
+      }
+      uploadOnlineHandlerRef.current = resumeWhenOnline;
+      window.addEventListener('online', resumeWhenOnline);
       upload.findPreviousUploads()
         .then((previousUploads) => {
           if (previousUploads.length > 0) upload.resumeFromPreviousUpload(previousUploads[0]);
@@ -626,6 +655,7 @@ export default function Create() {
         })
         .catch((error) => {
           resumableUploadRef.current = null;
+          clearNetworkListener();
           reject(error);
         });
     });
@@ -643,14 +673,11 @@ export default function Create() {
     const token = await getUploadAccessToken(true);
     const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
     const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
-
-    if (!token || !supabaseUrl || !supabaseKey) {
+    if (!token || !supabaseUrl) {
       throw new Error('Your session or Supabase upload configuration is missing. Sign in again and retry.');
     }
 
-    if (file.size > 6 * 1024 * 1024) {
-      return resumableUpload(file, fileName, mimeType, onProgress, supabaseUrl, token);
-    }
+    return resumableUpload(file, fileName, mimeType, onProgress, supabaseUrl, token);
 
     if (token && supabaseUrl) {
       // Primary: XHR with real progress + Bearer token
@@ -818,7 +845,9 @@ export default function Create() {
           : ['mp4', 'avi', 'mov', 'mkv', 'webm'];
       const defaultExtension = type === 'txt' ? 'txt' : type === 'mp3' ? 'mp3' : 'mp4';
       const fileExt = allowedExtensions.includes(originalExt) ? originalExt : defaultExtension;
-      const uploadId = type === 'video' ? `${file.lastModified}-${file.size}` : String(Date.now());
+      // Stable across re-selection so TUS can resume after a reload and the
+      // saved storage reference still points to the resumed object.
+      const uploadId = `${file.lastModified}-${file.size}`;
       const fileName = `${user.id}/${type}-${uploadId}.${fileExt}`;
       const mimeType = type === 'txt'
         ? 'text/plain'
@@ -1598,7 +1627,7 @@ export default function Create() {
               <div className="space-y-5">
                 <div>
                   <label className="block text-sm font-semibold mb-2" style={{ color: 'rgba(200,200,240,0.8)' }}>{t.create.step3.uploadVideo}</label>
-                  <p className="text-xs mb-3" style={{ color: 'rgba(120,120,170,0.6)' }}>MP4, AVI, MOV, MKV, WebM — עד 2.2 GB</p>
+                  <p className="text-xs mb-3" style={{ color: 'rgba(120,120,170,0.6)' }}>MP4, AVI, MOV, MKV, WebM — עד 2 GB</p>
                   <div className={`drop-zone p-8 text-center mb-2 ${dragOverVideo ? 'drag-over-cyan' : ''}`}
                     style={{ border: `2px dashed ${dragOverVideo ? 'rgba(0,212,255,0.8)' : 'rgba(0,212,255,0.2)'}`, background: dragOverVideo ? 'rgba(0,212,255,0.07)' : 'rgba(0,212,255,0.02)' }}
                     {...makeDragHandlers(setDragOverVideo, ['video'])}>
@@ -1608,7 +1637,7 @@ export default function Create() {
                       </div>
                       <div>
                         <p className="text-base font-bold" style={{ color: dragOverVideo ? '#00D4FF' : 'rgba(200,200,240,0.75)' }}>{dragOverVideo ? 'שחרר כאן!' : 'גרור קובץ וידאו לכאן'}</p>
-                        <p className="text-xs mt-1" style={{ color: 'rgba(140,140,190,0.5)' }}>MP4 · AVI · MOV · MKV · WebM · עד 2.2 GB</p>
+                        <p className="text-xs mt-1" style={{ color: 'rgba(140,140,190,0.5)' }}>MP4 · AVI · MOV · MKV · WebM · עד 2 GB</p>
                       </div>
                     </div>
                   </div>
