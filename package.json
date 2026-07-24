@@ -11,7 +11,8 @@
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
     "typecheck:go": "tsgo -config tsconfig.tsgo.json",
-    "verify": "npm run typecheck && npm run lint && npm audit --omit=dev --audit-level=high"
+    "audit:production": "node scripts/audit-production.mjs",
+    "verify": "npm run typecheck && npm run lint && npm run audit:production"
   },
   "dependencies": {
     "@google/generative-ai": "^0.24.1",
