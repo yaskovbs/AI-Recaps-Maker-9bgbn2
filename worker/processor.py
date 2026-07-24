@@ -13,6 +13,7 @@ import time
 import uuid
 from pathlib import Path
 from typing import Any
+from urllib.parse import quote, urlparse
 
 import httpx
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
@@ -158,10 +159,35 @@ def youtube_metadata(source: str, api_key: str) -> dict[str, Any]:
     }
 
 
+def download_storage_object(reference: str, destination: Path, user_id: str) -> None:
+    if not reference.startswith("storage://"):
+        raise TaskFailure("ERR_INVALID_SOURCE", "Uploaded asset must use a private storage reference")
+    location = reference.removeprefix("storage://")
+    if "/" not in location:
+        raise TaskFailure("ERR_INVALID_SOURCE", "Uploaded asset has an invalid storage path")
+    bucket, object_path = location.split("/", 1)
+    if bucket not in {"recap-assets", "video-originals"} or not user_id or not object_path.startswith(f"{user_id}/"):
+        raise TaskFailure("ERR_INVALID_SOURCE", "Uploaded asset is outside the task owner's storage folder")
+    if ".." in object_path or "\\" in object_path:
+        raise TaskFailure("ERR_INVALID_SOURCE", "Uploaded asset contains an invalid storage path")
+    encoded_path = "/".join(quote(segment, safe="") for segment in object_path.split("/"))
+    with client.stream("GET", f"{SUPABASE_URL}/storage/v1/object/{bucket}/{encoded_path}", headers=HEADERS) as response:
+        response.raise_for_status()
+        with destination.open("wb") as output:
+            for chunk in response.iter_bytes():
+                output.write(chunk)
+
+
 def download_source(task: dict[str, Any], destination: Path, secrets: dict[str, Any]) -> dict[str, Any]:
     source = task.get("source_url") or ""
     if task["source_type"] == "youtube":
-        if not re.match(r"^https://(www\.)?(youtube\.com|youtu\.be)/", source):
+        parsed_source = urlparse(source)
+        source_host = (parsed_source.hostname or "").lower()
+        if parsed_source.scheme != "https" or not (
+            source_host == "youtu.be"
+            or source_host == "youtube.com"
+            or source_host.endswith(".youtube.com")
+        ):
             raise TaskFailure("ERR_INVALID_URL", "Only valid HTTPS YouTube URLs are accepted")
         metadata = youtube_metadata(source, secrets.get("youtube_api_key", ""))
         command = [
@@ -210,12 +236,8 @@ def download_source(task: dict[str, Any], destination: Path, secrets: dict[str, 
             candidates[0].rename(destination)
         return metadata
     elif source.startswith("storage://"):
-        _, location = source.split("storage://", 1)
-        bucket, object_path = location.split("/", 1)
-        with client.stream("GET", f"{SUPABASE_URL}/storage/v1/object/{bucket}/{object_path}", headers=HEADERS) as response:
-            response.raise_for_status()
-            with destination.open("wb") as output:
-                for chunk in response.iter_bytes(): output.write(chunk)
+        user_id = str(task.get("user_id") or "")
+        download_storage_object(source, destination, user_id)
         return {}
     else:
         raise TaskFailure("ERR_INVALID_URL", "Uploaded source must use a private storage reference")
@@ -283,21 +305,25 @@ Source duration: {duration:.3f} seconds.'''
     return {"summary": str(plan.get("summary", "")), "topics": [str(v) for v in plan.get("topics", [])][:20], "clips": clips}
 
 
-def render(source: Path, output: Path, clips: list[dict[str, Any]], has_audio: bool) -> None:
+def render(source: Path, output: Path, clips: list[dict[str, Any]], has_audio: bool, narration: Path | None = None) -> None:
     filters, concat_inputs = [], []
     for index, clip in enumerate(clips):
         start, end = clip["start"], clip["end"]
         filters.append(f"[0:v]trim=start={start}:end={end},setpts=PTS-STARTPTS[v{index}]")
-        if has_audio:
+        if has_audio and narration is None:
             filters.append(f"[0:a]atrim=start={start}:end={end},asetpts=PTS-STARTPTS[a{index}]")
             concat_inputs.append(f"[v{index}][a{index}]")
         else:
             concat_inputs.append(f"[v{index}]")
-    audio_outputs = 1 if has_audio else 0
-    output_labels = "[outv][outa]" if has_audio else "[outv]"
+    use_source_audio = has_audio and narration is None
+    audio_outputs = 1 if use_source_audio else 0
+    output_labels = "[outv][outa]" if use_source_audio else "[outv]"
     filters.append("".join(concat_inputs) + f"concat=n={len(clips)}:v=1:a={audio_outputs}{output_labels}")
     command = ["ffmpeg", "-y", "-i", str(source), "-filter_complex", ";".join(filters), "-map", "[outv]"]
-    if has_audio:
+    if narration is not None:
+        command[4:4] = ["-i", str(narration)]
+        command += ["-map", "1:a:0", "-af", "apad", "-shortest", "-c:a", "aac"]
+    elif use_source_audio:
         command += ["-map", "[outa]", "-c:a", "aac"]
     else:
         command += ["-an"]
@@ -329,16 +355,24 @@ def process(task: dict[str, Any]) -> None:
     if task.get("enable_3d_conversion"):
         raise TaskFailure("ERR_3D_NOT_AVAILABLE", "3D conversion is not part of the Phase 3 recap renderer", "Disable 3D conversion and retry; implement the dedicated 3D worker in Phase 7.")
     with tempfile.TemporaryDirectory(prefix=f"recap-{task_id[:8]}-") as tmp:
-        folder, source, output, audio = Path(tmp), Path(tmp) / "source.mp4", Path(tmp) / "recap.mp4", Path(tmp) / "audio.wav"
+        folder = Path(tmp)
+        source, output = folder / "source.mp4", folder / "recap.mp4"
+        audio, narration = folder / "audio.wav", folder / "narration"
         secrets = decrypt_secrets(task_id)
         heartbeat(task_id, 5, "Downloading source", "downloading")
         source_details = download_source(task, source, secrets)
+        narration_reference = str(secrets.get("narration_audio_url") or "")
+        narration_path: Path | None = None
+        if narration_reference:
+            heartbeat(task_id, 12, "Downloading narration audio", "downloading")
+            download_storage_object(narration_reference, narration, str(task.get("user_id") or ""))
+            narration_path = narration
         metadata = probe(source)
         metadata.update(source_details)
         patch_task(task_id, duration_seconds=round(metadata["duration"]), file_size_mb=round(metadata["size"] / 1048576, 2), source_metadata=metadata)
-        if metadata["has_audio"]:
+        if narration_path is not None or metadata["has_audio"]:
             heartbeat(task_id, 25, "Transcribing audio", "processing")
-            transcript = transcribe(source, audio)
+            transcript = transcribe(narration_path or source, audio)
         else:
             heartbeat(task_id, 25, "No audio track; continuing with video metadata", "processing")
             transcript = ""
@@ -348,7 +382,7 @@ def process(task: dict[str, Any]) -> None:
         plan = build_plan(task, secrets, metadata["duration"], transcript)
         patch_task(task_id, summary_text=plan["summary"], key_topics=plan["topics"], clip_plan=plan["clips"], summary_language=secrets.get("language", "en"))
         heartbeat(task_id, 60, "Rendering selected clips", "processing")
-        render(source, output, plan["clips"], metadata["has_audio"])
+        render(source, output, plan["clips"], metadata["has_audio"], narration_path)
         output_meta = probe(output)
         heartbeat(task_id, 90, "Uploading completed recap", "processing")
         storage_path = upload(task, output)

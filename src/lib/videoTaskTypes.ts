@@ -22,6 +22,7 @@ export interface VideoTask {
   original_file_url: string | null;
   processed_file_url: string | null;
   output_storage_path: string | null;
+  narration_storage_path: string | null;
   file_size_mb: number;
   duration_seconds: number;
   enable_3d_conversion: boolean;

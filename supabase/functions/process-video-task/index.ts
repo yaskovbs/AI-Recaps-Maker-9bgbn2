@@ -16,6 +16,27 @@ function json(req: Request, body: unknown, status = 200) {
   return new Response(JSON.stringify(body), { status, headers: { ...corsHeaders(req), "Content-Type": "application/json" } });
 }
 
+function isOwnedStorageSource(source: string, userId: string): boolean {
+  const allowedPrefixes = [
+    `storage://recap-assets/${userId}/`,
+    `storage://video-originals/${userId}/`,
+  ];
+  return allowedPrefixes.some(prefix => source.startsWith(prefix))
+    && !source.includes("..")
+    && !source.includes("\\");
+}
+
+function isAllowedYouTubeSource(source: string): boolean {
+  try {
+    const url = new URL(source);
+    const host = url.hostname.toLowerCase().replace(/^www\./, "");
+    return url.protocol === "https:"
+      && (host === "youtu.be" || host === "youtube.com" || host.endsWith(".youtube.com"));
+  } catch {
+    return false;
+  }
+}
+
 async function encryptWorkerPayload(payload: object): Promise<string> {
   const secret = Deno.env.get("PROCESSING_SECRET");
   if (!secret || secret.length < 32) throw new Error("PROCESSING_SECRET must contain at least 32 characters");
@@ -49,6 +70,16 @@ Deno.serve(async (req: Request) => {
     const { data: task } = await service.from("video_tasks").select("id,status,source_type,source_url,user_id").eq("id", taskId).eq("user_id", user.id).maybeSingle();
     if (!task) return json(req, { error: "Task not found" }, 404);
     if (!["pending", "error", "cancelled"].includes(task.status)) return json(req, { error: `Task cannot be queued from status ${task.status}` }, 409);
+    const sourceUrl = typeof task.source_url === "string" ? task.source_url.trim() : "";
+    if (task.source_type === "upload" && !isOwnedStorageSource(sourceUrl, user.id)) {
+      return json(req, { error: "Uploaded source must be in your own Storage folder" }, 400);
+    }
+    if (task.source_type === "youtube" && !isAllowedYouTubeSource(sourceUrl)) {
+      return json(req, { error: "Invalid YouTube source URL" }, 400);
+    }
+    if (!["upload", "youtube"].includes(task.source_type)) {
+      return json(req, { error: "Unsupported source type" }, 400);
+    }
     const youtubeKey = typeof body.youtube_api_key === "string" ? body.youtube_api_key.trim() : "";
     const geminiKey = typeof body.gemini_api_key === "string" ? body.gemini_api_key.trim() : "";
     const googleSearchKey = typeof body.google_search_api_key === "string" ? body.google_search_api_key.trim() : "";
@@ -80,6 +111,7 @@ Deno.serve(async (req: Request) => {
       status: "pending", current_step: "Queued for processing", progress_percentage: 0,
       error_code: null, error_message: null, error_details: null, error_action: null,
       cancel_requested_at: null, worker_id: null, locked_at: null, heartbeat_at: null,
+      narration_storage_path: narrationAudioUrl || null,
     }).eq("id", taskId).eq("user_id", user.id);
     if (queueError) {
       await service.from("video_task_secrets").delete().eq("task_id", taskId);

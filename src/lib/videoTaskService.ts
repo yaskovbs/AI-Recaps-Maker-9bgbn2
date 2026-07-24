@@ -122,20 +122,53 @@ export async function updateVideoTask(
 }
 
 export async function deleteVideoTask(taskId: string): Promise<boolean> {
-  const { error } = await supabase
-    .from('video_tasks')
-    .delete()
-    .eq('id', taskId);
-
-  if (error) {
-    console.error('Error deleting video task:', error);
-    return false;
-  }
-
-  return true;
+  return deleteVideoTasks([taskId]);
 }
 
 export async function deleteVideoTasks(taskIds: string[]): Promise<boolean> {
+  if (taskIds.length === 0) return true;
+  const { data: tasks, error: fetchError } = await supabase
+    .from('video_tasks')
+    .select('status,source_url,output_storage_path,narration_storage_path')
+    .in('id', taskIds);
+  if (fetchError) {
+    console.error('Error loading task files before deletion:', fetchError);
+    return false;
+  }
+  if ((tasks || []).some(task => !['completed', 'error', 'cancelled'].includes(task.status))) {
+    console.error('Only completed, failed, or cancelled tasks can be deleted.');
+    return false;
+  }
+
+  const objectsByBucket = new Map<string, Set<string>>();
+  const addStorageReference = (reference: string | null | undefined) => {
+    if (!reference?.startsWith('storage://')) return;
+    const location = reference.slice('storage://'.length);
+    const slash = location.indexOf('/');
+    if (slash <= 0 || slash === location.length - 1) return;
+    const bucket = location.slice(0, slash);
+    const path = location.slice(slash + 1);
+    if (!objectsByBucket.has(bucket)) objectsByBucket.set(bucket, new Set());
+    objectsByBucket.get(bucket)!.add(path);
+  };
+
+  for (const task of tasks || []) {
+    addStorageReference(task.source_url);
+    addStorageReference(task.narration_storage_path);
+    if (task.output_storage_path) {
+      if (!objectsByBucket.has('video-processed')) objectsByBucket.set('video-processed', new Set());
+      objectsByBucket.get('video-processed')!.add(task.output_storage_path);
+    }
+  }
+
+  for (const [bucket, paths] of objectsByBucket) {
+    const { error: storageError } = await supabase.storage.from(bucket).remove([...paths]);
+    if (storageError) {
+      console.error(`Error deleting task files from ${bucket}:`, storageError);
+      return false;
+    }
+  }
+
   const { error } = await supabase
     .from('video_tasks')
     .delete()

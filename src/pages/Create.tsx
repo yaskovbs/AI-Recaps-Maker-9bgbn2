@@ -145,7 +145,10 @@ export default function Create() {
   const lastUploadProgressRef = useRef(-1);
 
   const reportUploadProgress = useCallback((percentage: number) => {
-    const next = Math.max(0, Math.min(100, Math.round(percentage)));
+    const bounded = Math.max(0, Math.min(100, Math.round(percentage)));
+    // A failed XHR can fall back to the SDK after already reporting progress.
+    // Keep the visible percentage monotonic while that fallback starts over.
+    const next = Math.max(lastUploadProgressRef.current, bounded);
     if (next === lastUploadProgressRef.current) return;
     lastUploadProgressRef.current = next;
     setUploadProgress(next);
@@ -621,7 +624,10 @@ export default function Create() {
           if (previousUploads.length > 0) upload.resumeFromPreviousUpload(previousUploads[0]);
           upload.start();
         })
-        .catch(reject);
+        .catch((error) => {
+          resumableUploadRef.current = null;
+          reject(error);
+        });
     });
   };
 
@@ -650,7 +656,8 @@ export default function Create() {
       // Primary: XHR with real progress + Bearer token
       return new Promise((resolve, reject) => {
         const xhr = new XMLHttpRequest();
-        const endpoint = `${supabaseUrl}/storage/v1/object/recap-assets/${fileName}`;
+        const encodedObjectPath = fileName.split('/').map(encodeURIComponent).join('/');
+        const endpoint = `${supabaseUrl.replace(/\/+$/, '')}/storage/v1/object/recap-assets/${encodedObjectPath}`;
 
         xhr.open('POST', endpoint, true);
         xhr.setRequestHeader('Authorization', `Bearer ${token}`);
@@ -803,7 +810,14 @@ export default function Create() {
     }));
 
     try {
-      const fileExt = file.name.split('.').pop();
+      const originalExt = file.name.split('.').pop()?.toLowerCase() || '';
+      const allowedExtensions = type === 'txt'
+        ? ['txt']
+        : type === 'mp3'
+          ? ['mp3', 'wav', 'aac', 'm4a', 'ogg', 'flac']
+          : ['mp4', 'avi', 'mov', 'mkv', 'webm'];
+      const defaultExtension = type === 'txt' ? 'txt' : type === 'mp3' ? 'mp3' : 'mp4';
+      const fileExt = allowedExtensions.includes(originalExt) ? originalExt : defaultExtension;
       const uploadId = type === 'video' ? `${file.lastModified}-${file.size}` : String(Date.now());
       const fileName = `${user.id}/${type}-${uploadId}.${fileExt}`;
       const mimeType = type === 'txt'
@@ -814,13 +828,11 @@ export default function Create() {
 
       await uploadWithProgress(file, fileName, mimeType, reportUploadProgress);
 
-      const { data: { publicUrl } } = supabase.storage.from('recap-assets').getPublicUrl(fileName);
-
       if (type === 'txt') {
         let text = '';
         try { text = await file.text(); } catch {}
         if (!txtInfo && text) setTxtInfo(analyzeTxtFile(file, text));
-        setDraft(prev => ({ ...prev, txtAssetId: publicUrl, scriptText: text }));
+        setDraft(prev => ({ ...prev, txtAssetId: `storage://recap-assets/${fileName}`, scriptText: text }));
       } else if (type === 'mp3') {
         setDraft(prev => ({ ...prev, mp3AssetId: `storage://recap-assets/${fileName}` }));
       } else {
@@ -829,6 +841,7 @@ export default function Create() {
     } catch (err: any) {
       console.error('Upload error:', err);
       setWizardError(`Upload failed: ${err.message || 'Please try again.'}`);
+      lastUploadProgressRef.current = 0;
       alert(`שגיאת העלאה: ${err.message || 'נסה שוב'}`);
       setUploadProgress(0);
     } finally {
