@@ -21,9 +21,6 @@ async function uploadVideoResumably(file: File, fileName: string): Promise<void>
   }
 
   const projectUrl = new URL(import.meta.env.VITE_SUPABASE_URL || '');
-  if (projectUrl.hostname.endsWith('.supabase.co')) {
-    projectUrl.hostname = projectUrl.hostname.replace(/\.supabase\.co$/, '.storage.supabase.co');
-  }
 
   return new Promise((resolve, reject) => {
     let onlineHandler: (() => void) | null = null;
@@ -167,7 +164,18 @@ export default function NewVideoTaskDialog({ onClose, onCreated }: NewVideoTaskD
         const ext = ['mp4', 'webm', 'mov', 'avi', 'mkv'].includes(candidateExt) ? candidateExt : 'mp4';
         const fileName = `${user.id}/upload-${file.lastModified}-${file.size}.${ext}`;
 
-        await uploadVideoResumably(file, fileName);
+        if (file.size <= 6 * 1024 * 1024) {
+          const { error } = await supabase.storage
+            .from('video-originals')
+            .upload(fileName, file, {
+              cacheControl: '3600',
+              contentType: file.type || 'video/mp4',
+              upsert: true,
+            });
+          if (error) throw error;
+        } else {
+          await uploadVideoResumably(file, fileName);
+        }
 
         // Keep private uploads as storage references. The processing worker
         // downloads them with its service credential; no public URL is exposed.

@@ -576,9 +576,9 @@ export default function Create() {
     token: string
   ): Promise<void> => {
     const projectUrl = new URL(supabaseUrl);
-    if (projectUrl.hostname.endsWith('.supabase.co')) {
-      projectUrl.hostname = projectUrl.hostname.replace(/\.supabase\.co$/, '.storage.supabase.co');
-    }
+    // Use the configured project gateway. It validates the project's current
+    // Auth signing-key format before forwarding TUS requests to Storage.
+    // The direct storage hostname rejects this project's tokens as invalid JWS.
     const endpoint = `${projectUrl.origin}/storage/v1/upload/resumable`;
 
     return new Promise((resolve, reject) => {
@@ -677,6 +677,9 @@ export default function Create() {
       throw new Error('Your session or Supabase upload configuration is missing. Sign in again and retry.');
     }
 
+    if (file.size <= 6 * 1024 * 1024) {
+      return fallbackUpload(file, fileName, mimeType, onProgress);
+    }
     return resumableUpload(file, fileName, mimeType, onProgress, supabaseUrl, token);
 
     if (token && supabaseUrl) {
