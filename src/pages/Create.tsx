@@ -565,7 +565,6 @@ export default function Create() {
     mimeType: string,
     onProgress: (pct: number) => void,
     supabaseUrl: string,
-    supabaseKey: string,
     token: string
   ): Promise<void> => {
     const projectUrl = new URL(supabaseUrl);
@@ -582,9 +581,9 @@ export default function Create() {
         removeFingerprintOnSuccess: true,
         headers: {
           authorization: `Bearer ${token}`,
-          apikey: supabaseKey,
           'x-upsert': 'true',
         },
+        uploadDataDuringCreation: true,
         metadata: {
           bucketName: 'recap-assets',
           objectName: fileName,
@@ -644,7 +643,7 @@ export default function Create() {
     }
 
     if (file.size > 6 * 1024 * 1024) {
-      return resumableUpload(file, fileName, mimeType, onProgress, supabaseUrl, supabaseKey, token);
+      return resumableUpload(file, fileName, mimeType, onProgress, supabaseUrl, token);
     }
 
     if (token && supabaseUrl) {
