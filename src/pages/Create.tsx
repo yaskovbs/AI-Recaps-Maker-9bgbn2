@@ -69,6 +69,69 @@ interface AudioFileInfo {
   objectUrl?: string;
 }
 
+interface UploadTokenDiagnostics {
+  segments: number;
+  segmentLengths: number[];
+  algorithm?: string;
+  keyId?: string;
+  type?: string;
+  issuer?: string;
+  audience?: string | string[];
+  role?: string;
+  subject?: string;
+  issuedAt?: string;
+  expiresAt?: string;
+  expired?: boolean;
+  fingerprint?: string;
+  decodeError?: string;
+}
+
+const decodeJwtSection = (value: string): Record<string, unknown> => {
+  const normalized = value.replace(/-/g, '+').replace(/_/g, '/');
+  const padded = normalized.padEnd(Math.ceil(normalized.length / 4) * 4, '=');
+  return JSON.parse(decodeURIComponent(Array.from(atob(padded))
+    .map(char => `%${char.charCodeAt(0).toString(16).padStart(2, '0')}`)
+    .join('')));
+};
+
+const inspectUploadToken = async (token: string): Promise<UploadTokenDiagnostics> => {
+  const segments = token.split('.');
+  const diagnostics: UploadTokenDiagnostics = {
+    segments: segments.length,
+    segmentLengths: segments.map(segment => segment.length),
+  };
+  try {
+    const header = decodeJwtSection(segments[0] || '');
+    const payload = decodeJwtSection(segments[1] || '');
+    const asDate = (value: unknown) => typeof value === 'number'
+      ? new Date(value * 1000).toISOString()
+      : undefined;
+    diagnostics.algorithm = typeof header.alg === 'string' ? header.alg : undefined;
+    diagnostics.keyId = typeof header.kid === 'string' ? header.kid : undefined;
+    diagnostics.type = typeof header.typ === 'string' ? header.typ : undefined;
+    diagnostics.issuer = typeof payload.iss === 'string' ? payload.iss : undefined;
+    diagnostics.audience = typeof payload.aud === 'string' || Array.isArray(payload.aud)
+      ? payload.aud as string | string[]
+      : undefined;
+    diagnostics.role = typeof payload.role === 'string' ? payload.role : undefined;
+    diagnostics.subject = typeof payload.sub === 'string' ? payload.sub : undefined;
+    diagnostics.issuedAt = asDate(payload.iat);
+    diagnostics.expiresAt = asDate(payload.exp);
+    diagnostics.expired = typeof payload.exp === 'number' ? payload.exp * 1000 <= Date.now() : undefined;
+  } catch (error) {
+    diagnostics.decodeError = error instanceof Error ? error.message : 'Unknown JWT decode error';
+  }
+  try {
+    const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(token));
+    diagnostics.fingerprint = Array.from(new Uint8Array(digest).slice(0, 8))
+      .map(byte => byte.toString(16).padStart(2, '0'))
+      .join('');
+  } catch {
+    diagnostics.fingerprint = 'unavailable';
+  }
+  return diagnostics;
+};
+
 interface Draft {
   inputMode: InputMode;
   scriptText: string;
@@ -573,7 +636,8 @@ export default function Create() {
     mimeType: string,
     onProgress: (pct: number) => void,
     supabaseUrl: string,
-    token: string
+    token: string,
+    diagnosticId: string
   ): Promise<void> => {
     const projectUrl = new URL(supabaseUrl);
     // Use the configured project gateway. It validates the project's current
@@ -582,6 +646,7 @@ export default function Create() {
     const endpoint = `${projectUrl.origin}/storage/v1/upload/resumable`;
 
     return new Promise((resolve, reject) => {
+      let requestNumber = 0;
       const clearNetworkListener = () => {
         if (!uploadOnlineHandlerRef.current) return;
         window.removeEventListener('online', uploadOnlineHandlerRef.current);
@@ -611,6 +676,16 @@ export default function Create() {
         },
         onBeforeRequest: async (request) => {
           const currentToken = await getUploadAccessToken();
+          requestNumber += 1;
+          if (requestNumber <= 3 || requestNumber % 25 === 0) {
+            console.debug(`[Upload:${diagnosticId}] TUS request`, {
+              requestNumber,
+              method: request.getMethod(),
+              url: request.getURL(),
+              online: navigator.onLine,
+              token: await inspectUploadToken(currentToken),
+            });
+          }
           request.setHeader('authorization', `Bearer ${currentToken}`);
         },
         onProgress: (bytesUploaded, bytesTotal) => {
@@ -623,12 +698,21 @@ export default function Create() {
           resumableUploadRef.current = null;
           clearNetworkListener();
           const details = error.message || 'Unknown storage error';
+          console.error(`[Upload:${diagnosticId}] TUS failed`, {
+            diagnosticId,
+            endpoint,
+            fileSize: file.size,
+            mimeType,
+            online: navigator.onLine,
+            requestNumber,
+            error: details,
+          });
           const policyFailure = /row-level security|unauthorized|forbidden|statusCode.?40[13]/i.test(details);
           const sizeFailure = /maximum.*(?:size|limit)|payload too large|entity too large|statusCode.?413/i.test(details);
           reject(new Error(sizeFailure
             ? `Storage rejected the file size (${formatBytes(file.size)}). The recap-assets bucket and the Supabase project's global upload limit must both allow this size.`
             : policyFailure
-              ? `Upload authorization was rejected by Storage. Sign out and sign in again, then retry. Storage response: ${details}`
+              ? `Upload authorization was rejected by Storage (diagnostic ${diagnosticId}). Open the browser console and copy the matching [Upload:${diagnosticId}] logs. Storage response: ${details}`
               : `Resumable upload failed: ${details}`));
         },
         onSuccess: () => {
@@ -677,10 +761,64 @@ export default function Create() {
       throw new Error('Your session or Supabase upload configuration is missing. Sign in again and retry.');
     }
 
+    const diagnosticId = crypto.randomUUID().slice(0, 8);
+    const tokenDiagnostics = await inspectUploadToken(token);
+    const expectedProjectHost = new URL(supabaseUrl).hostname;
+    let issuerHost: string | undefined;
+    try {
+      issuerHost = tokenDiagnostics.issuer ? new URL(tokenDiagnostics.issuer).hostname : undefined;
+    } catch {
+      issuerHost = 'invalid-issuer-url';
+    }
+    const { data: verifiedAuth, error: authVerificationError } = await supabase.auth.getUser(token);
+    const { error: storageProbeError } = await supabase.storage
+      .from('recap-assets')
+      .list(user?.id || '', { limit: 1 });
+    console.info(`[Upload:${diagnosticId}] authorization preflight`, {
+      diagnosticId,
+      supabaseOrigin: new URL(supabaseUrl).origin,
+      expectedProjectHost,
+      issuerHost,
+      issuerMatchesProject: !issuerHost || issuerHost === expectedProjectHost,
+      configuredKeyFormat: supabaseKey.startsWith('sb_publishable_')
+        ? 'publishable'
+        : supabaseKey.split('.').length === 3
+          ? 'legacy-jwt'
+          : 'unknown',
+      sessionUserId: user?.id,
+      verifiedUserId: verifiedAuth.user?.id,
+      authVerification: authVerificationError
+        ? {
+            code: authVerificationError.code,
+            status: authVerificationError.status,
+            message: authVerificationError.message,
+          }
+        : 'ok',
+      storageListProbe: storageProbeError
+        ? {
+            name: storageProbeError.name,
+            statusCode: storageProbeError.statusCode,
+            message: storageProbeError.message,
+          }
+        : 'ok',
+      token: tokenDiagnostics,
+      file: {
+        size: file.size,
+        mimeType,
+        extension: fileName.split('.').pop(),
+      },
+      network: {
+        online: navigator.onLine,
+        effectiveType: 'connection' in navigator
+          ? (navigator as Navigator & { connection?: { effectiveType?: string } }).connection?.effectiveType
+          : undefined,
+      },
+    });
+
     if (file.size <= 6 * 1024 * 1024) {
       return fallbackUpload(file, fileName, mimeType, onProgress);
     }
-    return resumableUpload(file, fileName, mimeType, onProgress, supabaseUrl, token);
+    return resumableUpload(file, fileName, mimeType, onProgress, supabaseUrl, token, diagnosticId);
 
     if (token && supabaseUrl) {
       // Primary: XHR with real progress + Bearer token
