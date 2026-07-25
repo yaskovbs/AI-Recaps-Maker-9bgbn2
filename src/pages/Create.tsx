@@ -1157,6 +1157,8 @@ export default function Create() {
         priority: 'medium',
         enable_3d_conversion: false,
       });
+      setProcessingStage('Adding the recap to the processing queue...');
+      setRenderProgress(90);
       const queued = await processVideoTask(task.id, {
         youtube: keys.youtube,
         gemini: keys.gemini,
@@ -1166,8 +1168,6 @@ export default function Create() {
         recapDurationSeconds: targetDuration,
         narrationAudioUrl: draft.mp3AssetId,
       });
-      setProcessingStage('Adding the recap to the processing queue...');
-      setRenderProgress(90);
       if (!queued.success) {
         await updateVideoTask(task.id, {
           status: 'error',
@@ -1229,9 +1229,21 @@ export default function Create() {
     }
     */
     } catch (error) {
+      const message = error instanceof Error ? error.message : 'AI provider request failed.';
+      const diagnosticId = crypto.randomUUID().slice(0, 8);
+      console.error(`[Processing:${diagnosticId}] Queue submission failed`, {
+        diagnosticId,
+        stage: processingStage,
+        sourceType: draft.youtubeUrl.trim() ? 'youtube' : 'upload',
+        hasVideoSource: Boolean(draft.youtubeUrl.trim() || draft.videoAssetId),
+        hasNarrationSource: Boolean(draft.mp3AssetId),
+        online: navigator.onLine,
+        message,
+      });
       setIsRendering(false);
       setRenderProgress(0);
-      setProcessingError(error instanceof Error ? error.message : 'AI provider request failed.');
+      setProcessingStage('');
+      setProcessingError(`${message} (diagnostic ${diagnosticId})`);
     }
   };
 
@@ -2058,6 +2070,17 @@ export default function Create() {
                   <div className="flex items-center gap-2">
                     {cloudProcessingReady && <span className="text-xs px-2.5 py-1 rounded-full font-bold" style={{ background: 'rgba(0,255,128,0.1)', border: '1px solid rgba(0,255,128,0.25)', color: '#00ff80' }}>● Ready</span>}
                     <span className="text-xs px-2 py-0.5 rounded" style={{ background: 'rgba(255,255,255,0.05)', color: 'rgba(160,160,210,0.5)' }}>Secure queue</span>
+                  </div>
+                </div>
+              )}
+
+              {!isRendering && !renderComplete && processingError && (
+                <div className="p-4 rounded-xl mb-5 flex items-start gap-3" role="alert" style={{ background: 'rgba(255,60,60,0.07)', border: '1px solid rgba(255,60,60,0.25)' }}>
+                  <AlertCircle className="w-5 h-5 flex-shrink-0 mt-0.5" style={{ color: '#ff6666' }} />
+                  <div>
+                    <div className="text-sm font-bold mb-1" style={{ color: '#ff9999' }}>Processing was not queued</div>
+                    <div className="text-xs break-words" style={{ color: 'rgba(255,190,190,0.85)' }}>{processingError}</div>
+                    <div className="text-xs mt-2" style={{ color: 'rgba(200,160,180,0.65)' }}>Your uploaded file is safe. Correct the reported issue, then select Create &amp; Queue Recap again.</div>
                   </div>
                 </div>
               )}

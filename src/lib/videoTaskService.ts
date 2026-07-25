@@ -267,7 +267,10 @@ export async function processVideoTask(
   apiKeys: { youtube?: string; gemini?: string; googleSearch?: string; searchEngineId?: string; webSearchEnabled?: boolean; language?: string; recapDurationSeconds?: number; narrationAudioUrl?: string }
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    const { data: { session } } = await supabase.auth.getSession();
+    const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+    if (sessionError) {
+      return { success: false, error: `Unable to verify your session: ${sessionError.message}` };
+    }
     if (!session) {
       return { success: false, error: 'Not authenticated' };
     }
@@ -294,13 +297,32 @@ export async function processVideoTask(
     });
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      return { success: false, error: errorData.error || `HTTP ${response.status}` };
+      const responseText = await response.text();
+      let responseMessage = '';
+      try {
+        const errorData = JSON.parse(responseText) as { error?: string; message?: string };
+        responseMessage = errorData.error || errorData.message || '';
+      } catch {
+        responseMessage = responseText.slice(0, 300);
+      }
+      const requestId = response.headers.get('x-request-id') || response.headers.get('sb-request-id');
+      console.error('[Processing] Queue endpoint rejected the task', {
+        taskId,
+        status: response.status,
+        requestId,
+        response: responseMessage || responseText.slice(0, 300),
+      });
+      const requestSuffix = requestId ? `, request ${requestId}` : '';
+      return {
+        success: false,
+        error: `${responseMessage || 'The cloud queue rejected the request'} (HTTP ${response.status}${requestSuffix})`,
+      };
     }
 
     return { success: true };
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Processing failed';
+    console.error('[Processing] Unable to reach the queue endpoint', { taskId, online: navigator.onLine, message });
     return { success: false, error: message };
   }
 }
