@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useLanguage } from '@/lib/LanguageContext';
 import { supabase } from '@/lib/supabase';
 import { Play, Star, Calendar, Filter, Search, TrendingUp, Film } from 'lucide-react';
@@ -24,6 +24,7 @@ export default function Gallery() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedGenre, setSelectedGenre] = useState('all');
   const [sortBy, setSortBy] = useState<'recent' | 'rating' | 'views'>('recent');
+  const loadVersionRef = useRef(0);
 
   const genres = [
     'all', 'action', 'adventure', 'animation', 'comedy', 'crime', 'documentary',
@@ -32,13 +33,10 @@ export default function Gallery() {
     'sport', 'family'
   ];
 
-  useEffect(() => {
-    loadRecaps();
-  }, [selectedGenre, sortBy]);
-
-  const loadRecaps = async () => {
+  const loadRecaps = useCallback(async (background = false) => {
+    const loadVersion = ++loadVersionRef.current;
     try {
-      setLoading(true);
+      if (!background) setLoading(true);
       setErrorMessage(null);
 
       let query = supabase
@@ -64,14 +62,36 @@ export default function Gallery() {
 
       if (error) throw error;
 
-      setRecaps(data || []);
+      if (loadVersion === loadVersionRef.current) {
+        const next = data || [];
+        setRecaps(current => JSON.stringify(current) === JSON.stringify(next) ? current : next);
+      }
     } catch (error) {
       console.error('Failed to load recaps:', error);
       setErrorMessage(error instanceof Error ? error.message : 'Unable to load the public gallery.');
     } finally {
-      setLoading(false);
+      if (!background && loadVersion === loadVersionRef.current) setLoading(false);
     }
-  };
+  }, [selectedGenre, sortBy]);
+
+  useEffect(() => {
+    void loadRecaps();
+    const refresh = () => void loadRecaps(true);
+    const channel = supabase
+      .channel(`gallery-public-recaps:${selectedGenre}:${sortBy}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'public_recaps' }, refresh)
+      .subscribe();
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') refresh();
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    window.addEventListener('online', refresh);
+    return () => {
+      supabase.removeChannel(channel);
+      document.removeEventListener('visibilitychange', onVisible);
+      window.removeEventListener('online', refresh);
+    };
+  }, [loadRecaps, selectedGenre, sortBy]);
 
   const filteredRecaps = recaps.filter(recap =>
     recap?.title?.toLowerCase().includes(searchQuery.toLowerCase()) ||

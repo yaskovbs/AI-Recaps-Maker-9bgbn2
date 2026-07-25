@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { getSessionOnce, supabase } from './supabase';
-import type { User as SupabaseUser } from '@supabase/supabase-js';
+import { ensureFreshSession, getSessionOnce, supabase } from './supabase';
+import type { Session, User as SupabaseUser } from '@supabase/supabase-js';
 
 interface User {
   id: string;
@@ -27,6 +27,44 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     let mounted = true;
+    let refreshTimer: ReturnType<typeof setTimeout> | null = null;
+
+    const clearRefreshTimer = () => {
+      if (refreshTimer) clearTimeout(refreshTimer);
+      refreshTimer = null;
+    };
+
+    const scheduleRefresh = (session: Session | null) => {
+      clearRefreshTimer();
+      if (!session?.expires_at) return;
+      // Refresh three minutes before expiry. Hidden tabs may throttle this
+      // timer; visibility and online handlers below provide recovery.
+      const delay = Math.max(1_000, session.expires_at * 1000 - Date.now() - 180_000);
+      refreshTimer = setTimeout(() => {
+        void ensureFreshSession(180).catch(error => {
+          // Network loss is recoverable; never sign the user out solely
+          // because a background refresh could not reach Supabase.
+          console.warn('Proactive session refresh failed:', error);
+        });
+      }, Math.min(delay, 2_147_000_000));
+    };
+
+    const recoverSession = () => {
+      if (document.visibilityState !== 'visible' || !navigator.onLine) return;
+      void ensureFreshSession(180)
+        .then(session => {
+          if (!mounted) return;
+          scheduleRefresh(session);
+          if (!session) {
+            setUser(null);
+            localStorage.removeItem('airm_user');
+            setIsLoading(false);
+          }
+        })
+        .catch(error => {
+          console.warn('Session recovery deferred:', error);
+        });
+    };
 
     // Read localStorage for instant UI before async auth check
     const stored = localStorage.getItem('airm_user');
@@ -59,24 +97,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         console.log('Auth state change:', event, session?.user?.id);
 
         if ((event === 'INITIAL_SESSION' || event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') && session?.user) {
+          scheduleRefresh(session);
           // Do not await Supabase queries inside onAuthStateChange; doing so can
           // contend with the auth client's internal session lock.
           void handleAuthUser(session.user);
         } else if (event === 'INITIAL_SESSION' && !session) {
+          clearRefreshTimer();
           setUser(null);
           localStorage.removeItem('airm_user');
           setIsLoading(false);
         } else if (event === 'SIGNED_OUT') {
+          clearRefreshTimer();
           setUser(null);
           localStorage.removeItem('airm_user');
           setIsLoading(false);
         }
       }
     );
+    document.addEventListener('visibilitychange', recoverSession);
+    window.addEventListener('online', recoverSession);
 
     return () => {
       mounted = false;
       clearTimeout(timeout);
+      clearRefreshTimer();
+      document.removeEventListener('visibilitychange', recoverSession);
+      window.removeEventListener('online', recoverSession);
       subscription.unsubscribe();
     };
   }, []);

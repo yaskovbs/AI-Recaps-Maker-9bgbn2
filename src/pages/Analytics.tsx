@@ -49,6 +49,20 @@ export default function Analytics() {
     }
     setIsAvailable(true); setData(analyticsFromTasks((tasks||[]) as AnalyticsTask[]));
   })(); },[reloadToken]);
+  useEffect(()=>{
+    const refresh=()=>setReloadToken(value=>value+1);
+    const channel=supabase.channel('analytics-video-tasks')
+      .on('postgres_changes',{event:'*',schema:'public',table:'video_tasks'},refresh)
+      .subscribe();
+    const onVisible=()=>{if(document.visibilityState==='visible')refresh();};
+    document.addEventListener('visibilitychange',onVisible);
+    window.addEventListener('online',refresh);
+    return()=>{
+      supabase.removeChannel(channel);
+      document.removeEventListener('visibilitychange',onVisible);
+      window.removeEventListener('online',refresh);
+    };
+  },[]);
   const format=(seconds:number)=>`${Math.floor(seconds/60)}m ${Math.round(seconds%60)}s`;
   const cards=[
     {label:'Total recaps',value:data.total_recaps,icon:BarChart3}, {label:'Completed',value:data.completed_recaps,icon:CheckCircle},

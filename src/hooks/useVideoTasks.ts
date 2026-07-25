@@ -14,6 +14,13 @@ import { PROCESSING_STATUSES } from '@/lib/videoTaskTypes';
 
 const AUTO_REFRESH_INTERVAL = 30_000;
 
+function taskListsEqual(current: VideoTask[], incoming: VideoTask[]): boolean {
+  if (current.length !== incoming.length) return false;
+  return current.every((task, index) =>
+    task.id === incoming[index]?.id && !hasVisibleTaskChange(task, incoming[index])
+  );
+}
+
 function hasVisibleTaskChange(current: VideoTask, incoming: VideoTask): boolean {
   const ignoredFields = new Set(['heartbeat_at', 'locked_at', 'worker_id', 'updated_at']);
   return Object.keys(incoming).some(key => {
@@ -47,11 +54,12 @@ export function useVideoTasks(filters: TaskFilterOptions = {}) {
   tasksRef.current = tasks;
   const filtersRef = useRef(filters);
   filtersRef.current = filters;
+  const refreshPromiseRef = useRef<Promise<void> | null>(null);
 
   const loadTasks = useCallback(async () => {
     if (!user) return;
     const data = await fetchVideoTasks(user.id, filtersRef.current);
-    setTasks(data);
+    setTasks(current => taskListsEqual(current, data) ? current : data);
   }, [user]);
 
   const loadStats = useCallback(async () => {
@@ -61,15 +69,22 @@ export function useVideoTasks(filters: TaskFilterOptions = {}) {
   }, [user]);
 
   const refresh = useCallback(async () => {
+    if (refreshPromiseRef.current) return refreshPromiseRef.current;
     setError(null);
-    try {
-      await Promise.all([loadTasks(), loadStats()]);
-      setIsAvailable(true);
-    } catch (cause) {
-      const message = cause instanceof Error ? cause.message : 'Unable to load video tasks.';
-      setError(message);
-      setIsAvailable(message !== VIDEO_TASKS_UNAVAILABLE_MESSAGE);
-    }
+    const request = (async () => {
+      try {
+        await Promise.all([loadTasks(), loadStats()]);
+        setIsAvailable(true);
+      } catch (cause) {
+        const message = cause instanceof Error ? cause.message : 'Unable to load video tasks.';
+        setError(message);
+        setIsAvailable(message !== VIDEO_TASKS_UNAVAILABLE_MESSAGE);
+      } finally {
+        refreshPromiseRef.current = null;
+      }
+    })();
+    refreshPromiseRef.current = request;
+    return request;
   }, [loadTasks, loadStats]);
 
   useEffect(() => {
@@ -110,6 +125,19 @@ export function useVideoTasks(filters: TaskFilterOptions = {}) {
       }
     };
   }, [tasks, loadTasks]);
+
+  useEffect(() => {
+    if (!user) return;
+    const refreshWhenVisible = () => {
+      if (document.visibilityState === 'visible') void refresh();
+    };
+    document.addEventListener('visibilitychange', refreshWhenVisible);
+    window.addEventListener('online', refreshWhenVisible);
+    return () => {
+      document.removeEventListener('visibilitychange', refreshWhenVisible);
+      window.removeEventListener('online', refreshWhenVisible);
+    };
+  }, [user, refresh]);
 
   useEffect(() => {
     if (!user) return;

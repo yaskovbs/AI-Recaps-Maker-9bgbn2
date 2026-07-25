@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '@/lib/AuthContext';
 import { useLanguage } from '@/lib/LanguageContext';
 import { useNavigate } from 'react-router-dom';
@@ -32,20 +32,15 @@ export default function MyRecaps() {
   const [selectedRecap, setSelectedRecap] = useState<Recap | null>(null);
   const [showShareDialog, setShowShareDialog] = useState(false);
   const [showExportMenu, setShowExportMenu] = useState(false);
+  const loadPromiseRef = useRef<Promise<void> | null>(null);
 
-  useEffect(() => {
-    if (!user) {
-      navigate('/login');
-      return;
-    }
-    loadRecaps();
-  }, [user]);
-
-  const loadRecaps = async () => {
+  const loadRecaps = useCallback(async (background = false) => {
     if (!user) return;
+    if (loadPromiseRef.current) return loadPromiseRef.current;
 
-    try {
-      setIsLoading(true);
+    const request = (async () => {
+      try {
+      if (!background) setIsLoading(true);
       setErrorMessage(null);
 
       // A mobile network/proxy can close an otherwise valid Supabase request.
@@ -82,7 +77,7 @@ export default function MyRecaps() {
         is_public: publicMap.get(job.id) || false,
       })) || [];
 
-      setRecaps(mergedData);
+      setRecaps(current => JSON.stringify(current) === JSON.stringify(mergedData) ? current : mergedData);
     } catch (error) {
       console.error('Error loading recaps:', error);
       const databaseError = error as { code?: string; message?: string };
@@ -90,9 +85,38 @@ export default function MyRecaps() {
         ? 'Recap storage is not configured on this server yet.'
         : databaseError.message || 'Unable to load your recaps.');
     } finally {
-      setIsLoading(false);
+      if (!background) setIsLoading(false);
+      loadPromiseRef.current = null;
     }
-  };
+    })();
+    loadPromiseRef.current = request;
+    return request;
+  }, [user]);
+
+  useEffect(() => {
+    if (!user) {
+      navigate('/login');
+      return;
+    }
+    void loadRecaps();
+
+    const refresh = () => void loadRecaps(true);
+    const jobsChannel = supabase
+      .channel(`my-recaps-jobs:${user.id}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'jobs', filter: `user_id=eq.${user.id}` }, refresh)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'public_recaps', filter: `user_id=eq.${user.id}` }, refresh)
+      .subscribe();
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') refresh();
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    window.addEventListener('online', refresh);
+    return () => {
+      supabase.removeChannel(jobsChannel);
+      document.removeEventListener('visibilitychange', onVisible);
+      window.removeEventListener('online', refresh);
+    };
+  }, [user, navigate, loadRecaps]);
 
   const handleDelete = async (recapId: string) => {
     if (!confirm(t.myRecaps.confirmDelete)) return;

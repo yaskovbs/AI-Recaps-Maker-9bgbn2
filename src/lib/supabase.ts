@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
+import type { Session } from '@supabase/supabase-js';
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
@@ -19,6 +20,7 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
 // Deduplicated session getter — prevents concurrent getSession() calls
 // from causing auth token lock contention
 let _sessionPromise: ReturnType<typeof supabase.auth.getSession> | null = null;
+let _refreshPromise: Promise<Session | null> | null = null;
 
 export async function getSessionOnce() {
   if (_sessionPromise) return _sessionPromise;
@@ -28,6 +30,37 @@ export async function getSessionOnce() {
   } finally {
     _sessionPromise = null;
   }
+}
+
+export async function refreshSessionOnce(): Promise<Session | null> {
+  if (_refreshPromise) return _refreshPromise;
+  _refreshPromise = (async () => {
+    const { data, error } = await supabase.auth.refreshSession();
+    if (error) throw error;
+    return data.session;
+  })();
+  try {
+    return await _refreshPromise;
+  } finally {
+    _refreshPromise = null;
+  }
+}
+
+/**
+ * Returns a session that remains valid for at least `minimumValiditySeconds`.
+ * Refresh requests are shared across callers so uploads, realtime recovery,
+ * and API calls cannot rotate the same refresh token concurrently.
+ */
+export async function ensureFreshSession(minimumValiditySeconds = 120): Promise<Session | null> {
+  const { data, error } = await getSessionOnce();
+  if (error) throw error;
+  const session = data.session;
+  if (!session) return null;
+
+  const expiresAt = (session.expires_at || 0) * 1000;
+  if (expiresAt > Date.now() + minimumValiditySeconds * 1000) return session;
+
+  return refreshSessionOnce();
 }
 
 // Types

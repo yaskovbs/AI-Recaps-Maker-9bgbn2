@@ -1,4 +1,4 @@
-import { supabase } from './supabase';
+import { ensureFreshSession, supabase } from './supabase';
 import type {
   VideoTask,
   TaskLog,
@@ -267,10 +267,7 @@ export async function processVideoTask(
   apiKeys: { youtube?: string; gemini?: string; googleSearch?: string; searchEngineId?: string; webSearchEnabled?: boolean; language?: string; recapDurationSeconds?: number; narrationAudioUrl?: string }
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-    if (sessionError) {
-      return { success: false, error: `Unable to verify your session: ${sessionError.message}` };
-    }
+    const session = await ensureFreshSession(180);
     if (!session) {
       return { success: false, error: 'Not authenticated' };
     }
@@ -337,7 +334,7 @@ export async function fetchPlaylistItems(
   error?: string;
 }> {
   try {
-    const { data: { session } } = await supabase.auth.getSession();
+    const session = await ensureFreshSession(180);
     if (!session) {
       return { type: 'error', items: [], totalCount: 0, error: 'Not authenticated' };
     }

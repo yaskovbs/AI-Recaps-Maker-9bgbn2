@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useLanguage } from '@/lib/LanguageContext';
 import { useAuth } from '@/lib/AuthContext';
-import { supabase } from '@/lib/supabase';
+import { ensureFreshSession, refreshSessionOnce, supabase } from '@/lib/supabase';
 import { apiKeysService } from '@/lib/apiKeysService';
 import type { APIKeysData } from '@/lib/apiKeysService';
 import * as tus from 'tus-js-client';
@@ -611,14 +611,16 @@ export default function Create() {
   // ── Upload via XHR directly to Supabase Storage REST API ──
   // Uses the live session token to bypass COEP restrictions.
   const getUploadAccessToken = async (forceRefresh = false): Promise<string> => {
-    let session = (await supabase.auth.getSession()).data.session;
-
-    if (forceRefresh || !session?.expires_at || session.expires_at * 1000 < Date.now() + 120_000) {
-      const { data, error } = await supabase.auth.refreshSession();
-      if (error) {
-        throw new Error(`Your sign-in session could not be refreshed: ${error.message}. Sign out and sign in again.`);
+    let session;
+    if (forceRefresh) {
+      try {
+        session = await refreshSessionOnce();
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Unknown session error';
+        throw new Error(`Your sign-in session could not be refreshed: ${message}. Sign out and sign in again.`);
       }
-      session = data.session;
+    } else {
+      session = await ensureFreshSession(180);
     }
 
     const token = session?.access_token?.trim().replace(/^Bearer\s+/i, '') || '';

@@ -4,7 +4,7 @@ import { useAuth } from '@/lib/AuthContext';
 import { apiKeysService } from '@/lib/apiKeysService';
 import { createVideoTask, fetchPlaylistItems, processVideoTask } from '@/lib/videoTaskService';
 import type { TaskPriority, TaskSourceType } from '@/lib/videoTaskTypes';
-import { supabase } from '@/lib/supabase';
+import { ensureFreshSession, supabase } from '@/lib/supabase';
 import * as tus from 'tus-js-client';
 import PlaylistSelector from './PlaylistSelector';
 
@@ -15,10 +15,8 @@ const SLOW_NETWORK_RETRY_DELAYS = [
 ];
 
 async function uploadVideoResumably(file: File, fileName: string): Promise<void> {
-  const { data, error } = await supabase.auth.refreshSession();
-  if (error || !data.session?.access_token) {
-    throw new Error(error?.message || 'Your session expired. Sign in again and retry.');
-  }
+  const initialSession = await ensureFreshSession(180);
+  if (!initialSession?.access_token) throw new Error('Your session expired. Sign in again and retry.');
 
   const projectUrl = new URL(import.meta.env.VITE_SUPABASE_URL || '');
 
@@ -35,7 +33,7 @@ async function uploadVideoResumably(file: File, fileName: string): Promise<void>
       removeFingerprintOnSuccess: true,
       uploadDataDuringCreation: true,
       headers: {
-        authorization: `Bearer ${data.session.access_token}`,
+        authorization: `Bearer ${initialSession.access_token}`,
         'x-upsert': 'true',
       },
       metadata: {
@@ -45,11 +43,7 @@ async function uploadVideoResumably(file: File, fileName: string): Promise<void>
         cacheControl: '3600',
       },
       onBeforeRequest: async request => {
-        const current = await supabase.auth.getSession();
-        let session = current.data.session;
-        if (!session?.expires_at || session.expires_at * 1000 < Date.now() + 120_000) {
-          session = (await supabase.auth.refreshSession()).data.session;
-        }
+        const session = await ensureFreshSession(180);
         if (!session?.access_token) throw new Error('Your session expired during upload.');
         request.setHeader('authorization', `Bearer ${session.access_token}`);
       },
