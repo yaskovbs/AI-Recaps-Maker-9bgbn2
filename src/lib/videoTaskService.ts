@@ -47,7 +47,7 @@ export async function createVideoTask(
   }
 
   if (data) {
-    await addTaskLog(data.id, 'info', 'Task created and queued for processing');
+    await addTaskLog(data.id, 'info', 'Task created; preparing secure processing');
   }
 
   if (!data) throw new Error('The server did not return the created processing task.');
