@@ -164,7 +164,7 @@ export default function NewVideoTaskDialog({ onClose, onCreated }: NewVideoTaskD
         const ext = ['mp4', 'webm', 'mov', 'avi', 'mkv'].includes(candidateExt) ? candidateExt : 'mp4';
         const fileName = `${user.id}/upload-${file.lastModified}-${file.size}.${ext}`;
 
-        if (file.size <= 6 * 1024 * 1024) {
+        const standardUpload = async () => {
           const { error } = await supabase.storage
             .from('video-originals')
             .upload(fileName, file, {
@@ -173,8 +173,19 @@ export default function NewVideoTaskDialog({ onClose, onCreated }: NewVideoTaskD
               upsert: true,
             });
           if (error) throw error;
+        };
+
+        if (file.size <= 50 * 1024 * 1024) {
+          await standardUpload();
         } else {
-          await uploadVideoResumably(file, fileName);
+          try {
+            await uploadVideoResumably(file, fileName);
+          } catch (uploadError) {
+            const message = uploadError instanceof Error ? uploadError.message : String(uploadError);
+            if (!/Invalid Compact JWS/i.test(message)) throw uploadError;
+            console.warn('[Upload] TUS authentication is incompatible; using standard Storage upload.');
+            await standardUpload();
+          }
         }
 
         // Keep private uploads as storage references. The processing worker

@@ -815,10 +815,26 @@ export default function Create() {
       },
     });
 
-    if (file.size <= 6 * 1024 * 1024) {
+    // Standard Storage uploads avoid this project's TUS/JWS incompatibility
+    // for modest files and are supported by Supabase well beyond this limit.
+    if (file.size <= 50 * 1024 * 1024) {
       return fallbackUpload(file, fileName, mimeType, onProgress);
     }
-    return resumableUpload(file, fileName, mimeType, onProgress, supabaseUrl, token, diagnosticId);
+    try {
+      return await resumableUpload(file, fileName, mimeType, onProgress, supabaseUrl, token, diagnosticId);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      if (/Invalid Compact JWS/i.test(message)) {
+        console.warn(`[Upload:${diagnosticId}] TUS authentication is incompatible; retrying with standard Storage upload`, {
+          diagnosticId,
+          fileSize: file.size,
+          mimeType,
+          fallback: 'supabase-storage-standard',
+        });
+        return fallbackUpload(file, fileName, mimeType, onProgress);
+      }
+      throw error;
+    }
 
     if (token && supabaseUrl) {
       // Primary: XHR with real progress + Bearer token
