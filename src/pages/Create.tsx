@@ -6,6 +6,7 @@ import { apiKeysService } from '@/lib/apiKeysService';
 import type { APIKeysData } from '@/lib/apiKeysService';
 import * as tus from 'tus-js-client';
 import { generateGeminiText, searchWeb } from '@/lib/byokProviderService';
+import { createResumableUploadToken } from '@/lib/uploadAuthorization';
 import { createVideoTask, processVideoTask, updateVideoTask } from '@/lib/videoTaskService';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -818,18 +819,13 @@ export default function Create() {
     if (file.size <= 50 * 1024 * 1024) {
       return fallbackUpload(file, fileName, mimeType, onProgress);
     }
-    const { data: signedUpload, error: signedUploadError } = await supabase.storage
-      .from('recap-assets')
-      .createSignedUploadUrl(fileName, { upsert: true });
-    if (signedUploadError || !signedUpload?.token) {
-      throw new Error(`Unable to authorize the resumable upload: ${signedUploadError?.message || 'Storage did not return a signed upload token.'}`);
-    }
+    const signedUploadToken = await createResumableUploadToken('recap-assets', fileName);
     console.info(`[Upload:${diagnosticId}] signed resumable authorization ready`, {
       diagnosticId,
       endpointHost: `${new URL(supabaseUrl).hostname.split('.')[0]}.storage.supabase.co`,
       fileSize: file.size,
     });
-    return resumableUpload(file, fileName, mimeType, onProgress, supabaseUrl, signedUpload.token, diagnosticId);
+    return resumableUpload(file, fileName, mimeType, onProgress, supabaseUrl, signedUploadToken, diagnosticId);
 
     if (token && supabaseUrl) {
       // Primary: XHR with real progress + Bearer token

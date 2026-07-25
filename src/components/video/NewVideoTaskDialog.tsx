@@ -4,7 +4,8 @@ import { useAuth } from '@/lib/AuthContext';
 import { apiKeysService } from '@/lib/apiKeysService';
 import { createVideoTask, fetchPlaylistItems, processVideoTask } from '@/lib/videoTaskService';
 import type { TaskPriority, TaskSourceType } from '@/lib/videoTaskTypes';
-import { ensureFreshSession, supabase } from '@/lib/supabase';
+import { supabase } from '@/lib/supabase';
+import { createResumableUploadToken } from '@/lib/uploadAuthorization';
 import * as tus from 'tus-js-client';
 import PlaylistSelector from './PlaylistSelector';
 
@@ -15,14 +16,7 @@ const SLOW_NETWORK_RETRY_DELAYS = [
 ];
 
 async function uploadVideoResumably(file: File, fileName: string): Promise<void> {
-  const session = await ensureFreshSession(180);
-  if (!session) throw new Error('Your session expired. Sign in again and retry.');
-  const { data: signedUpload, error: signedUploadError } = await supabase.storage
-    .from('video-originals')
-    .createSignedUploadUrl(fileName, { upsert: true });
-  if (signedUploadError || !signedUpload?.token) {
-    throw new Error(`Unable to authorize the resumable upload: ${signedUploadError?.message || 'Storage did not return a signed upload token.'}`);
-  }
+  const signedUploadToken = await createResumableUploadToken('video-originals', fileName);
 
   const projectUrl = new URL(import.meta.env.VITE_SUPABASE_URL || '');
   const directStorageOrigin = `https://${projectUrl.hostname.split('.')[0]}.storage.supabase.co`;
@@ -40,7 +34,7 @@ async function uploadVideoResumably(file: File, fileName: string): Promise<void>
       removeFingerprintOnSuccess: true,
       uploadDataDuringCreation: true,
       headers: {
-        'x-signature': signedUpload.token,
+        'x-signature': signedUploadToken,
         'x-upsert': 'true',
       },
       metadata: {
@@ -50,7 +44,7 @@ async function uploadVideoResumably(file: File, fileName: string): Promise<void>
         cacheControl: '3600',
       },
       onBeforeRequest: request => {
-        request.setHeader('x-signature', signedUpload.token);
+        request.setHeader('x-signature', signedUploadToken);
       },
       onError: uploadError => {
         if (!navigator.onLine) return;
