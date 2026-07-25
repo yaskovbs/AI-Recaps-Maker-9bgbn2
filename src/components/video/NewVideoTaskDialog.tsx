@@ -15,10 +15,17 @@ const SLOW_NETWORK_RETRY_DELAYS = [
 ];
 
 async function uploadVideoResumably(file: File, fileName: string): Promise<void> {
-  const initialSession = await ensureFreshSession(180);
-  if (!initialSession?.access_token) throw new Error('Your session expired. Sign in again and retry.');
+  const session = await ensureFreshSession(180);
+  if (!session) throw new Error('Your session expired. Sign in again and retry.');
+  const { data: signedUpload, error: signedUploadError } = await supabase.storage
+    .from('video-originals')
+    .createSignedUploadUrl(fileName, { upsert: true });
+  if (signedUploadError || !signedUpload?.token) {
+    throw new Error(`Unable to authorize the resumable upload: ${signedUploadError?.message || 'Storage did not return a signed upload token.'}`);
+  }
 
   const projectUrl = new URL(import.meta.env.VITE_SUPABASE_URL || '');
+  const directStorageOrigin = `https://${projectUrl.hostname.split('.')[0]}.storage.supabase.co`;
 
   return new Promise((resolve, reject) => {
     let onlineHandler: (() => void) | null = null;
@@ -27,13 +34,13 @@ async function uploadVideoResumably(file: File, fileName: string): Promise<void>
       onlineHandler = null;
     };
     const upload = new tus.Upload(file, {
-      endpoint: `${projectUrl.origin}/storage/v1/upload/resumable`,
+      endpoint: `${directStorageOrigin}/storage/v1/upload/resumable`,
       chunkSize: 6 * 1024 * 1024,
       retryDelays: SLOW_NETWORK_RETRY_DELAYS,
       removeFingerprintOnSuccess: true,
       uploadDataDuringCreation: true,
       headers: {
-        authorization: `Bearer ${initialSession.access_token}`,
+        'x-signature': signedUpload.token,
         'x-upsert': 'true',
       },
       metadata: {
@@ -42,10 +49,8 @@ async function uploadVideoResumably(file: File, fileName: string): Promise<void>
         contentType: file.type || 'video/mp4',
         cacheControl: '3600',
       },
-      onBeforeRequest: async request => {
-        const session = await ensureFreshSession(180);
-        if (!session?.access_token) throw new Error('Your session expired during upload.');
-        request.setHeader('authorization', `Bearer ${session.access_token}`);
+      onBeforeRequest: request => {
+        request.setHeader('x-signature', signedUpload.token);
       },
       onError: uploadError => {
         if (!navigator.onLine) return;
@@ -172,14 +177,7 @@ export default function NewVideoTaskDialog({ onClose, onCreated }: NewVideoTaskD
         if (file.size <= 50 * 1024 * 1024) {
           await standardUpload();
         } else {
-          try {
-            await uploadVideoResumably(file, fileName);
-          } catch (uploadError) {
-            const message = uploadError instanceof Error ? uploadError.message : String(uploadError);
-            if (!/Invalid Compact JWS/i.test(message)) throw uploadError;
-            console.warn('[Upload] TUS authentication is incompatible; using standard Storage upload.');
-            await standardUpload();
-          }
+          await uploadVideoResumably(file, fileName);
         }
 
         // Keep private uploads as storage references. The processing worker

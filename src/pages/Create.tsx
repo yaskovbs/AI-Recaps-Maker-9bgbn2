@@ -638,14 +638,11 @@ export default function Create() {
     mimeType: string,
     onProgress: (pct: number) => void,
     supabaseUrl: string,
-    token: string,
+    signedUploadToken: string,
     diagnosticId: string
   ): Promise<void> => {
     const projectUrl = new URL(supabaseUrl);
-    // Use the configured project gateway. It validates the project's current
-    // Auth signing-key format before forwarding TUS requests to Storage.
-    // The direct storage hostname rejects this project's tokens as invalid JWS.
-    const endpoint = `${projectUrl.origin}/storage/v1/upload/resumable`;
+    const endpoint = `https://${projectUrl.hostname.split('.')[0]}.storage.supabase.co/storage/v1/upload/resumable`;
 
     return new Promise((resolve, reject) => {
       let requestNumber = 0;
@@ -666,7 +663,7 @@ export default function Create() {
         ],
         removeFingerprintOnSuccess: true,
         headers: {
-          authorization: `Bearer ${token}`,
+          'x-signature': signedUploadToken,
           'x-upsert': 'true',
         },
         uploadDataDuringCreation: true,
@@ -676,8 +673,7 @@ export default function Create() {
           contentType: mimeType,
           cacheControl: '3600',
         },
-        onBeforeRequest: async (request) => {
-          const currentToken = await getUploadAccessToken();
+        onBeforeRequest: (request) => {
           requestNumber += 1;
           if (requestNumber <= 3 || requestNumber % 25 === 0) {
             console.debug(`[Upload:${diagnosticId}] TUS request`, {
@@ -685,10 +681,10 @@ export default function Create() {
               method: request.getMethod(),
               url: request.getURL(),
               online: navigator.onLine,
-              token: await inspectUploadToken(currentToken),
+              authorization: 'signed-upload-token',
             });
           }
-          request.setHeader('authorization', `Bearer ${currentToken}`);
+          request.setHeader('x-signature', signedUploadToken);
         },
         onProgress: (bytesUploaded, bytesTotal) => {
           if (bytesTotal > 0) onProgress(Math.min(99, Math.round((bytesUploaded / bytesTotal) * 100)));
@@ -822,21 +818,18 @@ export default function Create() {
     if (file.size <= 50 * 1024 * 1024) {
       return fallbackUpload(file, fileName, mimeType, onProgress);
     }
-    try {
-      return await resumableUpload(file, fileName, mimeType, onProgress, supabaseUrl, token, diagnosticId);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      if (/Invalid Compact JWS/i.test(message)) {
-        console.warn(`[Upload:${diagnosticId}] TUS authentication is incompatible; retrying with standard Storage upload`, {
-          diagnosticId,
-          fileSize: file.size,
-          mimeType,
-          fallback: 'supabase-storage-standard',
-        });
-        return fallbackUpload(file, fileName, mimeType, onProgress);
-      }
-      throw error;
+    const { data: signedUpload, error: signedUploadError } = await supabase.storage
+      .from('recap-assets')
+      .createSignedUploadUrl(fileName, { upsert: true });
+    if (signedUploadError || !signedUpload?.token) {
+      throw new Error(`Unable to authorize the resumable upload: ${signedUploadError?.message || 'Storage did not return a signed upload token.'}`);
     }
+    console.info(`[Upload:${diagnosticId}] signed resumable authorization ready`, {
+      diagnosticId,
+      endpointHost: `${new URL(supabaseUrl).hostname.split('.')[0]}.storage.supabase.co`,
+      fileSize: file.size,
+    });
+    return resumableUpload(file, fileName, mimeType, onProgress, supabaseUrl, signedUpload.token, diagnosticId);
 
     if (token && supabaseUrl) {
       // Primary: XHR with real progress + Bearer token
