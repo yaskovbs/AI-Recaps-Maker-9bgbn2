@@ -2,8 +2,8 @@
 // Handles: COI headers (SharedArrayBuffer/FFmpeg), PWA caching, Push Notifications
 
 const APP_NAME = 'AI Recaps Maker';
-const CACHE_NAME = 'ai-recaps-v7';
-const RUNTIME_CACHE = 'ai-recaps-runtime-v7';
+const CACHE_NAME = 'ai-recaps-v8';
+const RUNTIME_CACHE = 'ai-recaps-runtime-v8';
 
 const PRECACHE_URLS = [
   '/',

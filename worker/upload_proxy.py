@@ -3,6 +3,7 @@ import hashlib
 import hmac
 import json
 import os
+import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, quote, urlparse
 
@@ -54,8 +55,25 @@ class UploadProxyHandler(BaseHTTPRequestHandler):
     def authenticate(self) -> str | None:
         authorization = self.headers.get("Authorization", "")
         if not authorization.startswith("Bearer "):
+            print("upload-proxy auth rejected: bearer header missing", flush=True)
             self.respond(401, b'{"error":"Missing authorization"}', {"Content-Type": "application/json"})
             return None
+        token = authorization.removeprefix("Bearer ").strip()
+        token_parts = token.split(".")
+        token_metadata = {"segments": len(token_parts), "length": len(token)}
+        if len(token_parts) == 3:
+            try:
+                header = json.loads(base64.urlsafe_b64decode(token_parts[0] + "=" * (-len(token_parts[0]) % 4)))
+                payload = json.loads(base64.urlsafe_b64decode(token_parts[1] + "=" * (-len(token_parts[1]) % 4)))
+                token_metadata.update({
+                    "alg": header.get("alg"),
+                    "kid": header.get("kid"),
+                    "issuer": payload.get("iss"),
+                    "expired": int(payload.get("exp", 0)) <= int(time.time()),
+                    "subject_present": bool(payload.get("sub")),
+                })
+            except Exception:
+                token_metadata["decode"] = "failed"
         try:
             response = httpx.get(
                 f"{SUPABASE_URL}/auth/v1/user",
@@ -63,7 +81,10 @@ class UploadProxyHandler(BaseHTTPRequestHandler):
                 timeout=15,
             )
             user_id = response.json().get("id") if response.status_code == 200 else None
-        except Exception:
+            if not user_id:
+                print(f"upload-proxy auth rejected: upstream_status={response.status_code} token={json.dumps(token_metadata)}", flush=True)
+        except Exception as error:
+            print(f"upload-proxy auth unavailable: {type(error).__name__} token={json.dumps(token_metadata)}", flush=True)
             user_id = None
         if not user_id:
             self.respond(401, b'{"error":"Invalid session"}', {"Content-Type": "application/json"})

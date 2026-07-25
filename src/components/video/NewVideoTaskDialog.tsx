@@ -31,7 +31,6 @@ async function uploadVideoResumably(file: File, fileName: string): Promise<void>
       removeFingerprintOnSuccess: true,
       uploadDataDuringCreation: true,
       headers: {
-        authorization: `Bearer ${initialSession.access_token}`,
         'x-upsert': 'true',
       },
       metadata: {

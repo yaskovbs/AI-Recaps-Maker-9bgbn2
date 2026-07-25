@@ -637,7 +637,6 @@ export default function Create() {
     fileName: string,
     mimeType: string,
     onProgress: (pct: number) => void,
-    accessToken: string,
     diagnosticId: string
   ): Promise<void> => {
     const endpoint = `${window.location.origin}/api/uploads/tus`;
@@ -661,7 +660,6 @@ export default function Create() {
         ],
         removeFingerprintOnSuccess: true,
         headers: {
-          authorization: `Bearer ${accessToken}`,
           'x-upsert': 'true',
         },
         uploadDataDuringCreation: true,
@@ -822,7 +820,7 @@ export default function Create() {
       endpointHost: window.location.hostname,
       fileSize: file.size,
     });
-    return resumableUpload(file, fileName, mimeType, onProgress, token, diagnosticId);
+    return resumableUpload(file, fileName, mimeType, onProgress, diagnosticId);
 
     if (token && supabaseUrl) {
       // Primary: XHR with real progress + Bearer token
