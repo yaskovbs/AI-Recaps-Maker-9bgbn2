@@ -19,7 +19,6 @@ async function uploadVideoResumably(file: File, fileName: string): Promise<void>
   const signedUploadToken = await createResumableUploadToken('video-originals', fileName);
 
   const projectUrl = new URL(import.meta.env.VITE_SUPABASE_URL || '');
-  const directStorageOrigin = `https://${projectUrl.hostname.split('.')[0]}.storage.supabase.co`;
 
   return new Promise((resolve, reject) => {
     let onlineHandler: (() => void) | null = null;
@@ -28,7 +27,7 @@ async function uploadVideoResumably(file: File, fileName: string): Promise<void>
       onlineHandler = null;
     };
     const upload = new tus.Upload(file, {
-      endpoint: `${directStorageOrigin}/storage/v1/upload/resumable`,
+      endpoint: `${projectUrl.origin}/storage/v1/upload/resumable`,
       chunkSize: 6 * 1024 * 1024,
       retryDelays: SLOW_NETWORK_RETRY_DELAYS,
       removeFingerprintOnSuccess: true,

@@ -643,7 +643,10 @@ export default function Create() {
     diagnosticId: string
   ): Promise<void> => {
     const projectUrl = new URL(supabaseUrl);
-    const endpoint = `https://${projectUrl.hostname.split('.')[0]}.storage.supabase.co/storage/v1/upload/resumable`;
+    // Keep signed-token creation and consumption on the same project gateway.
+    // Some hosted projects have a direct Storage gateway whose signing-key
+    // configuration lags the project gateway.
+    const endpoint = `${projectUrl.origin}/storage/v1/upload/resumable`;
 
     return new Promise((resolve, reject) => {
       let requestNumber = 0;
@@ -822,8 +825,9 @@ export default function Create() {
     const signedUploadToken = await createResumableUploadToken('recap-assets', fileName);
     console.info(`[Upload:${diagnosticId}] signed resumable authorization ready`, {
       diagnosticId,
-      endpointHost: `${new URL(supabaseUrl).hostname.split('.')[0]}.storage.supabase.co`,
+      endpointHost: new URL(supabaseUrl).hostname,
       fileSize: file.size,
+      signature: await inspectUploadToken(signedUploadToken),
     });
     return resumableUpload(file, fileName, mimeType, onProgress, supabaseUrl, signedUploadToken, diagnosticId);
 
