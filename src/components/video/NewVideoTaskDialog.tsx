@@ -4,8 +4,7 @@ import { useAuth } from '@/lib/AuthContext';
 import { apiKeysService } from '@/lib/apiKeysService';
 import { createVideoTask, fetchPlaylistItems, processVideoTask } from '@/lib/videoTaskService';
 import type { TaskPriority, TaskSourceType } from '@/lib/videoTaskTypes';
-import { supabase } from '@/lib/supabase';
-import { createResumableUploadToken } from '@/lib/uploadAuthorization';
+import { ensureFreshSession, supabase } from '@/lib/supabase';
 import * as tus from 'tus-js-client';
 import PlaylistSelector from './PlaylistSelector';
 
@@ -16,9 +15,8 @@ const SLOW_NETWORK_RETRY_DELAYS = [
 ];
 
 async function uploadVideoResumably(file: File, fileName: string): Promise<void> {
-  const signedUploadToken = await createResumableUploadToken('video-originals', fileName);
-
-  const projectUrl = new URL(import.meta.env.VITE_SUPABASE_URL || '');
+  const initialSession = await ensureFreshSession(180);
+  if (!initialSession?.access_token) throw new Error('Your session expired. Sign in again and retry.');
 
   return new Promise((resolve, reject) => {
     let onlineHandler: (() => void) | null = null;
@@ -27,13 +25,13 @@ async function uploadVideoResumably(file: File, fileName: string): Promise<void>
       onlineHandler = null;
     };
     const upload = new tus.Upload(file, {
-      endpoint: `${projectUrl.origin}/storage/v1/upload/resumable`,
+      endpoint: `${window.location.origin}/api/uploads/tus`,
       chunkSize: 6 * 1024 * 1024,
       retryDelays: SLOW_NETWORK_RETRY_DELAYS,
       removeFingerprintOnSuccess: true,
       uploadDataDuringCreation: true,
       headers: {
-        'x-signature': signedUploadToken,
+        authorization: `Bearer ${initialSession.access_token}`,
         'x-upsert': 'true',
       },
       metadata: {
@@ -42,8 +40,10 @@ async function uploadVideoResumably(file: File, fileName: string): Promise<void>
         contentType: file.type || 'video/mp4',
         cacheControl: '3600',
       },
-      onBeforeRequest: request => {
-        request.setHeader('x-signature', signedUploadToken);
+      onBeforeRequest: async request => {
+        const session = await ensureFreshSession(180);
+        if (!session?.access_token) throw new Error('Your session expired during upload.');
+        request.setHeader('authorization', `Bearer ${session.access_token}`);
       },
       onError: uploadError => {
         if (!navigator.onLine) return;

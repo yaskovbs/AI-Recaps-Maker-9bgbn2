@@ -6,7 +6,6 @@ import { apiKeysService } from '@/lib/apiKeysService';
 import type { APIKeysData } from '@/lib/apiKeysService';
 import * as tus from 'tus-js-client';
 import { generateGeminiText, searchWeb } from '@/lib/byokProviderService';
-import { createResumableUploadToken } from '@/lib/uploadAuthorization';
 import { createVideoTask, processVideoTask, updateVideoTask } from '@/lib/videoTaskService';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -638,15 +637,10 @@ export default function Create() {
     fileName: string,
     mimeType: string,
     onProgress: (pct: number) => void,
-    supabaseUrl: string,
-    signedUploadToken: string,
+    accessToken: string,
     diagnosticId: string
   ): Promise<void> => {
-    const projectUrl = new URL(supabaseUrl);
-    // Keep signed-token creation and consumption on the same project gateway.
-    // Some hosted projects have a direct Storage gateway whose signing-key
-    // configuration lags the project gateway.
-    const endpoint = `${projectUrl.origin}/storage/v1/upload/resumable`;
+    const endpoint = `${window.location.origin}/api/uploads/tus`;
 
     return new Promise((resolve, reject) => {
       let requestNumber = 0;
@@ -667,7 +661,7 @@ export default function Create() {
         ],
         removeFingerprintOnSuccess: true,
         headers: {
-          'x-signature': signedUploadToken,
+          authorization: `Bearer ${accessToken}`,
           'x-upsert': 'true',
         },
         uploadDataDuringCreation: true,
@@ -677,7 +671,8 @@ export default function Create() {
           contentType: mimeType,
           cacheControl: '3600',
         },
-        onBeforeRequest: (request) => {
+        onBeforeRequest: async (request) => {
+          const currentToken = await getUploadAccessToken();
           requestNumber += 1;
           if (requestNumber <= 3 || requestNumber % 25 === 0) {
             console.debug(`[Upload:${diagnosticId}] TUS request`, {
@@ -685,10 +680,10 @@ export default function Create() {
               method: request.getMethod(),
               url: request.getURL(),
               online: navigator.onLine,
-              authorization: 'signed-upload-token',
+              authorization: 'session-via-upload-relay',
             });
           }
-          request.setHeader('x-signature', signedUploadToken);
+          request.setHeader('authorization', `Bearer ${currentToken}`);
         },
         onProgress: (bytesUploaded, bytesTotal) => {
           if (bytesTotal > 0) onProgress(Math.min(99, Math.round((bytesUploaded / bytesTotal) * 100)));
@@ -822,14 +817,12 @@ export default function Create() {
     if (file.size <= 50 * 1024 * 1024) {
       return fallbackUpload(file, fileName, mimeType, onProgress);
     }
-    const signedUploadToken = await createResumableUploadToken('recap-assets', fileName);
-    console.info(`[Upload:${diagnosticId}] signed resumable authorization ready`, {
+    console.info(`[Upload:${diagnosticId}] secure resumable relay ready`, {
       diagnosticId,
-      endpointHost: new URL(supabaseUrl).hostname,
+      endpointHost: window.location.hostname,
       fileSize: file.size,
-      signature: await inspectUploadToken(signedUploadToken),
     });
-    return resumableUpload(file, fileName, mimeType, onProgress, supabaseUrl, signedUploadToken, diagnosticId);
+    return resumableUpload(file, fileName, mimeType, onProgress, token, diagnosticId);
 
     if (token && supabaseUrl) {
       // Primary: XHR with real progress + Bearer token

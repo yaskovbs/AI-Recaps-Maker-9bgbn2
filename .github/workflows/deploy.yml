@@ -162,7 +162,6 @@ jobs:
           for function_name in cleanup-expired fetch-playlist process-video-task summarize-video send-push send-digests; do
             supabase functions deploy "$function_name" --project-ref "$SUPABASE_PROJECT_ID"
           done
-          supabase functions deploy create-upload-token --no-verify-jwt --project-ref "$SUPABASE_PROJECT_ID"
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -202,8 +201,9 @@ jobs:
           fi
 
           tar -czf /tmp/recaps-worker.tar.gz \
-            -C worker Dockerfile docker-compose.yml entrypoint.sh requirements.txt processor.py \
-            -C ../deploy/server run-maintenance.sh
+            -C worker Dockerfile docker-compose.yml entrypoint.sh requirements.txt processor.py upload_proxy.py \
+            -C ../deploy/server run-maintenance.sh \
+            -C ../nginx recaps.conf
           umask 077
           {
             printf 'SUPABASE_URL=%s\n' "$WORKER_SUPABASE_URL"
@@ -349,6 +349,9 @@ jobs:
           $SUDO tar -xzf /tmp/recaps-worker.tar.gz -C "$worker_target"
           $SUDO install -m 0600 /tmp/recaps-worker.env "$worker_target/.env"
           $SUDO chmod 0755 "$worker_target/run-maintenance.sh"
+          $SUDO install -m 0644 "$worker_target/recaps.conf" /etc/nginx/sites-available/recaps
+          $SUDO nginx -t
+          $SUDO systemctl reload nginx
           cd "$worker_target"
           $SUDO docker compose up -d --build --remove-orphans
 
@@ -371,6 +374,17 @@ jobs:
             fi
             sleep 2
           done
+          proxy_container_id="$($SUDO docker compose ps -q upload-proxy)"
+          [ -n "$proxy_container_id" ] || { echo "Upload proxy container was not created." >&2; exit 1; }
+          for attempt in $(seq 1 30); do
+            if $SUDO docker logs "$proxy_container_id" 2>&1 | grep -q 'upload-proxy ready'; then
+              echo "Secure resumable upload proxy is ready."
+              break
+            fi
+            sleep 1
+          done
+          $SUDO docker logs "$proxy_container_id" 2>&1 | grep -q 'upload-proxy ready' \
+            || { $SUDO docker logs --tail 100 "$proxy_container_id" >&2; exit 1; }
 
           $SUDO docker compose exec -T --user worker processor sh -c \
             'test -w "$HF_HOME" && touch "$HF_HOME/.write-test" && rm "$HF_HOME/.write-test"' \

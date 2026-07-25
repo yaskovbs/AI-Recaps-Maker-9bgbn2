@@ -10,7 +10,7 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 RUN yt-dlp --version
-COPY processor.py .
+COPY processor.py upload_proxy.py .
 COPY entrypoint.sh /usr/local/bin/worker-entrypoint
 RUN useradd --create-home worker \
     && install -d -o worker -g worker /home/worker/.cache/huggingface \

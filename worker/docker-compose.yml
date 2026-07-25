@@ -13,6 +13,20 @@ services:
       resources:
         limits:
           memory: 8G
+  upload-proxy:
+    build: .
+    init: true
+    restart: unless-stopped
+    env_file: .env
+    command: ["python", "upload_proxy.py"]
+    ports:
+      - "127.0.0.1:8081:8081"
+    security_opt:
+      - no-new-privileges:true
+    deploy:
+      resources:
+        limits:
+          memory: 128M
 
 volumes:
   whisper-cache:
